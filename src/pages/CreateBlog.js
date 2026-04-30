@@ -1,15 +1,19 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth, db, storage } from '../firebase';
 import { collection, addDoc, doc, getDoc } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 
 const CATEGORIES = [
     'General', 'Admissions', 'Advice', 'Biotech', 'Blockchain',
     'Essay', 'Female Founders', 'Founder Stories', 'Interviews',
     'Startup Jobs', 'Startup School', 'Work at a Startup', 'XF Events'
 ];
+
+// REPLACE THESE WITH YOUR ACTUAL GOOGLE CLOUD CREDENTIALS
+const GOOGLE_API_KEY = "YOUR_API_KEY";
+const GOOGLE_CLIENT_ID = "YOUR_CLIENT_ID.apps.googleusercontent.com";
 
 const CreateBlog = () => {
     const [user, setUser] = useState(null);
@@ -20,12 +24,17 @@ const CreateBlog = () => {
     const [category, setCategory] = useState('General');
     const [coverImage, setCoverImage] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [editId, setEditId] = useState(null);
+    const [isEditing, setIsEditing] = useState(false);
     const [showToast, setShowToast] = useState(false);
     const [authorImage, setAuthorImage] = useState('');
-    const [showImageModal, setShowImageModal] = useState(false);
+    const [imageModalConfig, setImageModalConfig] = useState({ show: false, type: 'cover' });
+    const [showCategoryMenu, setShowCategoryMenu] = useState(false);
+    const [isDragging, setIsDragging] = useState(false);
     const [activeFormats, setActiveFormats] = useState({});
 
     const [isUploading, setIsUploading] = useState(false);
+    const [uploadProgress, setUploadProgress] = useState(0);
 
     const editorRef = useRef(null);
     const coverInputRef = useRef(null);
@@ -61,6 +70,53 @@ const CreateBlog = () => {
         return () => unsubscribe();
     }, [navigate]);
 
+    const { search } = useLocation();
+    useEffect(() => {
+        const id = new URLSearchParams(search).get('edit');
+        if (id) {
+            setEditId(id);
+            setIsEditing(true);
+            fetchPost(id);
+        }
+    }, [search]);
+
+    const [initialContentSet, setInitialContentSet] = useState(false);
+
+    const fetchPost = async (id) => {
+        try {
+            const snap = await getDoc(doc(db, 'blog', id));
+            if (snap.exists()) {
+                const data = snap.data();
+                setTitle(data.title || '');
+                setCategory(data.category || 'General');
+                setCoverImage(data.image || '');
+                // We'll set the content in a separate effect once editorRef is ready
+                setPostData(data);
+            }
+        } catch (e) { console.error("Error fetching post:", e); }
+    };
+
+    const [postData, setPostData] = useState(null);
+
+    useEffect(() => {
+        if (postData && editorRef.current && !initialContentSet) {
+            editorRef.current.innerHTML = postData.content || '';
+            setInitialContentSet(true);
+            // Trigger auto-resize for title
+            const titleEl = document.querySelector('textarea');
+            if (titleEl) {
+                titleEl.style.height = 'auto';
+                titleEl.style.height = titleEl.scrollHeight + 'px';
+            }
+        }
+    }, [postData, initialContentSet]);
+
+    const handlePaste = (e) => {
+        e.preventDefault();
+        const text = e.clipboardData.getData('text/plain');
+        document.execCommand('insertText', false, text);
+    };
+
     // Track active formats for toolbar highlights
     const updateActiveFormats = () => {
         setActiveFormats({
@@ -82,30 +138,155 @@ const CreateBlog = () => {
     };
 
     const handleInsertImage = () => {
-        setShowImageModal(true);
+        setImageModalConfig({ show: true, type: 'editor' });
+    };
+
+    const handleDragOver = (e) => {
+        e.preventDefault();
+        setIsDragging(true);
+    };
+
+    const handleDragLeave = () => {
+        setIsDragging(false);
+    };
+
+    const handleDrop = (e, type) => {
+        e.preventDefault();
+        setIsDragging(false);
+        const file = e.dataTransfer.files[0];
+        if (file && file.type.startsWith('image/')) {
+            handleFileChange({ target: { files: [file] } }, type);
+            setImageModalConfig({ show: false, type: 'cover' });
+        }
+    };
+
+    const handleDrivePicker = () => {
+        if (GOOGLE_API_KEY === "YOUR_API_KEY") {
+            alert("To enable Google Drive, please add your Google Cloud API Key and Client ID at the top of CreateBlog.js");
+            return;
+        }
+
+        const loadPicker = () => {
+            window.gapi.load('picker', {
+                callback: () => {
+                    const picker = new window.google.picker.PickerBuilder()
+                        .addView(window.google.picker.ViewId.DOCS_IMAGES)
+                        .setOAuthToken(window.gapi.auth.getToken()?.access_token)
+                        .setDeveloperKey(GOOGLE_API_KEY)
+                        .setCallback((data) => {
+                            if (data.action === window.google.picker.Action.PICKED) {
+                                const doc = data.docs[0];
+                                const url = doc.url; // Note: You might need to handle direct download URLs
+                                if (imageModalConfig.type === 'cover') setCoverImage(url);
+                                else execFormat('insertImage', url);
+                                setImageModalConfig({ ...imageModalConfig, show: false });
+                            }
+                        })
+                        .build();
+                    picker.setVisible(true);
+                }
+            });
+        };
+
+        if (!window.gapi.auth?.getToken()) {
+            const client = window.google.accounts.oauth2.initTokenClient({
+                client_id: GOOGLE_CLIENT_ID,
+                scope: 'https://www.googleapis.com/auth/drive.readonly',
+                callback: (res) => {
+                    if (res.access_token) loadPicker();
+                },
+            });
+            client.requestAccessToken();
+        } else {
+            loadPicker();
+        }
     };
 
     const handleFileChange = async (e, type) => {
         const file = e.target.files[0];
         if (!file) return;
 
+        setImageModalConfig(prev => ({ ...prev, show: false }));
+
+        if (type === 'editor') {
+            const tempUrl = URL.createObjectURL(file);
+            const imageId = `img-${Date.now()}`;
+            
+            const imgHtml = `
+                <p contenteditable="true"><br></p>
+                <div id="wrapper-${imageId}" class="editor-image-wrapper" contenteditable="false" style="position: relative; width: 85%; margin: 1.5rem auto; group">
+                    <img id="${imageId}" src="${tempUrl}" style="width: 100%; border-radius: 12px; opacity: 0.5; transition: all 0.3s; border: 2px dashed #6300dd;" />
+                    <div style="position: absolute; top: 12px; right: 12px; display: flex; gap: 8px;">
+                        <div id="loader-${imageId}" style="width: 24px; height: 24px; border: 3px solid #fff; border-top-color: #6300dd; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+                        <button class="editor-delete-btn" onclick="this.closest('.editor-image-wrapper').remove()" style="width: 28px; height: 28px; background: rgba(0,0,0,0.6); color: #fff; border: none; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 18px; line-height: 1; transition: background 0.2s;">&times;</button>
+                    </div>
+                </div>
+                <p contenteditable="true"><br></p>
+            `;
+            
+            editorRef.current.focus();
+            document.execCommand('insertHTML', false, imgHtml);
+            
+            try {
+                const fileRef = ref(storage, `blog/${user.uid}/${Date.now()}-${file.name}`);
+                const uploadTask = uploadBytesResumable(fileRef, file);
+                
+                uploadTask.on('state_changed', 
+                    (snapshot) => {}, 
+                    (error) => { throw error; }, 
+                    async () => {
+                        const url = await getDownloadURL(uploadTask.snapshot.ref);
+                        const img = document.getElementById(imageId);
+                        const loader = document.getElementById(`loader-${imageId}`);
+                        if (img) {
+                            img.src = url;
+                            img.style.opacity = '1';
+                            img.style.border = 'none';
+                        }
+                        if (loader) loader.remove();
+                    }
+                );
+            } catch (error) {
+                console.error("Upload error:", error);
+                const wrapper = document.getElementById(`wrapper-${imageId}`);
+                if (wrapper) wrapper.remove();
+                alert("Failed to upload image.");
+            } finally {
+                URL.revokeObjectURL(tempUrl);
+                e.target.value = null;
+            }
+            return;
+        }
+
         setIsUploading(true);
+        setUploadProgress(0);
         try {
             const fileRef = ref(storage, `blog/${user.uid}/${Date.now()}-${file.name}`);
-            await uploadBytes(fileRef, file);
-            const url = await getDownloadURL(fileRef);
-            
-            if (type === 'cover') {
-                setCoverImage(url);
-            } else {
-                execFormat('insertImage', url);
-            }
+            const uploadTask = uploadBytesResumable(fileRef, file);
+
+            uploadTask.on('state_changed', 
+                (snapshot) => {
+                    const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+                    setUploadProgress(Math.round(progress));
+                }, 
+                (error) => {
+                    console.error("Upload error:", error);
+                    alert("Failed to upload cover image.");
+                    setIsUploading(false);
+                }, 
+                async () => {
+                    const url = await getDownloadURL(uploadTask.snapshot.ref);
+                    setCoverImage(url);
+                    setIsUploading(false);
+                    setUploadProgress(0);
+                }
+            );
         } catch (error) {
             console.error("Upload error:", error);
-            alert("Failed to upload image.");
-        } finally {
+            alert("Failed to upload cover image.");
             setIsUploading(false);
-            e.target.value = null; // Reset input
+        } finally {
+            e.target.value = null;
         }
     };
 
@@ -132,17 +313,28 @@ const CreateBlog = () => {
         }
         setIsSubmitting(true);
         try {
-            await addDoc(collection(db, 'blog'), {
+            const blogData = {
                 title: title.trim(),
                 content,
                 author,
+                authorImage: authorImage || '',
                 category,
                 image: coverImage || '',
                 status: userRole === 'admin' ? 'approved' : 'pending',
                 date: new Date().toISOString(),
-                createdAt: new Date().toISOString(),
                 userId: user.uid
-            });
+            };
+
+            if (isEditing && editId) {
+                const { updateDoc } = await import('firebase/firestore');
+                await updateDoc(doc(db, 'blog', editId), blogData);
+            } else {
+                await addDoc(collection(db, 'blog'), {
+                    ...blogData,
+                    createdAt: new Date().toISOString()
+                });
+            }
+
             setShowToast(true);
             setTimeout(() => {
                 setShowToast(false);
@@ -206,28 +398,44 @@ const CreateBlog = () => {
             <div style={{ maxWidth: '800px', margin: '3rem auto', padding: '0 2rem 6rem' }}>
                 {/* Cover Image Field */}
                 <div style={{ marginBottom: '1.5rem' }}>
-                    {coverImage ? (
+                    {isUploading ? (
+                        <div style={{ width: '100%', height: '280px', backgroundColor: '#fff', borderRadius: '12px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '15px', border: '1px solid #eee', boxShadow: '0 2px 12px rgba(0,0,0,0.04)' }}>
+                            <div style={{ width: '40px', height: '40px', border: '3px solid #f3f3f3', borderTop: '3px solid #6300dd', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+                            <div style={{ fontSize: '24px', fontWeight: '800', color: '#6300dd', fontFamily: 'Inter, sans-serif' }}>{uploadProgress}%</div>
+                            <div style={{ fontSize: '13px', color: '#999', fontWeight: '600' }}>Uploading to Cloud Storage...</div>
+                        </div>
+                    ) : coverImage ? (
                         <div style={{ position: 'relative' }}>
                             <img src={coverImage} alt="Cover" style={{ width: '100%', height: '280px', objectFit: 'cover', borderRadius: '12px', border: '1px solid #eee' }} onError={() => setCoverImage('')} />
                             <button onClick={() => setCoverImage('')} style={{ position: 'absolute', top: '12px', right: '12px', backgroundColor: 'rgba(0,0,0,0.5)', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: '600' }}>Remove</button>
                         </div>
                     ) : (
                         <div
-                            style={{ width: '100%', height: '100px', borderRadius: '12px', border: '2px dashed #ddd', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '8px', cursor: 'pointer', color: '#999', backgroundColor: '#fff', transition: 'border-color 0.2s' }}
-                            onClick={() => {
-                                const choice = window.confirm('Click OK to upload from device, or Cancel to enter image URL');
-                                if (choice) {
-                                    coverInputRef.current.click();
-                                } else {
-                                    const url = window.prompt('Enter cover image URL:');
-                                    if (url) setCoverImage(url);
-                                }
+                            style={{ 
+                                width: '100%', 
+                                height: '140px', 
+                                borderRadius: '12px', 
+                                border: isDragging ? '2px solid #6300dd' : '2px dashed #ddd', 
+                                display: 'flex', 
+                                flexDirection: 'column', 
+                                alignItems: 'center', 
+                                justifyContent: 'center', 
+                                gap: '8px', 
+                                cursor: 'pointer', 
+                                color: isDragging ? '#6300dd' : '#999', 
+                                backgroundColor: isDragging ? 'rgba(99, 0, 221, 0.05)' : '#fff', 
+                                transition: 'all 0.2s' 
                             }}
+                            onClick={() => setImageModalConfig({ show: true, type: 'cover' })}
+                            onDragOver={handleDragOver}
+                            onDragLeave={handleDragLeave}
+                            onDrop={(e) => handleDrop(e, 'cover')}
                             onMouseEnter={e => e.currentTarget.style.borderColor = '#6300dd'}
-                            onMouseLeave={e => e.currentTarget.style.borderColor = '#ddd'}
+                            onMouseLeave={e => e.currentTarget.style.borderColor = isDragging ? '#6300dd' : '#ddd'}
                         >
                             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
-                            <span style={{ fontSize: '13px', fontWeight: '500' }}>Add cover image</span>
+                            <span style={{ fontSize: '13px', fontWeight: '600' }}>{isDragging ? 'Drop image here' : 'Add cover image'}</span>
+                            <span style={{ fontSize: '11px', opacity: 0.6 }}>Drag and drop or click to upload</span>
                         </div>
                     )}
                     <input type="file" ref={coverInputRef} hidden accept="image/*" onChange={(e) => handleFileChange(e, 'cover')} />
@@ -237,14 +445,38 @@ const CreateBlog = () => {
                 <div style={{ backgroundColor: '#fff', borderRadius: '12px', boxShadow: '0 2px 12px rgba(0,0,0,0.04)', border: '1px solid #eee', overflow: 'hidden' }}>
                     <div style={{ padding: '2.5rem 3rem' }}>
                         {/* Category */}
-                        <div style={{ marginBottom: '1.75rem' }}>
-                            <select
-                                value={category}
-                                onChange={e => setCategory(e.target.value)}
-                                style={{ border: 'none', fontSize: '13px', color: '#6300dd', fontWeight: '700', backgroundColor: '#f5f0ff', padding: '6px 14px', borderRadius: '20px', outline: 'none', cursor: 'pointer' }}
+                        {/* Category Selector */}
+                        <div style={{ marginBottom: '1.75rem', position: 'relative' }}>
+                            <div 
+                                onClick={() => setShowCategoryMenu(!showCategoryMenu)}
+                                style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#6300dd', fontWeight: '700', backgroundColor: '#f5f0ff', padding: '8px 18px', borderRadius: '20px', cursor: 'pointer', transition: 'all 0.2s', border: '1px solid rgba(99, 0, 221, 0.1)' }}
+                                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#ede4ff'}
+                                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#f5f0ff'}
                             >
-                                {CATEGORIES.map(c => <option key={c}>{c}</option>)}
-                            </select>
+                                {category}
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ transform: showCategoryMenu ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s', marginTop: '1px' }}>
+                                    <polyline points="6 9 12 15 18 9"></polyline>
+                                </svg>
+                            </div>
+                            {showCategoryMenu && (
+                                <>
+                                    <div style={{ position: 'fixed', inset: 0, zIndex: 90 }} onClick={() => setShowCategoryMenu(false)} />
+                                    <div style={{ position: 'absolute', top: '100%', left: 0, marginTop: '8px', backgroundColor: '#fff', borderRadius: '14px', boxShadow: '0 10px 40px rgba(0,0,0,0.12)', border: '1px solid #eee', padding: '8px', zIndex: 100, minWidth: '220px', animation: 'fadeInUp 0.2s ease-out' }}>
+                                        {CATEGORIES.map(c => (
+                                            <div 
+                                                key={c} 
+                                                onClick={() => { setCategory(c); setShowCategoryMenu(false); }}
+                                                style={{ padding: '10px 14px', borderRadius: '10px', fontSize: '14px', color: category === c ? '#6300dd' : '#444', backgroundColor: category === c ? '#f5f0ff' : 'transparent', fontWeight: category === c ? '700' : '500', cursor: 'pointer', transition: 'all 0.15s', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+                                                onMouseEnter={(e) => { if (category !== c) e.currentTarget.style.backgroundColor = '#f9f9f9'; }}
+                                                onMouseLeave={(e) => { if (category !== c) e.currentTarget.style.backgroundColor = 'transparent'; }}
+                                            >
+                                                {c}
+                                                {category === c && <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><polyline points="20 6 9 17 4 12"></polyline></svg>}
+                                            </div>
+                                        ))}
+                                    </div>
+                                </>
+                            )}
                         </div>
 
                         {/* Title */}
@@ -252,19 +484,40 @@ const CreateBlog = () => {
                             placeholder="Post Title"
                             value={title}
                             onChange={e => setTitle(e.target.value)}
-                            onInput={e => { e.target.style.height = 'auto'; e.target.style.height = e.target.scrollHeight + 'px'; }}
-                            style={{ width: '100%', fontSize: '2.75rem', fontWeight: '800', border: 'none', outline: 'none', resize: 'none', fontFamily: 'Newsreader, serif', marginBottom: '1.25rem', minHeight: '70px', color: '#111', lineHeight: '1.2', backgroundColor: 'transparent' }}
+                            onInput={e => { 
+                                e.target.style.height = 'auto'; 
+                                e.target.style.height = e.target.scrollHeight + 'px'; 
+                            }}
+                            style={{ 
+                                width: '100%', 
+                                fontSize: '2.75rem', 
+                                fontWeight: '800', 
+                                border: 'none', 
+                                outline: 'none', 
+                                resize: 'none', 
+                                fontFamily: 'Newsreader, serif', 
+                                marginBottom: '1.25rem', 
+                                minHeight: '70px', 
+                                color: '#111', 
+                                lineHeight: '1.2', 
+                                backgroundColor: 'transparent',
+                                overflow: 'hidden'
+                            }}
                             rows={1}
                         />
 
                         {/* Author */}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '2.5rem', paddingBottom: '1.5rem', borderBottom: '1px solid #f0f0f0' }}>
-                            <div style={{ width: '34px', height: '34px', borderRadius: '50%', backgroundColor: '#6300dd', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', fontWeight: 'bold', color: '#fff' }}>
-                                {author.charAt(0).toUpperCase()}
-                            </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '2.5rem', paddingBottom: '1.5rem', borderBottom: '1px solid #f0f0f0' }}>
+                            {authorImage ? (
+                                <img src={authorImage} alt={author} style={{ width: '40px', height: '40px', borderRadius: '50%', objectFit: 'cover', border: '1px solid #eee' }} />
+                            ) : (
+                                <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: '#6300dd', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', fontWeight: 'bold', color: '#fff' }}>
+                                    {author.charAt(0).toUpperCase()}
+                                </div>
+                            )}
                             <div>
-                                <div style={{ fontSize: '14px', fontWeight: '600' }}>{author}</div>
-                                <div style={{ fontSize: '12px', color: '#999' }}>{new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</div>
+                                <div style={{ fontSize: '14px', fontWeight: '700', color: '#111' }}>{author}</div>
+                                <div style={{ fontSize: '12px', color: '#999', fontWeight: '500' }}>{new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</div>
                             </div>
                         </div>
 
@@ -310,16 +563,22 @@ const CreateBlog = () => {
                             data-placeholder="Write your story..."
                             onKeyUp={updateActiveFormats}
                             onMouseUp={updateActiveFormats}
+                            onInput={updateActiveFormats}
+                            onPaste={handlePaste}
                             style={{
                                 minHeight: '420px',
                                 fontSize: '1.125rem',
-                                lineHeight: '1.85',
+                                lineHeight: '1.7',
+                                color: '#222',
                                 outline: 'none',
-                                color: '#333',
-                                fontFamily: 'Inter, sans-serif',
-                                wordBreak: 'break-word'
+                                border: 'none',
+                                padding: '0',
+                                width: '100%',
+                                fontFamily: 'Inter, sans-serif'
                             }}
-                        />
+                        >
+                            <p><br /></p>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -334,11 +593,85 @@ const CreateBlog = () => {
                 [contenteditable] h2 { font-size: 1.8rem; font-weight: 800; margin: 1.5rem 0 0.75rem; color: #111; }
                 [contenteditable] blockquote { border-left: 4px solid #6300dd; padding: 0.5rem 0 0.5rem 1.5rem; margin: 1.5rem 0; color: #555; font-style: italic; }
                 [contenteditable] a { color: #6300dd; }
-                [contenteditable] img { max-width: 100%; border-radius: 8px; margin: 1rem 0; }
-                [contenteditable] ul, [contenteditable] ol { padding-left: 1.5rem; margin: 0.75rem 0; }
-                [contenteditable] li { margin: 0.4rem 0; }
+                [contenteditable] img { max-width: 100%; border-radius: 12px; margin: 1rem 0; display: block; }
+                .editor-image-wrapper:hover button { background: rgba(255, 59, 48, 0.9) !important; }
+                @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
                 @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
             `}</style>
+
+            {/* Image Selection Modal */}
+            {imageModalConfig.show && (
+                <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(255,255,255,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000, backdropFilter: 'blur(12px)' }}>
+                    <div style={{ backgroundColor: 'rgba(255,255,255,0.9)', borderRadius: '24px', padding: '2.5rem', width: '480px', boxShadow: '0 25px 60px rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.6)', backdropFilter: 'blur(15px)', animation: 'slideUp 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
+                            <h3 style={{ margin: 0, fontWeight: '800', color: '#111', fontSize: '1.4rem' }}>Add Image</h3>
+                            <button onClick={() => setImageModalConfig({ ...imageModalConfig, show: false })} style={{ background: 'none', border: 'none', fontSize: '24px', color: '#999', cursor: 'pointer' }}>&times;</button>
+                        </div>
+                        
+                        {/* Drag & Drop Area */}
+                        <div 
+                            onDragOver={handleDragOver}
+                            onDragLeave={handleDragLeave}
+                            onDrop={(e) => handleDrop(e, imageModalConfig.type)}
+                            onClick={() => (imageModalConfig.type === 'cover' ? coverInputRef : editorImageInputRef).current.click()}
+                            style={{ 
+                                height: '160px', 
+                                border: isDragging ? '2px solid #6300dd' : '2px dashed #ddd', 
+                                borderRadius: '16px', 
+                                display: 'flex', 
+                                flexDirection: 'column', 
+                                alignItems: 'center', 
+                                justifyContent: 'center', 
+                                gap: '12px', 
+                                backgroundColor: isDragging ? 'rgba(99, 0, 221, 0.05)' : '#f9f9f9',
+                                cursor: 'pointer',
+                                transition: 'all 0.2s',
+                                marginBottom: '1.5rem'
+                            }}
+                        >
+                            <div style={{ width: '48px', height: '48px', backgroundColor: '#fff', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#6300dd" strokeWidth="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                            </div>
+                            <div style={{ textAlign: 'center' }}>
+                                <div style={{ fontSize: '14px', fontWeight: '700', color: '#111' }}>{isDragging ? 'Drop to upload' : 'Browse from Device'}</div>
+                                <div style={{ fontSize: '12px', color: '#888', marginTop: '2px' }}>Drag & drop or click to select</div>
+                            </div>
+                        </div>
+
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                            <button 
+                                onClick={() => {
+                                    const url = window.prompt('Enter image URL:');
+                                    if (url) {
+                                        if (imageModalConfig.type === 'cover') setCoverImage(url);
+                                        else execFormat('insertImage', url);
+                                        setImageModalConfig({ ...imageModalConfig, show: false });
+                                    }
+                                }}
+                                style={{ padding: '14px', backgroundColor: '#fff', color: '#111', border: '1px solid #eee', borderRadius: '14px', fontWeight: '700', cursor: 'pointer', fontSize: '13px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', transition: 'all 0.2s' }}
+                                onMouseEnter={e => e.currentTarget.style.backgroundColor = '#f5f5f5'}
+                                onMouseLeave={e => e.currentTarget.style.backgroundColor = '#fff'}
+                            >
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>
+                                Paste Link
+                            </button>
+                            <button 
+                                onClick={handleDrivePicker}
+                                style={{ padding: '14px', backgroundColor: '#fff', color: '#111', border: '1px solid #eee', borderRadius: '14px', fontWeight: '700', cursor: 'pointer', fontSize: '13px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', transition: 'all 0.2s' }}
+                                onMouseEnter={e => e.currentTarget.style.backgroundColor = '#f5f5f5'}
+                                onMouseLeave={e => e.currentTarget.style.backgroundColor = '#fff'}
+                            >
+                                <svg width="20" height="20" viewBox="0 0 24 24">
+                                    <path d="M7.74 2L12.25 10.14L16.74 2H7.74Z" fill="#0066DA"/>
+                                    <path d="M6.83 3.58L2.01 12L6.5 20L11.33 11.58L6.83 3.58Z" fill="#00AA4E"/>
+                                    <path d="M13.16 11.58L17.65 20H21.99L17.5 11.58H13.16Z" fill="#FFBA00"/>
+                                </svg>
+                                Google Drive
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Toast */}
             {showToast && (

@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { auth, db, storage } from '../firebase';
 import { onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
 import { collection, getDocs, doc, getDoc, updateDoc, setDoc, addDoc, deleteDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import Cropper from 'react-easy-crop';
 import Blog from './Blog';
 import Directory from './Directory';
 
@@ -35,6 +36,16 @@ const ToastNotification = ({ message }) => {
 const Member = () => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [selectedBlog, setSelectedBlog] = useState(null);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const blogId = searchParams.get('post');
+
+
+  const handleOpenBlog = (blog) => {
+    if (blog) setSearchParams({ post: blog.id });
+    else setSearchParams({});
+    setSelectedBlog(blog);
+  };
   
   // Auth & Security State
   const [authMode, setAuthMode] = useState('login'); // 'login' or 'signup'
@@ -52,6 +63,15 @@ const Member = () => {
   const [applications, setApplications] = useState([]);
   const [profile, setProfile] = useState({ name: '', role: 'Team Member' });
   const [myBlogs, setMyBlogs] = useState([]);
+  
+  useEffect(() => {
+    if (blogId && myBlogs.length > 0) {
+        const found = myBlogs.find(b => b.id === blogId);
+        if (found) setSelectedBlog(found);
+    } else if (!blogId && selectedBlog) {
+        setSelectedBlog(null);
+    }
+  }, [blogId, myBlogs]);
   const [profileImageUrl, setProfileImageUrl] = useState('');
   const [profileForm, setProfileForm] = useState({ name: '', role: '' });
   const [savingProfile, setSavingProfile] = useState(false);
@@ -65,6 +85,9 @@ const Member = () => {
   const [profilePreviewUrl, setProfilePreviewUrl] = useState(null);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [showCropModal, setShowCropModal] = useState(false);
+  const [crop, setCrop] = useState({ x: 0, y: 0 });
+  const [zoom, setZoom] = useState(1);
+  const [croppedAreaPixels, setCroppedAreaPixels] = useState(null);
   const profileImageInputRef = useRef(null);
 
   useEffect(() => {
@@ -292,7 +315,11 @@ const Member = () => {
     reader.readAsDataURL(file);
   };
 
-  const confirmProfileUpload = async () => {
+  const onCropComplete = (croppedArea, croppedAreaPixels) => {
+    setCroppedAreaPixels(croppedAreaPixels);
+  };
+
+  const confirmProfileUpload = async (useCrop = false) => {
     if (!selectedProfileFile && !profilePreviewUrl) return;
     
     console.log("Starting profile upload...");
@@ -303,9 +330,37 @@ const Member = () => {
     try {
         let fileToUpload = selectedProfileFile;
         
-        // If it's a dataURL (from crop), convert to blob manually for better compatibility
-        if (profilePreviewUrl && profilePreviewUrl.startsWith('data:')) {
-            console.log("Converting dataURL to blob...");
+        if (useCrop && croppedAreaPixels) {
+            console.log("Generating cropped image...");
+            const image = await new Promise((resolve, reject) => {
+                const img = new Image();
+                img.addEventListener('load', () => resolve(img));
+                img.addEventListener('error', (error) => reject(error));
+                img.src = profilePreviewUrl;
+            });
+
+            const canvas = document.createElement('canvas');
+            canvas.width = croppedAreaPixels.width;
+            canvas.height = croppedAreaPixels.height;
+            const ctx = canvas.getContext('2d');
+
+            ctx.drawImage(
+                image,
+                croppedAreaPixels.x,
+                croppedAreaPixels.y,
+                croppedAreaPixels.width,
+                croppedAreaPixels.height,
+                0,
+                0,
+                croppedAreaPixels.width,
+                croppedAreaPixels.height
+            );
+
+            fileToUpload = await new Promise((resolve) => {
+                canvas.toBlob((blob) => resolve(blob), 'image/png');
+            });
+        } else if (profilePreviewUrl && profilePreviewUrl.startsWith('data:')) {
+            // ... (rest of the conversion logic)
             const parts = profilePreviewUrl.split(',');
             const byteString = atob(parts[1]);
             const mimeString = parts[0].split(':')[1].split(';')[0];
@@ -318,17 +373,11 @@ const Member = () => {
         }
 
         if (!fileToUpload) throw new Error("No file selected for upload.");
-
         const fileName = selectedProfileFile?.name || `profile_${Date.now()}.png`;
         const fileRef = ref(storage, `profiles/${user.uid}/${Date.now()}-${fileName}`);
         
-        console.log("Uploading to path:", fileRef.fullPath);
-        const uploadResult = await uploadBytes(fileRef, fileToUpload);
-        console.log("Upload successful:", uploadResult);
-        
+        await uploadBytes(fileRef, fileToUpload);
         const url = await getDownloadURL(fileRef);
-        console.log("Download URL obtained:", url);
-        
         setProfileImageUrl(url);
         showToast("Image uploaded! Click Save Profile to finish.");
         setProfilePreviewUrl(null);
@@ -339,7 +388,6 @@ const Member = () => {
     }
     finally { 
         setIsUploadingImage(false); 
-        console.log("Upload process finished.");
     }
   };
 
@@ -860,10 +908,10 @@ const Member = () => {
                             };
                             const s = statusConfig[blog.status] || statusConfig.pending;
                             return (
-                                <div key={blog.id} style={{ backgroundColor: '#fff', borderRadius: '12px', border: '1px solid #eee', padding: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem' }}>
+                                <div key={blog.id} onClick={() => handleOpenBlog(blog)} style={{ backgroundColor: '#fff', borderRadius: '12px', border: '1px solid #eee', padding: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', cursor: 'pointer', transition: 'transform 0.2s' }} onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-2px)'} onMouseLeave={e => e.currentTarget.style.transform = 'none'}>
                                     <div style={{ flex: 1 }}>
                                         <h3 style={{ margin: '0 0 0.5rem 0', fontSize: '1.1rem', fontWeight: '700' }}>{blog.title || 'Untitled'}</h3>
-                                        <p style={{ margin: '0 0 0.75rem 0', color: '#666', fontSize: '14px', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{blog.content}</p>
+                                        <p style={{ margin: '0 0 0.75rem 0', color: '#666', fontSize: '14px', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{blog.content?.replace(/<[^>]*>?/gm, '').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&')}</p>
                                         <div style={{ fontSize: '12px', color: '#999' }}>{blog.category || 'General'} &bull; {new Date(blog.createdAt || blog.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</div>
                                     </div>
                                     <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -871,7 +919,14 @@ const Member = () => {
                                             {s.label}
                                         </div>
                                         <button 
-                                            onClick={() => setDeleteModal({ blogId: blog.id, blogTitle: blog.title })}
+                                            onClick={(e) => { e.stopPropagation(); navigate(`/create-blog?edit=${blog.id}`); }}
+                                            title="Edit Post"
+                                            style={{ background: 'none', border: 'none', color: '#6300dd', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '4px' }}
+                                        >
+                                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                                        </button>
+                                        <button 
+                                            onClick={(e) => { e.stopPropagation(); setDeleteModal({ blogId: blog.id, blogTitle: blog.title }); }}
                                             title="Delete Post"
                                             style={{ background: 'none', border: 'none', color: '#ff3b30', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '4px' }}
                                         >
@@ -1030,21 +1085,95 @@ const Member = () => {
                         <button onClick={() => setShowCropModal(false)} style={{ background: 'none', border: 'none', color: '#999', cursor: 'pointer', fontSize: '20px' }}>×</button>
                     </div>
                     <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-                        <div style={{ flex: 1, backgroundColor: '#f6f6ef', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', padding: '2rem' }}>
-                            <div style={{ position: 'relative', maxWidth: '100%', maxHeight: '100%' }}>
-                                <img id="crop-image" src={profilePreviewUrl} alt="to crop" style={{ maxWidth: '100%', maxHeight: '400px', display: 'block', borderRadius: '8px' }} />
-                                <div style={{ position: 'absolute', inset: 0, border: '2px dashed #fff', borderRadius: '50%', boxShadow: '0 0 0 9999px rgba(0,0,0,0.3)', pointerEvents: 'none' }}></div>
-                            </div>
+                        <div style={{ flex: 1, backgroundColor: '#f6f6ef', position: 'relative' }}>
+                            <Cropper
+                                image={profilePreviewUrl}
+                                crop={crop}
+                                zoom={zoom}
+                                aspect={1}
+                                cropShape="round"
+                                showGrid={false}
+                                onCropChange={setCrop}
+                                onZoomChange={setZoom}
+                                onCropComplete={onCropComplete}
+                            />
                         </div>
                         <div style={{ width: '240px', padding: '1.5rem', backgroundColor: '#fff', borderLeft: '1px solid rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column' }}>
                             <div style={{ backgroundColor: '#6300dd', color: '#fff', padding: '4px 12px', borderRadius: '6px', fontSize: '12px', fontWeight: '600', alignSelf: 'flex-start', marginBottom: '1rem' }}>Crop</div>
-                            <p style={{ color: '#666', fontSize: '12px', lineHeight: '1.5', margin: 0 }}>Drag the corners or edges to adjust the crop area. The circular frame shows what will be visible in your profile icon.</p>
+                            <p style={{ color: '#666', fontSize: '12px', lineHeight: '1.5', margin: 0, marginBottom: '1.5rem' }}>Drag the corners or edges to adjust the crop area. The circular frame shows what will be visible in your profile icon.</p>
+                            
+                            <label style={{ fontSize: '11px', fontWeight: '700', color: '#999', textTransform: 'uppercase', marginBottom: '8px' }}>Zoom</label>
+                            <input
+                                type="range"
+                                value={zoom}
+                                min={1}
+                                max={3}
+                                step={0.1}
+                                aria-labelledby="Zoom"
+                                onChange={(e) => setZoom(e.target.value)}
+                                style={{ width: '100%', marginBottom: '2rem', accentColor: '#6300dd' }}
+                            />
+
                             <div style={{ flex: 1 }}></div>
-                            <button onClick={confirmProfileUpload} style={{ width: '100%', padding: '12px', backgroundColor: '#6300dd', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: '600', cursor: 'pointer' }}>Save photo</button>
+                            <button onClick={() => confirmProfileUpload(true)} style={{ width: '100%', padding: '12px', backgroundColor: '#6300dd', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: '600', cursor: 'pointer' }}>Save photo</button>
                         </div>
                     </div>
                 </div>
             </div>
+        )}
+
+        {/* Full Blog View Overlay (Member Preview) */}
+        {selectedBlog && (
+          <div style={{ position: 'fixed', inset: 0, backgroundColor: '#fff', zIndex: 10000, overflowY: 'auto' }}>
+              <div style={{ maxWidth: '800px', margin: '0 auto', padding: '4rem 2rem' }}>
+                  <button 
+                      onClick={() => handleOpenBlog(null)} 
+                      style={{ background: 'none', border: 'none', display: 'flex', alignItems: 'center', gap: '8px', color: '#666', fontSize: '14px', cursor: 'pointer', marginBottom: '2rem', padding: 0 }}
+                  >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="15 18 9 12 15 6"></polyline></svg>
+                      Back to Dashboard
+                  </button>
+
+                  <h1 style={{ fontSize: '3rem', fontWeight: '800', color: '#111', margin: '0 0 1rem 0', lineHeight: '1.1', letterSpacing: '-0.02em' }}>{selectedBlog.title}</h1>
+                  
+                  <div style={{ display: 'flex', gap: '10px', fontSize: '15px', color: '#666', marginBottom: '2.5rem' }}>
+                      <span>{new Date(selectedBlog.date || selectedBlog.createdAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</span>
+                      <span>&bull;</span>
+                      <span>by <strong style={{ color: '#111' }}>{selectedBlog.author}</strong></span>
+                  </div>
+
+                  {selectedBlog.image && (
+                      <div style={{ width: '100%', borderRadius: '12px', overflow: 'hidden', marginBottom: '3rem', boxShadow: '0 4px 20px rgba(0,0,0,0.08)' }}>
+                          <img src={selectedBlog.image} alt={selectedBlog.title} style={{ width: '100%', maxHeight: '500px', objectFit: 'cover', display: 'block' }} />
+                      </div>
+                  )}
+
+                  <div 
+                      className="blog-content-view"
+                      style={{ fontSize: '1.2rem', lineHeight: '1.8', color: '#333', marginBottom: '5rem' }}
+                      dangerouslySetInnerHTML={{ __html: selectedBlog.content }}
+                  />
+
+                  <div style={{ borderTop: '1px solid #eee', paddingTop: '4rem', marginBottom: '6rem' }}>
+                      <h4 style={{ fontSize: '12px', fontWeight: '700', color: '#999', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '2rem' }}>Author</h4>
+                      <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'flex-start' }}>
+                          {selectedBlog.authorImage ? (
+                              <img src={selectedBlog.authorImage} alt={selectedBlog.author} style={{ width: '64px', height: '64px', borderRadius: '50%', objectFit: 'cover', border: '1px solid #eee' }} />
+                          ) : (
+                              <div style={{ width: '64px', height: '64px', borderRadius: '50%', backgroundColor: '#6300dd', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px', fontWeight: '700', flexShrink: 0 }}>
+                                  {selectedBlog.author?.charAt(0).toUpperCase()}
+                              </div>
+                          )}
+                          <div>
+                              <h3 style={{ margin: '0 0 8px 0', fontSize: '1.25rem', fontWeight: '700' }}>{selectedBlog.author}</h3>
+                              <p style={{ margin: 0, fontSize: '15px', color: '#666', lineHeight: '1.6' }}>
+                                  {selectedBlog.authorBio || `${selectedBlog.author} is a dedicated member of the X Foundary community.`}
+                              </p>
+                          </div>
+                      </div>
+                  </div>
+              </div>
+          </div>
         )}
 
       <ToastNotification message={toastMessage} />

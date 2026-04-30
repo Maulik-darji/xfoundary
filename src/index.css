@@ -184,6 +184,11 @@ a {
   box-shadow: 0 4px 15px rgba(99, 0, 221, 0.05);
 }
 
+/* Hide edit buttons in view mode */
+.blog-content-view .editor-image-wrapper button {
+  display: none;
+}
+
 /* User Profile Menu */
 .user-menu {
   position: relative;
@@ -528,4 +533,13 @@ a {
 
 .social-links a:hover {
   color: var(--text-main);
+}
+
+/* Blog Content View Overrides */
+.blog-content-view .editor-image-wrapper button {
+  display: none !important;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }

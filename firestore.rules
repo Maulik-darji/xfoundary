@@ -1,7 +1,9 @@
 rules_version = '2';
+
 service cloud.firestore {
   match /databases/{database}/documents {
     
+    // Helper functions to check roles
     function isAdmin() {
       return request.auth != null && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
     }
@@ -10,51 +12,66 @@ service cloud.firestore {
       return request.auth != null && exists(/databases/$(database)/documents/members/$(request.auth.uid));
     }
 
-    // Allow users to read and write their own profile, and allow admins/members full access
+    // Usernames mapping: Publicly readable for login/forgot password lookups
+    // Writeable after authentication (during signup)
+    match /usernames/{username} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+
+    // Main Users (Founders): Publicly readable for the Startup Directory
+    // Writeable by the owner, admins, or team members
     match /users/{userId} {
-      allow read, write: if request.auth != null && (request.auth.uid == userId || isAdmin() || isMember());
+      allow read: if true; 
+      allow write: if request.auth != null && (request.auth.uid == userId || isAdmin() || isMember());
       
+      // Subcollections (like drafts or settings) are restricted to the owner/admins
       match /{allSubcollections=**} {
         allow read, write: if request.auth != null && (request.auth.uid == userId || isAdmin() || isMember());
       }
     }
+
+    // Team Members: Restricted to the specific member or admins
+    match /members/{userId} {
+      allow read: if request.auth != null && (request.auth.uid == userId || isAdmin());
+      allow write: if request.auth != null && (request.auth.uid == userId || isAdmin());
+    }
+
+    // Administrators: Restricted to the specific admin or other admins
+    match /admins/{userId} {
+      allow read: if request.auth != null && (request.auth.uid == userId || isAdmin());
+      allow write: if request.auth != null && (request.auth.uid == userId || isAdmin());
+    }
     
-    // Allow admins and members to read/write logs
-    match /applicationLogs/{document=**} {
+    // Audit Logs: Only visible to staff
+    match /applicationLogs/{logId} {
       allow read, write: if isAdmin() || isMember();
     }
     
-    match /members/{userId} {
-      allow read, write: if request.auth != null && (request.auth.uid == userId || isAdmin() || isMember());
+    // Member Applications: Restricted to applicant and staff
+    match /memberApplications/{appId} {
+      allow read: if request.auth != null && (isAdmin() || isMember() || request.auth.uid == appId);
+      allow write: if request.auth != null && (isAdmin() || isMember() || request.auth.uid == appId);
     }
-
-    match /admins/{userId} {
-      allow read, write: if request.auth != null && (request.auth.uid == userId || isAdmin());
+    
+    // Email Queue: Triggered by clients, processed by Trigger Email extension/functions
+    match /mail/{mailId} {
+      allow create: if request.auth != null;
+      allow read: if isAdmin() || isMember();
     }
-
-    match /blog/{document=**} {
+    
+    // Blog Posts: Publicly readable, writeable by staff
+    match /blog/{blogId} {
       allow read: if true;
       allow write: if isAdmin() || isMember();
     }
-
-    match /memberApplications/{document=**} {
-      allow read: if true;
-      allow write: if isAdmin() || isMember() || request.auth.uid == document;
-    }
-
-    // Allow users to read/write their own login codes (though usually handled by admin functions)
+    
+    // OTP Codes: Strictly internal (handled by Cloud Functions)
     match /login_codes/{email} {
-      allow read: if false; 
-      allow write: if false;
+      allow read, write: if false; 
     }
-    
-    // Allow the mail collection for the email trigger extension
-    match /mail/{document=**} {
-      allow create: if request.auth != null;
-      allow read, write: if false;
-    }
-    
-    // Default deny
+
+    // Global default: Deny all other access
     match /{document=**} {
       allow read, write: if false;
     }

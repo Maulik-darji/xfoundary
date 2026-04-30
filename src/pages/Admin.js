@@ -307,10 +307,10 @@ const Admin = () => {
     </div>
   );
 
-  const TABS = ['Overview', 'Pending Apps', 'Applications', 'Founders', 'Admins', 'Members', 'Blog Approvals', 'XF Blog', 'Member Requests', 'Withdrawn Apps', 'Settings'];
+  const TABS = ['Overview', 'Pending Apps', 'Applications', 'Founders', 'Admins', 'Members', 'Blog Approvals', 'Manage Blog', 'XF Blog', 'Member Requests', 'Withdrawn Apps', 'Settings'];
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', backgroundColor: '#f0f2f5', fontFamily: 'Inter, sans-serif', overflow: 'hidden', position: 'relative' }}>
+    <div style={{ display: 'flex', height: '100vh', backgroundColor: '#f0f2f5', fontFamily: 'Inter, sans-serif', overflow: 'hidden', position: 'relative' }}>
       <div style={{ position: 'fixed', top: '-10%', left: '-10%', width: '40%', height: '40%', background: 'radial-gradient(circle, rgba(99, 0, 221, 0.08) 0%, transparent 70%)', filter: 'blur(60px)', zIndex: 0, animation: 'move 20s infinite alternate' }}></div>
       <div style={{ position: 'fixed', bottom: '-10%', right: '-10%', width: '50%', height: '50%', background: 'radial-gradient(circle, rgba(99, 0, 221, 0.05) 0%, transparent 70%)', filter: 'blur(80px)', zIndex: 0, animation: 'move 25s infinite alternate-reverse' }}></div>
 
@@ -472,28 +472,28 @@ const Admin = () => {
             <>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '1.5rem' }}>
                  <div onClick={() => setActiveTab('Pending Apps')} className="glass-card" style={{ padding: '1.5rem', borderRadius: '20px', cursor: 'pointer', background: 'linear-gradient(135deg, rgba(0, 122, 255, 0.15) 0%, rgba(0, 122, 255, 0.05) 100%)', border: '1px solid rgba(0, 122, 255, 0.2)' }}>
-                    <div style={{ color: '#007aff', fontSize: '11px', marginBottom: '10px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Applications written</div>
-                    <div style={{ fontSize: '2.5rem', fontWeight: '800', color: '#007aff' }}>{stats.pending}</div>
+                    <div style={{ color: '#000', fontSize: '11px', marginBottom: '10px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.1em', opacity: 0.6 }}>Applications written</div>
+                    <div style={{ fontSize: '2.5rem', fontWeight: '800', color: '#000' }}>{stats.pending}</div>
                 </div>
                 <div onClick={() => setActiveTab('Applications')} className="glass-card" style={{ padding: '1.5rem', borderRadius: '20px', cursor: 'pointer', background: 'linear-gradient(135deg, rgba(52, 199, 89, 0.15) 0%, rgba(52, 199, 89, 0.05) 100%)', border: '1px solid rgba(52, 199, 89, 0.2)' }}>
-                    <div style={{ color: '#34c759', fontSize: '11px', marginBottom: '10px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Applications</div>
-                    <div style={{ fontSize: '2.5rem', fontWeight: '800', color: '#34c759' }}>{stats.pending + stats.approved + applications.filter(a => a.status === 'hold' || a.status === 'rejected').length}</div>
+                    <div style={{ color: '#000', fontSize: '11px', marginBottom: '10px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.1em', opacity: 0.6 }}>Applications</div>
+                    <div style={{ fontSize: '2.5rem', fontWeight: '800', color: '#000' }}>{stats.pending + stats.approved + applications.filter(a => a.status === 'hold' || a.status === 'rejected').length}</div>
                 </div>
                 <div onClick={() => setActiveTab('Founders')} className="glass-card" style={{ padding: '1.5rem', borderRadius: '20px', cursor: 'pointer', background: 'linear-gradient(135deg, rgba(255, 149, 0, 0.15) 0%, rgba(255, 149, 0, 0.05) 100%)', border: '1px solid rgba(255, 149, 0, 0.2)' }}>
-                    <div style={{ color: '#ff9500', fontSize: '11px', marginBottom: '10px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Total Founders</div>
-                    <div style={{ fontSize: '2.5rem', fontWeight: '800', color: '#ff9500' }}>{stats.totalUsers}</div>
+                    <div style={{ color: '#000', fontSize: '11px', marginBottom: '10px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.1em', opacity: 0.6 }}>Total Founders</div>
+                    <div style={{ fontSize: '2.5rem', fontWeight: '800', color: '#000' }}>{stats.totalUsers}</div>
                 </div>
                 <div onClick={() => setActiveTab('Members')} className="glass-card" style={{ padding: '1.5rem', borderRadius: '20px', cursor: 'pointer', background: 'linear-gradient(135deg, rgba(88, 86, 214, 0.15) 0%, rgba(88, 86, 214, 0.05) 100%)', border: '1px solid rgba(88, 86, 214, 0.2)' }}>
-                    <div style={{ color: '#5856d6', fontSize: '11px', marginBottom: '10px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Total Members</div>
-                    <div style={{ fontSize: '2.5rem', fontWeight: '800', color: '#5856d6' }}>{stats.totalMembers}</div>
+                    <div style={{ color: '#000', fontSize: '11px', marginBottom: '10px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.1em', opacity: 0.6 }}>Total Members</div>
+                    <div style={{ fontSize: '2.5rem', fontWeight: '800', color: '#000' }}>{stats.totalMembers}</div>
                 </div>
                 <div onClick={() => setActiveTab('Admins')} className="glass-card" style={{ padding: '1.5rem', borderRadius: '20px', cursor: 'pointer', background: 'linear-gradient(135deg, rgba(142, 142, 147, 0.15) 0%, rgba(142, 142, 147, 0.05) 100%)', border: '1px solid rgba(142, 142, 147, 0.2)' }}>
-                    <div style={{ color: '#8e8e93', fontSize: '11px', marginBottom: '10px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Total Admins</div>
-                    <div style={{ fontSize: '2.5rem', fontWeight: '800', color: '#8e8e93' }}>{stats.totalAdmins}</div>
+                    <div style={{ color: '#000', fontSize: '11px', marginBottom: '10px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.1em', opacity: 0.6 }}>Total Admins</div>
+                    <div style={{ fontSize: '2.5rem', fontWeight: '800', color: '#000' }}>{stats.totalAdmins}</div>
                 </div>
                 <div onClick={() => setActiveTab('Member Requests')} className="glass-card" style={{ padding: '1.5rem', borderRadius: '20px', cursor: 'pointer', background: 'linear-gradient(135deg, rgba(255, 59, 48, 0.15) 0%, rgba(255, 59, 48, 0.05) 100%)', border: '1px solid rgba(255, 59, 48, 0.2)' }}>
-                    <div style={{ color: '#ff3b30', fontSize: '11px', marginBottom: '10px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Pending Members</div>
-                    <div style={{ fontSize: '2.5rem', fontWeight: '800', color: '#ff3b30' }}>{stats.pendingMembers}</div>
+                    <div style={{ color: '#000', fontSize: '11px', marginBottom: '10px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.1em', opacity: 0.6 }}>Pending Members</div>
+                    <div style={{ fontSize: '2.5rem', fontWeight: '800', color: '#000' }}>{stats.pendingMembers}</div>
                 </div>
             </div>
 
@@ -860,7 +860,9 @@ const Admin = () => {
                             <tr key={blog.id} style={{ borderBottom: '1px solid rgba(0,0,0,0.03)' }}>
                                 <td style={{ padding: '1.25rem' }}>
                                     <div style={{ fontWeight: '700' }}>{blog.title || 'Untitled'}</div>
-                                    <div style={{ fontSize: '12px', color: '#667777', marginTop: '4px', maxWidth: '300px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{blog.content}</div>
+                                    <div style={{ fontSize: '12px', color: '#667777', marginTop: '4px', maxWidth: '300px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                        {blog.content?.replace(/<[^>]*>?/gm, '').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&')}
+                                    </div>
                                 </td>
                                 <td style={{ padding: '1.25rem' }}>
                                     <div style={{ fontWeight: '600' }}>{blog.author}</div>
@@ -898,12 +900,12 @@ const Admin = () => {
             </div>
         )}
 
-        {activeTab === 'XF Blog' && (
+        {activeTab === 'Manage Blog' && (
             <div style={{ animation: 'fadeInUp 0.4s ease-out' }}>
                 {/* Header */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
                     <div>
-                        <h2 style={{ margin: 0, fontWeight: '800', fontSize: '1.5rem' }}>XF Blog</h2>
+                        <h2 style={{ margin: 0, fontWeight: '800', fontSize: '1.5rem' }}>Manage Blog</h2>
                         <p style={{ margin: '4px 0 0', fontSize: '13px', color: '#667777' }}>{blogs.length} total posts &bull; {blogs.filter(b => b.status === 'approved').length} published</p>
                     </div>
                     <button
@@ -935,7 +937,9 @@ const Admin = () => {
                                         <h3 style={{ margin: 0, fontWeight: '700', fontSize: '1rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{blog.title || 'Untitled'}</h3>
                                         <span style={{ flexShrink: 0, padding: '3px 10px', borderRadius: '12px', fontSize: '11px', fontWeight: '700', backgroundColor: s.bg, color: s.color, border: `1px solid ${s.border}` }}>{s.label}</span>
                                     </div>
-                                    <p style={{ margin: '0 0 8px', fontSize: '13px', color: '#667777', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{blog.content}</p>
+                                    <p style={{ margin: '0 0 8px', fontSize: '13px', color: '#667777', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                        {blog.content?.replace(/<[^>]*>?/gm, '').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&')}
+                                    </p>
                                     <div style={{ fontSize: '12px', color: '#999' }}>
                                         By <strong>{blog.author}</strong> &bull; {blog.category || 'General'} &bull; {new Date(blog.date || blog.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                                     </div>
@@ -969,6 +973,12 @@ const Admin = () => {
                         );
                     })}
                 </div>
+            </div>
+        )}
+
+        {activeTab === 'XF Blog' && (
+            <div style={{ margin: '-2.5rem -2.5rem -2.5rem -2.5rem', height: 'calc(100vh - 0px)', overflowY: 'auto' }}>
+                <Blog embedded={true} />
             </div>
         )}
 

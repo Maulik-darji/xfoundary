@@ -230,7 +230,7 @@ function App() {
           <Route path="/admin" element={<Admin />} />
           <Route path="/member" element={<Member />} />
           <Route path="/create-blog" element={<CreateBlog />} />
-          <Route path="/founder" element={<FounderDashboard />} />
+          <Route path="/founderscompany/dashboard" element={<FounderDashboard />} />
 
           {/* Main Website Pages */}
           <Route path="/*" element={
