@@ -304,6 +304,7 @@ function App() {
                 <Route path="/companies/:id" element={<StartupDetail />} />
                 <Route path="/founderscompany/dashboard" element={<FounderDashboard />} />
                 <Route path="/launch-xf" element={<LaunchXF />} />
+                <Route path="/library" element={<Library />} />
               </Routes>
               <Footer />
             </>
