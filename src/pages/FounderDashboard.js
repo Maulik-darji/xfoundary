@@ -6,7 +6,7 @@ import {
     doc, getDoc, updateDoc, onSnapshot, 
     collection, query, where, getDocs, addDoc, deleteDoc 
 } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { ref, uploadBytes, uploadBytesResumable, getDownloadURL, getBlob, deleteObject } from 'firebase/storage';
 import Cropper from 'react-easy-crop';
 
 const FounderDashboard = () => {
@@ -16,7 +16,24 @@ const FounderDashboard = () => {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [message, setMessage] = useState({ text: '', type: '' });
-    const [activeTab, setActiveTab] = useState('company');
+    const [uploadProgress, setUploadProgress] = useState(0);
+    const [activeTab, setActiveTab] = useState(() => localStorage.getItem('founderActiveTab') || 'company');
+
+    useEffect(() => {
+        localStorage.setItem('founderActiveTab', activeTab);
+    }, [activeTab]);
+
+    useEffect(() => {
+        const handleBeforeUnload = (e) => {
+            if (saving) {
+                e.preventDefault();
+                e.returnValue = 'Changes you made may not be saved.';
+                return e.returnValue;
+            }
+        };
+        window.addEventListener('beforeunload', handleBeforeUnload);
+        return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+    }, [saving]);
     const [jobs, setJobs] = useState([]);
     const [showJobModal, setShowJobModal] = useState(false);
     const [currentJob, setCurrentJob] = useState({ role: '', type: 'Full-time', location: '', description: '', link: '' });
@@ -186,20 +203,24 @@ const FounderDashboard = () => {
         e.preventDefault();
         if (!user || !userData) return;
         setSaving(true);
-        setMessage({ text: '', type: '' });
+        setMessage({ text: 'Saving changes...', type: 'info' });
         try {
-            // Update Auth Profile
-            await updateProfile(user, {
-                displayName: userData.profile?.name || user.displayName
-            });
+            const updates = {};
+            const userDocUpdates = {};
 
-            // Update Email if changed
-            if (userData.email && userData.email !== user.email) {
+            // Only update displayName if changed
+            const newName = userData.profile?.name || '';
+            if (newName && newName !== user.displayName) {
+                await updateProfile(user, { displayName: newName });
+            }
+
+            // Only update Email if changed
+            if (userData.email && userData.email.toLowerCase() !== user.email?.toLowerCase()) {
                 try {
                     await updateEmail(user, userData.email);
                 } catch (emailErr) {
                     if (emailErr.code === 'auth/requires-recent-login') {
-                        throw new Error("This action requires a recent login. Please log out and log back in to change your email.");
+                        throw new Error("Changing email requires a recent login. Please log out and back in to proceed.");
                     }
                     throw emailErr;
                 }
@@ -208,21 +229,22 @@ const FounderDashboard = () => {
             // Update Firestore
             const userRef = doc(db, 'users', user.uid);
             await updateDoc(userRef, {
-                'profile.name': userData.profile?.name || '',
+                'profile.name': newName,
                 'username': userData.username || '',
                 'email': userData.email || user.email,
                 'socials': userData.socials || {}
             });
 
-            setMessage({ text: 'SAVED', type: 'success' });
+            setMessage({ text: 'SAVED', type: 'success', id: Date.now() });
             setJustSaved(true);
             setTimeout(() => {
-                setMessage({ text: '', type: '' });
+                setMessage({ text: '', type: '', id: 0 });
                 setJustSaved(false);
             }, 3000);
         } catch (error) {
             console.error("Error saving profile:", error);
-            setMessage({ text: 'Failed to update profile. ' + error.message, type: 'error' });
+            const errMsg = error instanceof Error ? error.message : String(error);
+            setMessage({ text: 'Failed to update: ' + errMsg, type: 'error', id: Date.now() });
         } finally {
             setSaving(false);
         }
@@ -257,25 +279,78 @@ const FounderDashboard = () => {
         setSaving(true);
         setShowPreviewModal(false);
         setShowCropModal(false);
+        setUploadProgress(0);
+        const currentMsgId = Date.now();
+        setMessage({ text: 'Preparing image...', type: 'info', id: currentMsgId });
 
         try {
             let fileToUpload = selectedFile;
 
             if (useCrop && croppedAreaPixels) {
+                let imgSource = previewUrl;
+                
+                if (previewUrl.includes('firebasestorage.googleapis.com')) {
+                    setMessage({ text: 'Verifying session...', type: 'info', id: currentMsgId });
+                    try {
+                        const storageRef = ref(storage, `profile_images/original_${user.uid}`);
+                        
+                        const fetchWithTimeout = async (promise, ms) => {
+                            const timeout = new Promise((_, rej) => setTimeout(() => rej(new Error("Timeout")), ms));
+                            return await Promise.race([promise, timeout]);
+                        };
+
+                        const fetchBlob = async (useAuth = false) => {
+                            const options = {};
+                            if (useAuth) {
+                                const token = await user.getIdToken();
+                                options.headers = { 'Authorization': `Bearer ${token}` };
+                            }
+                            const response = await fetch(previewUrl, options);
+                            if (!response.ok) throw new Error("Fetch failed");
+                            return await response.blob();
+                        };
+
+                        let blob;
+                        try {
+                            // Try multiple methods in parallel with a strict 10s global timeout
+                            blob = await fetchWithTimeout(
+                                Promise.any([
+                                    getBlob(storageRef),
+                                    fetchBlob(false),
+                                    getBlob(ref(storage, `profile_images/${user.uid}`))
+                                ]), 
+                                10000
+                            );
+                        } catch (e) {
+                            try {
+                                // Final attempt with Auth token
+                                blob = await fetchWithTimeout(fetchBlob(true), 5000);
+                            } catch (authErr) {
+                                throw new Error("Security blocked re-edit. Please re-upload the original file.");
+                            }
+                        }
+
+                        imgSource = URL.createObjectURL(blob);
+                    } catch (err) {
+                        console.error("All secure retrieval methods failed:", err);
+                        throw new Error("Security blocked re-edit. Please 'Browse from Device' and re-upload the file.");
+                    }
+                }
+
+                setMessage({ text: 'Applying orientation...', type: 'info', id: currentMsgId });
                 const image = await new Promise((resolve, reject) => {
                     const img = new Image();
                     img.crossOrigin = 'anonymous';
                     img.onload = () => resolve(img);
-                    img.onerror = () => reject(new Error("Failed to load image for cropping. Ensure the URL is valid and CORS is supported."));
-                    img.src = previewUrl;
+                    img.onerror = () => reject(new Error("Image editor failed to initialize."));
+                    img.src = imgSource;
+                    setTimeout(() => reject(new Error("Image load timed out.")), 15000);
                 });
 
                 const canvas = document.createElement('canvas');
                 const ctx = canvas.getContext('2d');
-
                 const rotRad = (rotation * Math.PI) / 180;
                 
-                // Calculate bounding box for rotation
                 const { width: bWidth, height: bHeight } = {
                     width: Math.abs(Math.cos(rotRad) * image.width) + Math.abs(Math.sin(rotRad) * image.height),
                     height: Math.abs(Math.sin(rotRad) * image.width) + Math.abs(Math.cos(rotRad) * image.height),
@@ -283,7 +358,6 @@ const FounderDashboard = () => {
 
                 canvas.width = bWidth;
                 canvas.height = bHeight;
-
                 ctx.translate(bWidth / 2, bHeight / 2);
                 ctx.rotate(rotRad);
                 ctx.scale(flip.horizontal ? -1 : 1, flip.vertical ? -1 : 1);
@@ -306,57 +380,86 @@ const FounderDashboard = () => {
                     croppedAreaPixels.height
                 );
 
+                setMessage({ text: 'Finalizing...', type: 'info', id: currentMsgId });
                 fileToUpload = await new Promise((resolve, reject) => {
+                    const timeout = setTimeout(() => reject(new Error("Canvas processing timed out.")), 10000);
                     croppedCanvas.toBlob((blob) => {
+                        clearTimeout(timeout);
                         if (blob) resolve(blob);
-                        else reject(new Error("Failed to generate image blob."));
+                        else reject(new Error("Failed to process cropped area."));
                     }, 'image/png');
                 });
-            } else if (previewUrl && previewUrl.startsWith('data:')) {
-                try {
-                    const parts = previewUrl.split(',');
-                    const byteString = atob(parts[1]);
-                    const mimeString = parts[0].split(':')[1].split(';')[0];
-                    const ab = new ArrayBuffer(byteString.length);
-                    const ia = new Uint8Array(ab);
-                    for (let i = 0; i < byteString.length; i++) {
-                        ia[i] = byteString.charCodeAt(i);
-                    }
-                    fileToUpload = new Blob([ab], { type: mimeString });
-                } catch (e) {
-                    throw new Error("Failed to process data URL image.");
-                }
+                
+                // Clean up object URL
+                if (imgSource.startsWith('blob:')) URL.revokeObjectURL(imgSource);
             }
 
-            if (!fileToUpload) throw new Error("No file selected for upload.");
+            if (!fileToUpload) {
+                if (selectedFile) fileToUpload = selectedFile;
+                else throw new Error("No image data found to upload.");
+            }
+
+            setMessage({ text: 'Uploading...', type: 'info', id: currentMsgId });
+            const progressMap = { main: 0 };
+            
+            const uploadWithProgress = (storageRef, file, key, currentProgressMap) => {
+                return new Promise((resolve, reject) => {
+                    const uploadTask = uploadBytesResumable(storageRef, file);
+                    uploadTask.on('state_changed', 
+                        (snap) => {
+                            const p = (snap.bytesTransferred / snap.totalBytes) * 100;
+                            currentProgressMap[key] = p;
+                            const avg = Object.values(currentProgressMap).reduce((a, b) => a + b, 0) / Object.keys(currentProgressMap).length;
+                            setUploadProgress(Math.round(avg));
+                        },
+                        (err) => reject(err),
+                        async () => resolve(await getDownloadURL(uploadTask.snapshot.ref))
+                    );
+                });
+            };
 
             if (sourceTarget === 'logo') {
-                const storageRef = ref(storage, `company_logos/${user.uid}/${Date.now()}-${selectedFile?.name || 'logo.png'}`);
-                await uploadBytes(storageRef, fileToUpload);
-                const downloadURL = await getDownloadURL(storageRef);
-
-                const userRef = doc(db, 'users', user.uid);
-                await updateDoc(userRef, { 'application.companyLogo': downloadURL });
-                setAppData({ ...appData, companyLogo: downloadURL });
-                setMessage({ text: 'Company logo updated!', type: 'success' });
+                const storageRef = ref(storage, `company_logos/${user.uid}/${Date.now()}-logo.png`);
+                const downloadURL = await uploadWithProgress(storageRef, fileToUpload, 'main', progressMap);
+                await updateDoc(doc(db, 'users', user.uid), { 'application.companyLogo': downloadURL });
+                setMessage({ text: 'Logo updated successfully!', type: 'success', id: Date.now() });
             } else {
-                const storageRef = ref(storage, `profile_images/${user.uid}`);
-                await uploadBytes(storageRef, fileToUpload);
-                const downloadURL = await getDownloadURL(storageRef);
+                if (selectedFile) progressMap.orig = 0;
+                const currentMsgId = Date.now();
+                
+                // New structured paths: profile_images/USER_ID/filename
+                const storageRef = ref(storage, `profile_images/${user.uid}/cropped.png`);
+                const croppedPromise = uploadWithProgress(storageRef, fileToUpload, 'main', progressMap);
+
+                let originalURL = userData.originalPhotoURL || userData.photoURL || '';
+                if (selectedFile) {
+                    const originalRef = ref(storage, `profile_images/${user.uid}/original.png`);
+                    originalURL = await uploadWithProgress(originalRef, selectedFile, 'orig', progressMap);
+                }
+
+                const rawDownloadURL = await croppedPromise;
+                // Add timestamp to bypass browser cache
+                const downloadURL = rawDownloadURL + (rawDownloadURL.includes('?') ? '&' : '?') + 't=' + Date.now();
+                
+                setMessage({ text: 'Updating profile...', type: 'info', id: currentMsgId });
                 await updateProfile(user, { photoURL: downloadURL });
-                const userRef = doc(db, 'users', user.uid);
-                await updateDoc(userRef, { photoURL: downloadURL });
-                setUserData({ ...userData, photoURL: downloadURL });
-                setMessage({ text: 'Profile image updated!', type: 'success' });
+                await updateDoc(doc(db, 'users', user.uid), { 
+                    photoURL: downloadURL,
+                    originalPhotoURL: originalURL 
+                });
+                
+                setMessage({ text: 'Photo updated successfully!', type: 'success', id: Date.now() });
             }
 
-            setTimeout(() => setMessage({ text: '', type: '' }), 5000);
+            setUploadProgress(0);
+            setTimeout(() => setMessage({ text: '', type: '', id: 0 }), 5000);
             setPreviewUrl(null);
             setSelectedFile(null);
         } catch (error) {
-            console.error("Error uploading:", error);
-            const errorMessage = error instanceof Error ? error.message : String(error);
-            setMessage({ text: 'Failed to upload. ' + errorMessage, type: 'error' });
+            console.error("Critical Upload Error:", error);
+            const errMsg = error instanceof Error ? error.message : String(error);
+            setMessage({ text: 'Upload failed: ' + errMsg, type: 'error', id: Date.now() });
+            setUploadProgress(0);
         } finally {
             setSaving(false);
         }
@@ -563,11 +666,6 @@ const FounderDashboard = () => {
                 }
             `}</style>
 
-            {message.text && (
-                <div className={`toast-popup ${message.type}`}>
-                    {message.text}
-                </div>
-            )}
 
             <aside className="simple-sidebar">
                 <div style={{ marginBottom: '3rem' }}>
@@ -1025,7 +1123,7 @@ const FounderDashboard = () => {
                         <div style={{ display: 'flex', gap: '2rem' }}>
                             <div 
                                 onClick={() => { 
-                                    setPreviewUrl(userData.photoURL);
+                                    setPreviewUrl(userData.originalPhotoURL || userData.photoURL);
                                     setSourceTarget('profile');
                                     setShowCropModal(true);
                                     setShowPhotoViewerModal(false);
@@ -1246,20 +1344,33 @@ const FounderDashboard = () => {
                 </div>
             )}
             {message.text && (
-                <div className={`toast-popup ${message.type}`}>
-                    {message.type === 'success' ? (
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
-                            <polyline points="22 4 12 14.01 9 11.01"/>
-                        </svg>
-                    ) : (
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                            <circle cx="12" cy="12" r="10"/>
-                            <line x1="12" y1="8" x2="12" y2="12"/>
-                            <line x1="12" y1="16" x2="12.01" y2="16"/>
-                        </svg>
+                <div key={message.id} className={`toast-popup ${message.type}`} style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '8px', minWidth: '240px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', width: '100%' }}>
+                        {message.type === 'success' ? (
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                                <polyline points="22 4 12 14.01 9 11.01"/>
+                            </svg>
+                        ) : (
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                <circle cx="12" cy="12" r="10"/>
+                                <line x1="12" y1="8" x2="12" y2="12"/>
+                                <line x1="12" y1="16" x2="12.01" y2="16"/>
+                            </svg>
+                        )}
+                        <span style={{ fontSize: '13px', fontWeight: '600' }}>{message.text}</span>
+                    </div>
+                    {saving && uploadProgress > 0 && (
+                        <div style={{ width: '100%', marginTop: '4px' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', marginBottom: '4px', opacity: 0.8 }}>
+                                <span>Uploading...</span>
+                                <span>{uploadProgress}%</span>
+                            </div>
+                            <div style={{ width: '100%', height: '4px', backgroundColor: 'rgba(0,0,0,0.1)', borderRadius: '2px', overflow: 'hidden' }}>
+                                <div style={{ width: `${uploadProgress}%`, height: '100%', backgroundColor: '#111', transition: 'width 0.2s linear' }} />
+                            </div>
+                        </div>
                     )}
-                    <span>{message.text}</span>
                 </div>
             )}
             {/* Hidden File Inputs */}
