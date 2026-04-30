@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { db } from '../firebase';
-import { collection, getDocs, query, where, orderBy } from 'firebase/firestore';
+import { collection, getDocs, query, where } from 'firebase/firestore';
 
-const Blog = () => {
+const Blog = ({ embedded }) => {
   const [blogs, setBlogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState(null);
@@ -16,10 +16,16 @@ const Blog = () => {
 
   const fetchBlogs = async () => {
     try {
-        const q = query(collection(db, 'blog'), where('status', '==', 'approved'), orderBy('date', 'desc'));
+        const q = query(collection(db, 'blog'), where('status', '==', 'approved'));
         const snap = await getDocs(q);
         const list = [];
         snap.forEach(doc => list.push({ id: doc.id, ...doc.data() }));
+        // Sort client-side — handles both 'date' and 'createdAt' field names
+        list.sort((a, b) => {
+            const dateA = new Date(a.date || a.createdAt || 0);
+            const dateB = new Date(b.date || b.createdAt || 0);
+            return dateB - dateA;
+        });
         setBlogs(list);
     } catch (error) {
         console.error("Error fetching blogs:", error);
@@ -61,8 +67,8 @@ const Blog = () => {
   if (loading) return <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f6f6ef' }}>Loading Blog...</div>;
 
   return (
-    <div style={{ backgroundColor: '#f6f6ef', minHeight: '100vh', paddingBottom: '10rem' }}>
-      <div style={{ maxWidth: '1100px', margin: '0 auto', padding: '10rem 2rem 0 2rem' }}>
+    <div style={{ backgroundColor: embedded ? 'transparent' : '#f6f6ef', minHeight: embedded ? 'auto' : '100vh', paddingBottom: embedded ? '2rem' : '10rem' }}>
+      <div style={{ maxWidth: '1100px', margin: '0 auto', padding: embedded ? '2rem 0' : '10rem 2rem 0 2rem' }}>
         
         {/* Blog Nav */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4rem', borderBottom: '1px solid #ddd' }}>
@@ -121,7 +127,7 @@ const Blog = () => {
                                 <div style={{ width: '32px', height: '32px', borderRadius: '50%', backgroundColor: '#6300dd', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '14px' }}>{post.author?.charAt(0)}</div>
                                 <div>
                                     <p style={{ margin: 0, fontSize: '13px', fontWeight: '600' }}>{post.author}</p>
-                                    <p style={{ margin: 0, fontSize: '12px', color: '#999' }}>{new Date(post.date).toLocaleDateString()}</p>
+                                    <p style={{ margin: 0, fontSize: '12px', color: '#999' }}>{new Date(post.date || post.createdAt).toLocaleDateString()}</p>
                                 </div>
                             </div>
                         </div>
@@ -141,7 +147,7 @@ const Blog = () => {
                         <div key={post.id}>
                             <h3 style={{ fontSize: '1.5rem', fontWeight: 'bold', marginBottom: '0.5rem', fontFamily: 'Inter, sans-serif' }}>{post.title}</h3>
                             <p style={{ fontSize: '13px', color: '#666', marginBottom: '1rem' }}>
-                                by <span style={{ color: '#007bff' }}>{post.author}</span> &nbsp; {new Date(post.date).toLocaleDateString()}
+                                by <span style={{ color: '#007bff' }}>{post.author}</span> &nbsp; {new Date(post.date || post.createdAt).toLocaleDateString()}
                             </p>
                             <p style={{ fontSize: '1rem', lineHeight: '1.6', color: '#333', marginBottom: '1rem' }}>{post.content?.substring(0, 200)}...</p>
                             <Link to="#" style={{ color: '#007bff', fontWeight: '500', textDecoration: 'none', fontSize: '14px' }}>Read More</Link>

@@ -15,6 +15,8 @@ const Settings = () => {
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [linkedin, setLinkedin] = useState('');
+  const [twitter, setTwitter] = useState('');
+  const [instagram, setInstagram] = useState('');
   const [profilePic, setProfilePic] = useState(null);
 
   useEffect(() => {
@@ -34,6 +36,8 @@ const Settings = () => {
           setFirstName(data.firstName || currentUser.displayName?.split(' ')[0] || '');
           setLastName(data.lastName || currentUser.displayName?.split(' ')[1] || '');
           setLinkedin(data.linkedin || '');
+          setTwitter(data.twitter || '');
+          setInstagram(data.instagram || '');
           setProfilePic(data.profilePic || null);
         } else {
             setFirstName(currentUser.displayName?.split(' ')[0] || '');
@@ -53,6 +57,8 @@ const Settings = () => {
         firstName,
         lastName,
         linkedin,
+        twitter,
+        instagram,
         profilePic,
         email: user.email,
         updatedAt: new Date().toISOString()
@@ -186,6 +192,14 @@ const Settings = () => {
             <div>
               <label style={labelStyle}>Your LinkedIn Profile URL</label>
               <input type="text" style={inputStyle} value={linkedin} onChange={(e) => setLinkedin(e.target.value)} />
+            </div>
+            <div>
+              <label style={labelStyle}>Your Twitter Handle (e.g. @username)</label>
+              <input type="text" style={inputStyle} value={twitter} onChange={(e) => setTwitter(e.target.value)} />
+            </div>
+            <div>
+              <label style={labelStyle}>Your Instagram Handle (e.g. @username)</label>
+              <input type="text" style={inputStyle} value={instagram} onChange={(e) => setInstagram(e.target.value)} />
             </div>
             
             <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', marginTop: '1.5rem' }}>

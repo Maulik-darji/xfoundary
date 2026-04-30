@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { auth } from './firebase';
+import { auth, db } from './firebase';
+import { doc, getDoc } from 'firebase/firestore';
 import './index.css';
 import Home from './pages/Home';
 import Login from './pages/Login';
@@ -23,6 +24,7 @@ import Member from './pages/Member';
 import Directory from './pages/Directory';
 import StartupDetail from './pages/StartupDetail';
 import FounderDashboard from './pages/FounderDashboard';
+import CreateBlog from './pages/CreateBlog';
 
 const Header = () => {
   const [isScrolled, setIsScrolled] = useState(false);
@@ -36,9 +38,36 @@ const Header = () => {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
+  const [userRole, setUserRole] = useState(null);
+
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
+      if (currentUser) {
+        try {
+          const adminDoc = await getDoc(doc(db, 'admins', currentUser.uid));
+          if (adminDoc.exists()) {
+            setUserRole('admin');
+            return;
+          }
+          const memberDoc = await getDoc(doc(db, 'members', currentUser.uid));
+          if (memberDoc.exists()) {
+            setUserRole('member');
+            return;
+          }
+          const memberAppDoc = await getDoc(doc(db, 'memberApplications', currentUser.uid));
+          if (memberAppDoc.exists()) {
+            setUserRole('member');
+            return;
+          }
+          setUserRole('user');
+        } catch (error) {
+          console.error("Error fetching role:", error);
+          setUserRole('user');
+        }
+      } else {
+        setUserRole(null);
+      }
     });
     return () => unsubscribe();
   }, []);
@@ -63,7 +92,7 @@ const Header = () => {
 </svg></span>
               <div className="dropdown-menu">
                 <Link to="/what-happens" className="dropdown-item">What Happens at XF?</Link>
-                <Link to="/apply" className="dropdown-item">Apply</Link>
+                {(!userRole || userRole === 'user') && <Link to="/apply" className="dropdown-item">Apply</Link>}
                 <Link to="/faq" className="dropdown-item">FAQ</Link>
                 <Link to="/people" className="dropdown-item">People</Link>
                 <Link to="/blog" className="dropdown-item">XF Blog</Link>
@@ -131,7 +160,7 @@ const Header = () => {
           ) : (
             <Link to="/login" className="btn-login">Log in</Link>
           )}
-          <Link to="/apply" className="btn-apply">Apply</Link>
+          {(!userRole || userRole === 'user') && <Link to="/apply" className="btn-apply">Apply</Link>}
         </div>
       </div>
     </header>
@@ -200,6 +229,7 @@ function App() {
           <Route path="/founder-profile" element={<FounderProfile />} />
           <Route path="/admin" element={<Admin />} />
           <Route path="/member" element={<Member />} />
+          <Route path="/create-blog" element={<CreateBlog />} />
           <Route path="/founder" element={<FounderDashboard />} />
 
           {/* Main Website Pages */}

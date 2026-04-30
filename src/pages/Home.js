@@ -1,17 +1,22 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import { onAuthStateChanged } from 'firebase/auth';
+import { auth, db } from '../firebase';
+import { doc, getDoc } from 'firebase/firestore';
 
-const Hero = () => (
+const Hero = ({ userRole }) => (
   <section className="hero">
     <h1>
       XF Helps founders<br/>
       <em>feature their startup<br/>globally</em>
     </h1>
     <p>Four times a year we invest in a large number of startups.</p>
-    <div className="hero-actions">
-      <button className="btn-primary-large">
-        Apply for Summer 2026 by May 4
-      </button>
-    </div>
+    {(!userRole || userRole === 'user') && (
+      <div className="hero-actions">
+        <button className="btn-primary-large">
+          Apply for Summer 2026 by May 4
+        </button>
+      </div>
+    )}
   </section>
 );
 
@@ -53,9 +58,42 @@ XF continues to support startups as they scale worldwide.</p>
 );
 
 const Home = () => {
+  const [userRole, setUserRole] = useState(null);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      if (currentUser) {
+        try {
+          const adminDoc = await getDoc(doc(db, 'admins', currentUser.uid));
+          if (adminDoc.exists()) {
+            setUserRole('admin');
+            return;
+          }
+          const memberDoc = await getDoc(doc(db, 'members', currentUser.uid));
+          if (memberDoc.exists()) {
+            setUserRole('member');
+            return;
+          }
+          const memberAppDoc = await getDoc(doc(db, 'memberApplications', currentUser.uid));
+          if (memberAppDoc.exists()) {
+            setUserRole('member');
+            return;
+          }
+          setUserRole('user');
+        } catch (error) {
+          console.error("Error fetching role:", error);
+          setUserRole('user');
+        }
+      } else {
+        setUserRole(null);
+      }
+    });
+    return () => unsubscribe();
+  }, []);
+
   return (
     <main>
-      <Hero />
+      <Hero userRole={userRole} />
       <Facts />
       <FundingDetails />
     </main>

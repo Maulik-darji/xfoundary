@@ -113,7 +113,7 @@ const FilterChip = ({ label, onRemove, icon }) => (
     </div>
 );
 
-const Directory = () => {
+const Directory = ({ embedded }) => {
     const navigate = useNavigate();
     const [startups, setStartups] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -240,9 +240,9 @@ const Directory = () => {
     };
 
     return (
-        <div style={{ minHeight: '100vh', backgroundColor: '#f5f5ee', fontFamily: '"Inter", sans-serif', paddingBottom: '4rem' }}>
+        <div style={{ minHeight: embedded ? 'auto' : '100vh', backgroundColor: embedded ? 'transparent' : '#f5f5ee', fontFamily: '"Inter", sans-serif', paddingBottom: embedded ? '2rem' : '4rem' }}>
             <style>{`
-                .directory-page { max-width: 1300px; margin: 0 auto; padding: 5rem 2rem 2rem; }
+                .directory-page { max-width: 1300px; margin: 0 auto; padding: ${embedded ? '2rem 0' : '5rem 2rem 2rem'}; }
 
                 .sidebar { width: 300px; background: #fff; border: 1px solid #e5e5e0; border-radius: 16px; padding: 1.5rem; height: fit-content; box-shadow: 0 4px 20px rgba(0,0,0,0.02); }
                 .filter-section { margin-bottom: 2rem; border-bottom: 1px solid #f0f0ed; padding-bottom: 1.5rem; }
@@ -259,27 +259,19 @@ const Directory = () => {
 
 
             <div className="directory-page">
-                <div style={{ textAlign: 'center', marginBottom: '5rem' }}>
-                    <h1 style={{ 
-                        fontFamily: '"Georgia", serif', 
-                        fontStyle: 'italic', 
-                        fontSize: '4.5rem', 
-                        fontWeight: 400, 
-                        color: '#1a1a1a', 
-                        marginBottom: '1rem',
-                        letterSpacing: '-0.02em'
-                    }}>Startup Directory</h1>
-                    <p style={{ 
-                        fontSize: '18px', 
-                        color: '#555', 
-                        maxWidth: '800px', 
-                        margin: '0 auto',
-                        lineHeight: '1.6',
-                        fontFamily: 'Inter, sans-serif'
-                    }}>
-                        Since 2005, we have invested in over 5,000 companies that have a combined valuation of over $1T. To find jobs at these startups, visit <span style={{ color: '#000', textDecoration: 'underline', cursor: 'pointer' }}>Work at a Startup</span>.
-                    </p>
-                </div>
+                {!embedded && (
+                    <div style={{ textAlign: 'center', marginBottom: '5rem' }}>
+                        <h1 style={{ 
+                            fontFamily: '"Georgia", serif', 
+                            fontStyle: 'italic', 
+                            fontSize: '4.5rem', 
+                            fontWeight: 400, 
+                            color: '#1a1a1a', 
+                            marginBottom: '1rem',
+                            letterSpacing: '-0.02em'
+                        }}>Startup Directory</h1>
+                    </div>
+                )}
 
                 <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '15px', marginBottom: '2.5rem' }}>
                     <span style={{ fontSize: '15px', color: '#1a1a1a', fontWeight: '600' }}>Sort by</span>

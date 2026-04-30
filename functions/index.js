@@ -151,6 +151,7 @@ exports.verifyLoginCode = onCall(async (request) => {
 });
 
 // Function to handle application status updates (Submission & Approval)
+// Function to handle application status updates (Submission, Approval, Hold, Reject)
 exports.onApplicationUpdate = functions.firestore.document('users/{uid}').onUpdate(async (change, context) => {
     const newData = change.after.data();
     const oldData = change.before.data();
@@ -158,148 +159,133 @@ exports.onApplicationUpdate = functions.firestore.document('users/{uid}').onUpda
 
     if (!newData.application) return;
 
+    const newStatus = newData.application.status;
+    const oldStatus = oldData.application?.status;
+
+    // If status hasn't changed, do nothing
+    if (newStatus === oldStatus) return;
+
     const email = newData.email;
-    const name = newData.profile?.name || email.split('@')[0];
+    const name = newData.profile?.name || email?.split('@')[0] || 'Founder';
     const companyName = newData.application?.companyName || 'your startup';
     const batch = newData.application?.batch || 'Summer 2026';
 
-    // 1. Check for NEW SUBMISSION (draft -> pending)
-    if (newData.application.status === 'pending' && oldData.application?.status !== 'pending') {
-        console.log(`Sending SUBMISSION confirmation to ${email} for ${companyName}`);
-        try {
-            await db.collection("mail").add({
-                to: email,
-                message: {
-                    subject: `XF ${batch} Application Submitted`,
-                    html: `
-                        <div style="font-family: 'Inter', sans-serif; max-width: 500px; margin: 0 auto; border: 1px solid #eee; padding: 40px; border-radius: 12px; color: #111; line-height: 1.6;">
-                            <div style="text-align: center; margin-bottom: 30px;">
-                                <div style="background-color: #000; width: 42px; height: 42px; line-height: 42px; display: inline-block; border-radius: 4px; color: white; font-weight: 800; font-size: 16px; text-align: center;">XF</div>
-                                <h2 style="margin-top: 20px; color: #111;">Application Submitted</h2>
-                            </div>
-                            <p>Hello ${name},</p>
-                            <p>Congratulations on applying to X Foundary!</p>
-                            <p>Your application to the <strong>${batch}</strong> batch for <strong>${companyName}</strong> has been successfully submitted.</p>
-                            <div style="background: #f8f8f8; padding: 20px; border-radius: 8px; margin: 25px 0; border: 1px solid #eee;">
-                                <p style="margin: 0; font-size: 14px; color: #666;">
-                                    <strong>What happens next?</strong><br/>
-                                    You can still edit your application for the next 24 hours. After that, our team will begin the review process.
-                                </p>
-                            </div>
-                            <div style="text-align: center; margin-top: 30px;">
-                                <a href="https://xfoundaryapp.web.app/home" style="background-color: #000; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 600; display: inline-block;">View Application Status</a>
-                            </div>
-                            <p style="font-size: 12px; color: #999; margin-top: 40px; border-top: 1px solid #eee; padding-top: 20px;">
-                                Good luck with your startup journey!<br/>
-                                — The X Foundary Team
-                            </p>
-                        </div>
-                    `
-                }
-            });
-        } catch (e) { console.error("Error sending submission mail:", e); }
+    console.log(`Status transition for ${email}: ${oldStatus} -> ${newStatus}`);
+
+    let mailData = null;
+
+    if (newStatus === 'pending' && oldStatus !== 'pending') {
+        // 1. SUBMISSION
+        mailData = {
+            subject: `XF ${batch} Application Submitted`,
+            html: `
+                <div style="font-family: 'Inter', sans-serif; max-width: 500px; margin: 0 auto; border: 1px solid #eee; padding: 40px; border-radius: 12px; color: #111; line-height: 1.6;">
+                    <div style="text-align: center; margin-bottom: 30px;">
+                        <div style="background-color: #000; width: 42px; height: 42px; line-height: 42px; display: inline-block; border-radius: 4px; color: white; font-weight: 800; font-size: 16px; text-align: center;">XF</div>
+                        <h2 style="margin-top: 20px; color: #111;">Application Submitted</h2>
+                    </div>
+                    <p>Hello ${name},</p>
+                    <p>Congratulations on applying to X Foundary!</p>
+                    <p>Your application to the <strong>${batch}</strong> batch for <strong>${companyName}</strong> has been successfully submitted.</p>
+                    <div style="background: #f8f8f8; padding: 20px; border-radius: 8px; margin: 25px 0; border: 1px solid #eee;">
+                        <p style="margin: 0; font-size: 14px; color: #666;">
+                            <strong>What happens next?</strong><br/>
+                            You can still edit your application for the next 24 hours. After that, our team will begin the review process.
+                        </p>
+                    </div>
+                    <div style="text-align: center; margin-top: 30px;">
+                        <a href="https://xfoundaryapp.web.app/home" style="background-color: #000; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 600; display: inline-block;">View Application Status</a>
+                    </div>
+                    <p style="font-size: 12px; color: #999; margin-top: 40px; border-top: 1px solid #eee; padding-top: 20px;">
+                        Good luck with your startup journey!<br/>
+                        — The X Foundary Team
+                    </p>
+                </div>
+            `
+        };
+    } else if (newStatus === 'approved' && oldStatus !== 'approved') {
+        // 2. APPROVAL
+        mailData = {
+            subject: `Congratulations! Your application for ${companyName} has been accepted`,
+            html: `
+                <div style="font-family: 'Inter', sans-serif; max-width: 500px; margin: 0 auto; border: 1px solid #eee; padding: 40px; border-radius: 12px; color: #111; line-height: 1.6;">
+                    <div style="text-align: center; margin-bottom: 30px;">
+                        <div style="background-color: #000; width: 42px; height: 42px; line-height: 42px; display: inline-block; border-radius: 4px; color: white; font-weight: 800; font-size: 16px; text-align: center;">XF</div>
+                        <h2 style="margin-top: 20px; color: #111;">Welcome to X Foundary!</h2>
+                    </div>
+                    <p>Hello ${name},</p>
+                    <p>We have great news! We've reviewed your application and are incredibly excited to invite <strong>${companyName}</strong> to join the <strong>X Foundary ${batch}</strong> batch.</p>
+                    <p>We were very impressed with your vision and look forward to helping you grow.</p>
+                    <div style="background: #f0fdf4; padding: 20px; border-radius: 8px; margin: 25px 0; border: 1px solid #dcfce7;">
+                        <p style="margin: 0; font-size: 14px; color: #166534;">
+                            <strong>What's next?</strong><br/>
+                            Log in to your dashboard to see the next steps and join the founder community.
+                        </p>
+                    </div>
+                    <div style="text-align: center; margin-top: 30px;">
+                        <a href="https://xfoundaryapp.web.app/home" style="background-color: #000; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 600; display: inline-block;">Go to Dashboard</a>
+                    </div>
+                    <p style="font-size: 12px; color: #999; margin-top: 40px; border-top: 1px solid #eee; padding-top: 20px;">
+                        Welcome to the family!<br/>
+                        — The X Foundary Team
+                    </p>
+                </div>
+            `
+        };
+    } else if (newStatus === 'hold' && oldStatus !== 'hold') {
+        // 3. HOLD
+        mailData = {
+            subject: `Update on your ${companyName} application - X Foundary`,
+            html: `
+                <div style="font-family: 'Inter', sans-serif; max-width: 500px; margin: 0 auto; border: 1px solid #eee; padding: 40px; border-radius: 12px; color: #111; line-height: 1.6;">
+                    <div style="text-align: center; margin-bottom: 30px;">
+                        <div style="background-color: #000; width: 42px; height: 42px; line-height: 42px; display: inline-block; border-radius: 4px; color: white; font-weight: 800; font-size: 16px; text-align: center;">XF</div>
+                        <h2 style="margin-top: 20px; color: #111;">Application Update</h2>
+                    </div>
+                    <p>Hello ${name},</p>
+                    <p>Thank you for your patience as we review applications for the <strong>${batch}</strong> batch.</p>
+                    <p>We wanted to let you know that your application for <strong>${companyName}</strong> looks very promising! Our team would like a bit more time to carefully review your materials.</p>
+                    <div style="background: #fffbeb; padding: 20px; border-radius: 8px; margin: 25px 0; border: 1px solid #92400e;">
+                        <p style="margin: 0; font-size: 14px; color: #92400e;">
+                            <strong>What this means:</strong><br/>
+                            We haven't made a final decision yet. We are doing a deeper dive into your vision and will revert back to you soon with an update.
+                        </p>
+                    </div>
+                    <p style="font-size: 12px; color: #999; margin-top: 40px; border-top: 1px solid #eee; padding-top: 20px;">
+                        Thank you for being part of X&nbsp;Foundary.<br/>
+                        — The X Foundary Team
+                    </p>
+                </div>
+            `
+        };
+    } else if (newStatus === 'rejected' && oldStatus !== 'rejected') {
+        // 4. REJECTED
+        mailData = {
+            subject: `Your X Foundary Application`,
+            html: `
+                <div style="font-family: 'Inter', sans-serif; max-width: 600px; margin: 0 auto; padding: 40px; color: #111; line-height: 1.6;">
+                    <p>Hi ${name},</p>
+                    <p>Thanks for applying to X Foundary. We're sorry to say that your startup was not selected for an interview. We carefully reviewed thousands of applications, and with so many strong submissions, we had to make difficult decisions. Unfortunately, this meant turning away many promising companies.</p>
+                    <p>Unfortunately we can't give you individual feedback about your application. <a href="https://xfoundaryapp.web.app/faq" style="color: #000; text-decoration: underline;">This page explains why.</a></p>
+                    <p>We hope you apply again in the future as you continue to make progress. In fact, we encourage it. Applying multiple times does not count against you and a surprisingly large number of companies are funded after applying more than once. Over 50% of the startups we accept are repeat applicants.</p>
+                    <p>Best of luck,</p>
+                    <p style="margin-top: 30px; font-weight: bold;">—XF</p>
+                </div>
+            `
+        };
     }
 
-    // 2. Check for APPROVAL (pending -> approved)
-    if (newData.application.status === 'approved' && oldData.application?.status !== 'approved') {
-        console.log(`Sending APPROVAL notification to ${email} for ${companyName}`);
+    if (mailData && email) {
+        console.log(`Dispatching email to ${email} for status: ${newStatus}`);
         try {
             await db.collection("mail").add({
                 to: email,
-                message: {
-                    subject: `Congratulations! Your application for ${companyName} has been accepted`,
-                    html: `
-                        <div style="font-family: 'Inter', sans-serif; max-width: 500px; margin: 0 auto; border: 1px solid #eee; padding: 40px; border-radius: 12px; color: #111; line-height: 1.6;">
-                            <div style="text-align: center; margin-bottom: 30px;">
-                                <div style="background-color: #000; width: 42px; height: 42px; line-height: 42px; display: inline-block; border-radius: 4px; color: white; font-weight: 800; font-size: 16px; text-align: center;">XF</div>
-                                <h2 style="margin-top: 20px; color: #111;">Welcome to X Foundary!</h2>
-                            </div>
-                            <p>Hello ${name},</p>
-                            <p>We have great news! We've reviewed your application and are incredibly excited to invite <strong>${companyName}</strong> to join the <strong>X Foundary ${batch}</strong> batch.</p>
-                            <p>We were very impressed with your vision and look forward to helping you grow.</p>
-                            <div style="background: #f0fdf4; padding: 20px; border-radius: 8px; margin: 25px 0; border: 1px solid #dcfce7;">
-                                <p style="margin: 0; font-size: 14px; color: #166534;">
-                                    <strong>What's next?</strong><br/>
-                                    Log in to your dashboard to see the next steps and join the founder community.
-                                </p>
-                            </div>
-                            <div style="text-align: center; margin-top: 30px;">
-                                <a href="https://xfoundaryapp.web.app/home" style="background-color: #000; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 600; display: inline-block;">Go to Dashboard</a>
-                            </div>
-                            <p style="font-size: 12px; color: #999; margin-top: 40px; border-top: 1px solid #eee; padding-top: 20px;">
-                                Welcome to the family!<br/>
-                                — The X Foundary Team
-                            </p>
-                        </div>
-                    `
-                }
+                message: mailData
             });
-        } catch (e) { console.error("Error sending approval mail:", e); }
-    }
-    
-    // 3. Check for HOLD (pending -> hold)
-    if (newData.application.status === 'hold' && oldData.application?.status !== 'hold') {
-        console.log(`Sending HOLD notification to ${email} for ${companyName}`);
-        try {
-            await db.collection("mail").add({
-                to: email,
-                message: {
-                    subject: `Update on your ${companyName} application - X Foundary`,
-                    html: `
-                        <div style="font-family: 'Inter', sans-serif; max-width: 500px; margin: 0 auto; border: 1px solid #eee; padding: 40px; border-radius: 12px; color: #111; line-height: 1.6;">
-                            <div style="text-align: center; margin-bottom: 30px;">
-                                <div style="background-color: #000; width: 42px; height: 42px; line-height: 42px; display: inline-block; border-radius: 4px; color: white; font-weight: 800; font-size: 16px; text-align: center;">XF</div>
-                                <h2 style="margin-top: 20px; color: #111;">Application Update</h2>
-                            </div>
-                            
-                            <p>Hello ${name},</p>
-                            <p>Thank you for your patience as we review applications for the <strong>${batch}</strong> batch.</p>
-                            
-                            <p>We wanted to let you know that your application for <strong>${companyName}</strong> looks very promising! Our team would like a bit more time to carefully review your materials.</p>
-                            
-                            <div style="background: #fdfaf0; padding: 20px; border-radius: 8px; margin: 25px 0; border: 1px solid #92400e; background-color: #fffbeb;">
-                                <p style="margin: 0; font-size: 14px; color: #92400e;">
-                                    <strong>What this means:</strong><br/>
-                                    We haven't made a final decision yet. We are doing a deeper dive into your vision and will revert back to you soon with an update.
-                                </p>
-                            </div>
-                            
-                            <p style="font-size: 12px; color: #999; margin-top: 40px; border-top: 1px solid #eee; padding-top: 20px;">
-                                Thank you for being part of X Foundary.<br/>
-                                — The X Foundary Team
-                            </p>
-                        </div>
-                    `
-                }
-            });
-        } catch (e) { console.error("Error sending hold mail:", e); }
-    }
-
-    // 4. Check for REJECTION (pending -> rejected)
-    if (newData.application.status === 'rejected' && oldData.application?.status !== 'rejected') {
-        console.log(`Sending REJECTION notification to ${email} for ${companyName}`);
-        try {
-            await db.collection("mail").add({
-                to: email,
-                message: {
-                    subject: `Your X Foundary Application`,
-                    html: `
-                        <div style="font-family: 'Inter', sans-serif; max-width: 600px; margin: 0 auto; padding: 40px; color: #111; line-height: 1.6;">
-                            <p>Hi ${name},</p>
-                            
-                            <p>Thanks for applying to X Foundary. We're sorry to say that your startup was not selected for an interview. We carefully reviewed thousands of applications, and with so many strong submissions, we had to make difficult decisions. Unfortunately, this meant turning away many promising companies.</p>
-                            
-                            <p>Unfortunately we can't give you individual feedback about your application. <a href="https://xfoundaryapp.web.app/faq" style="color: #000; text-decoration: underline;">This page explains why.</a></p>
-                            
-                            <p>We hope you apply again in the future as you continue to make progress. In fact, we encourage it. Applying multiple times does not count against you and a surprisingly large number of companies are funded after applying more than once. Over 50% of the startups we accept are repeat applicants.</p>
-                            
-                            <p>Best of luck,</p>
-                            
-                            <p style="margin-top: 30px; font-weight: bold;">—XF</p>
-                        </div>
-                    `
-                }
-            });
-        } catch (e) { console.error("Error sending rejection mail:", e); }
+            console.log(`Email successfully queued for ${email}`);
+        } catch (e) {
+            console.error(`Error queuing email for ${email}:`, e);
+        }
     }
 });
+
