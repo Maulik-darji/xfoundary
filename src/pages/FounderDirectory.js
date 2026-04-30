@@ -290,13 +290,15 @@ const FounderDirectory = ({ embedded }) => {
             `}</style>
 
             <div className="founder-directory-page">
-                {!embedded && (
-                    <div style={{ textAlign: 'center', marginBottom: '5rem' }}>
+                {embedded ? (
+                    <div style={{ marginBottom: '2.5rem' }}>
+                        <h2 style={{ fontSize: '2rem', fontWeight: '800', color: '#1a1a1a', margin: 0 }}>Founder Directory</h2>
+                    </div>
+                ) : (
+                    <div style={{ textAlign: 'center', marginBottom: '4rem' }}>
                         <h1 style={{ 
-                            fontFamily: '"Georgia", serif', 
-                            fontStyle: 'italic', 
-                            fontSize: '4.5rem', 
-                            fontWeight: 400, 
+                            fontSize: '3.5rem', 
+                            fontWeight: '800', 
                             color: '#1a1a1a', 
                             marginBottom: '1rem',
                             letterSpacing: '-0.02em'

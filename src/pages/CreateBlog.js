@@ -79,42 +79,48 @@ const CreateBlog = () => {
         return () => unsubscribe();
     }, [navigate]);
 
-    // Initial content loader (Drafts or Existing Post)
-    useEffect(() => {
-        if (!editorRef.current) return;
-
-        if (isEditing) {
-            // Wait for postData to arrive
-            if (postData && contentLoadedRef.current !== editId) {
-                editorRef.current.innerHTML = postData.content || '<p><br /></p>';
-                contentLoadedRef.current = editId;
-                
-                // Resize title textarea if needed
-                setTimeout(() => {
-                    const titleEl = document.querySelector('textarea');
-                    if (titleEl) {
-                        titleEl.style.height = 'auto';
-                        titleEl.style.height = titleEl.scrollHeight + 'px';
-                    }
-                }, 100);
-            }
-        } else {
-            // Load draft if not already loaded
-            if (contentLoadedRef.current !== 'draft') {
-                const savedTitle = localStorage.getItem('xf_blog_draft_title');
-                const savedCategory = localStorage.getItem('xf_blog_draft_category');
-                const savedCover = localStorage.getItem('xf_blog_draft_cover');
+    // Initial content loader logic moved to a callback ref for reliability
+    const setEditorRef = (node) => {
+        if (node) {
+            editorRef.current = node;
+            // Only set content if we haven't already loaded it for this specific session/post
+            if (isEditing) {
+                if (postData && contentLoadedRef.current !== editId) {
+                    node.innerHTML = postData.content || '<p><br /></p>';
+                    contentLoadedRef.current = editId;
+                    
+                    // Resize title textarea
+                    setTimeout(() => {
+                        const titleEl = document.querySelector('textarea');
+                        if (titleEl) {
+                            titleEl.style.height = 'auto';
+                            titleEl.style.height = titleEl.scrollHeight + 'px';
+                        }
+                    }, 100);
+                }
+            } else if (contentLoadedRef.current !== 'draft') {
                 const savedContent = localStorage.getItem('xf_blog_draft_content');
-
-                if (savedTitle) setTitle(savedTitle);
-                if (savedCategory) setCategory(savedCategory);
-                if (savedCover) setCoverImage(savedCover);
-                
-                editorRef.current.innerHTML = savedContent || '<p><br /></p>';
+                node.innerHTML = savedContent || '<p><br /></p>';
                 contentLoadedRef.current = 'draft';
             }
         }
-    }, [isEditing, postData, editId]);
+    };
+
+    // Fallback Effect to catch postData updates after mount
+    useEffect(() => {
+        if (isEditing && postData && editorRef.current && contentLoadedRef.current !== editId) {
+            console.log("Injecting content for:", editId);
+            editorRef.current.innerHTML = postData.content || '<p><br /></p>';
+            contentLoadedRef.current = editId;
+            
+            // Force title resize
+            const titleEl = document.querySelector('textarea');
+            if (titleEl) {
+                titleEl.style.height = 'auto';
+                titleEl.style.height = (titleEl.scrollHeight + 10) + 'px';
+            }
+        }
+    }, [postData, isEditing, editId]);
 
     // Save draft to localStorage
     useEffect(() => {
@@ -150,6 +156,12 @@ const CreateBlog = () => {
                 setCategory(data.category || 'General');
                 setCoverImage(data.image || '');
                 setPostData(data);
+                
+                // Direct injection if editor is already rendered
+                if (editorRef.current && contentLoadedRef.current !== id) {
+                    editorRef.current.innerHTML = data.content || '<p><br /></p>';
+                    contentLoadedRef.current = id;
+                }
             }
         } catch (e) { console.error("Error fetching post:", e); }
     };
@@ -586,11 +598,11 @@ const CreateBlog = () => {
                         {/* Title */}
                         <textarea
                             placeholder="Post Title"
-                            value={title}
+                             value={title}
                             onChange={e => setTitle(e.target.value)}
                             onInput={e => { 
                                 e.target.style.height = 'auto'; 
-                                e.target.style.height = e.target.scrollHeight + 'px'; 
+                                e.target.style.height = (e.target.scrollHeight + 2) + 'px'; 
                             }}
                             style={{ 
                                 width: '100%', 
@@ -601,11 +613,12 @@ const CreateBlog = () => {
                                 resize: 'none', 
                                 fontFamily: 'Newsreader, serif', 
                                 marginBottom: '1.25rem', 
-                                minHeight: '70px', 
+                                minHeight: '80px', 
                                 color: '#111', 
-                                lineHeight: '1.2', 
+                                lineHeight: '1.4', 
                                 backgroundColor: 'transparent',
-                                overflow: 'hidden'
+                                overflow: 'hidden',
+                                padding: '5px 0'
                             }}
                             rows={1}
                         />
@@ -661,7 +674,7 @@ const CreateBlog = () => {
 
                         {/* Rich Text Editor */}
                         <div
-                            ref={editorRef}
+                            ref={setEditorRef}
                             contentEditable
                             suppressContentEditableWarning
                             data-placeholder="Write your story..."
@@ -678,8 +691,7 @@ const CreateBlog = () => {
                                 border: 'none',
                                 padding: '0',
                                 width: '100%',
-                                fontFamily: 'Inter, sans-serif',
-                                whiteSpace: 'pre-wrap'
+                                fontFamily: 'Inter, sans-serif'
                             }}
                         >
                         </div>
