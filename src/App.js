@@ -36,6 +36,7 @@ import HackerNews from './pages/HackerNews';
 import CoFounderMatching from './pages/CoFounderMatching';
 import CandidateProfile from './pages/CandidateProfile';
 import Inbox from './pages/Inbox';
+import ComingSoon from './pages/ComingSoon';
 
 const Header = () => {
   const [isScrolled, setIsScrolled] = useState(false);
@@ -221,9 +222,8 @@ const Footer = () => {
           <div className="footer-v2-column">
             <h4>Programs</h4>
             <ul>
-              <li><a href="#">XF Program</a></li>
               <li><Link to="/jobs">Work at a Startup</Link></li>
-              <li><a href="#">Co-Founder Matching</a></li>
+              <li><Link to="/co-founder-matching-soon">Co-Founder Matching</Link></li>
             </ul>
           </div>
           <div className="footer-v2-column">
@@ -231,25 +231,16 @@ const Footer = () => {
             <ul>
               <li><Link to="/directory">Startup Directory</Link></li>
               <li><Link to="/library">Startup Library</Link></li>
-              <li><a href="#">Investors</a></li>
-              <li><a href="#">Demo Day</a></li>
-              <li><a href="#">Safe</a></li>
-              <li><a href="#">Hacker News</a></li>
+              <li><a href="https://news.ycombinator.com/" target="_blank" rel="noopener noreferrer">Hacker News</a></li>
               <li><a href="#">Launch XF</a></li>
-              <li><a href="#">XF Deals</a></li>
             </ul>
           </div>
           <div className="footer-v2-column">
             <h4>Company</h4>
             <ul>
               <li><Link to="/blog">XF Blog</Link></li>
-              <li><a href="#">Contact</a></li>
-              <li><a href="#">Press</a></li>
+              <li><a href="mailto:xfoundary@gmail.com">Contact</a></li>
               <li><Link to="/people">People</Link></li>
-              <li><a href="#">Careers</a></li>
-              <li><a href="#">Privacy Policy</a></li>
-              <li><a href="#">Security</a></li>
-              <li><a href="#">Terms of Use</a></li>
             </ul>
           </div>
         </div>
@@ -260,17 +251,8 @@ const Footer = () => {
           <a href="https://x.com/FoundaryX35172" target="_blank" rel="noopener noreferrer">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
           </a>
-          <a href="#" target="_blank" rel="noopener noreferrer">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.04c-5.5 0-10 4.5-10 10 0 4.97 3.64 9.08 8.44 9.88v-6.99h-2.54v-2.89h2.54v-2.2c0-2.5 1.49-3.89 3.77-3.89 1.09 0 2.23.19 2.23.19v2.46h-1.26c-1.24 0-1.63.77-1.63 1.56v1.88h2.77l-.44 2.89h-2.33v6.99c4.8-.8 8.44-4.91 8.44-9.88 0-5.5-4.5-10-10-10z"/></svg>
-          </a>
           <a href="https://www.instagram.com/xfoundary/" target="_blank" rel="noopener noreferrer">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 1.366.062 2.633.332 3.608 1.308.975.975 1.245 2.242 1.308 3.608.058 1.266.07 1.646.07 4.85s-.012 3.584-.07 4.85c-.063 1.366-.333 2.633-1.308 3.608-.975.975-2.242 1.245-3.608 1.308-1.266.058-1.646.07-4.85.07s-3.584-.012-4.85-.07c-1.366-.063-2.633-.333-3.608-1.308-.975-.975-1.245-2.242-1.308-3.608-.058-1.266-.07-1.646-.07-4.85s.012-3.584.07-4.85c.062-1.366.332-2.633 1.308-3.608.975-.975 2.242-1.245 3.608-1.308 1.266-.058 1.646-.07 4.85-.07zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/></svg>
-          </a>
-          <a href="#" target="_blank" rel="noopener noreferrer">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M19 0h-14c-2.761 0-5 2.239-5 5v14c0 2.761 2.239 5 5 5h14c2.761 0 5-2.239 5-5v-14c0-2.761-2.239-5-5-5zm-11 19h-3v-11h3v11zm-1.5-12.268c-.966 0-1.75-.79-1.75-1.764s.784-1.764 1.75-1.764 1.75.79 1.75 1.764-.783 1.764-1.75 1.764zm13.5 12.268h-3v-5.604c0-3.368-4-3.113-4 0v5.604h-3v-11h3v1.765c1.396-2.586 7-2.777 7 2.476v6.759z"/></svg>
-          </a>
-          <a href="#" target="_blank" rel="noopener noreferrer">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M23.498 6.186c-.272-1.015-1.065-1.815-2.071-2.091-1.83-.495-9.177-.495-9.177-.495s-7.347 0-9.177.495c-1.006.276-1.799 1.076-2.071 2.091-.491 1.83-.491 5.656-.491 5.656s0 3.826.491 5.656c.272 1.015 1.065 1.815 2.071 2.091 1.83.495 9.177.495 9.177.495s7.347 0 9.177-.495c1.006-.276 1.799-1.076 2.071-2.091.491-1.83.491-5.656.491-5.656s0-3.826-.491-5.656zM9.545 15.568V8.15l6.378 3.709-6.378 3.709z"/></svg>
           </a>
         </div>
       </div>
@@ -279,9 +261,20 @@ const Footer = () => {
   );
 };
 
+const ScrollToTop = () => {
+  const { pathname } = useLocation();
+
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [pathname]);
+
+  return null;
+};
+
 function App() {
   return (
     <Router>
+      <ScrollToTop />
       <div className="App">
         <Routes>
           <Route path="/login" element={<Login />} />
@@ -321,6 +314,7 @@ function App() {
                 <Route path="/newsletter" element={<Newsletter />} />
                 <Route path="/verify-founders" element={<VerifyFounders />} />
                 <Route path="/find-co-founder" element={<CoFounderMatching />} />
+                <Route path="/co-founder-matching-soon" element={<ComingSoon />} />
                 <Route path="/candidate/profile" element={<CandidateProfile />} />
                 <Route path="/candidate/inbox" element={<Inbox />} />
               </Routes>
