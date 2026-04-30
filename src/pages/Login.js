@@ -39,6 +39,7 @@ const Login = () => {
   const [isVerifyingOtp, setIsVerifyingOtp] = useState(false);
   const [isSendingLink, setIsSendingLink] = useState(false);
   const [resendTimer, setResendTimer] = useState(0);
+  const [isPageLoading, setIsPageLoading] = useState(true);
 
   useEffect(() => {
     let interval;
@@ -219,9 +220,13 @@ const Login = () => {
           })
           .catch((err) => {
             setError("Failed to sign in with link: " + err.message);
+            setIsPageLoading(false);
           });
+        return; // Don't stop loading, we are redirecting
       }
     }
+
+    setIsPageLoading(false);
   }, [navigate, auth]);
 
   const handleLogin = async (e) => {
@@ -249,6 +254,35 @@ const Login = () => {
       setError(getErrorMessage(err));
     }
   };
+
+  if (isPageLoading) {
+    return (
+      <div style={{ 
+        display: 'flex', 
+        justifyContent: 'center', 
+        alignItems: 'center', 
+        height: '100vh', 
+        backgroundColor: '#f9f9f9',
+        flexDirection: 'column',
+        gap: '20px'
+      }}>
+        <div style={{ 
+          width: '40px', 
+          height: '40px', 
+          border: '3px solid #eee', 
+          borderTop: '3px solid #6300dd', 
+          borderRadius: '50%', 
+          animation: 'spin 0.8s linear infinite' 
+        }} />
+        <style>{`
+          @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+          }
+        `}</style>
+      </div>
+    );
+  }
 
   return (
     <div className="login-page">
