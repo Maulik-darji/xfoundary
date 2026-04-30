@@ -3,6 +3,64 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { db } from '../firebase';
 import { collection, getDocs, query, where, doc, getDoc } from 'firebase/firestore';
 
+const AuthorAvatar = ({ authorId, authorName, existingImg, size = '32px' }) => {
+    const [img, setImg] = useState(existingImg || null);
+    const [tried, setTried] = useState(false);
+
+    useEffect(() => {
+        // If we already have an image or we've tried and failed, don't fetch again
+        if (img || !authorId || tried) return;
+
+        const fetchImg = async () => {
+            try {
+                // Try to find the user in any of the potential collections
+                const collections = ['members', 'admins', 'users'];
+                for (const col of collections) {
+                    const docSnap = await getDoc(doc(db, col, authorId));
+                    if (docSnap.exists()) {
+                        const data = docSnap.data();
+                        const profileImg = data.profileImage || 
+                                         data.photoURL || 
+                                         (data.profile && (data.profile.profileImage || data.profile.photoURL));
+                        if (profileImg) {
+                            setImg(profileImg);
+                            return; // Found it!
+                        }
+                    }
+                }
+            } catch (e) {
+                console.error("Error fetching author image for " + authorId, e);
+            } finally {
+                setTried(true);
+            }
+        };
+        fetchImg();
+    }, [authorId, img, tried]);
+
+    // Update img if existingImg prop changes (e.g. when parent state updates)
+    useEffect(() => {
+        if (existingImg) setImg(existingImg);
+    }, [existingImg]);
+
+    if (img) return <img src={img} alt={authorName} style={{ width: size, height: size, borderRadius: '50%', objectFit: 'cover', border: '1px solid #eee' }} />;
+    return (
+        <div style={{ 
+            width: size, 
+            height: size, 
+            borderRadius: '50%', 
+            backgroundColor: '#6300dd', 
+            color: 'white', 
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: 'center', 
+            fontWeight: 'bold', 
+            fontSize: size === '32px' ? '14px' : '24px' 
+        }}>
+            {authorName?.charAt(0)}
+        </div>
+    );
+};
+
 const Blog = ({ embedded }) => {
   const [blogs, setBlogs] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -10,6 +68,9 @@ const Blog = ({ embedded }) => {
   const [activeTab, setActiveTab] = useState('All Posts');
 
   const [selectedBlog, setSelectedBlog] = useState(null);
+  const [authorImageOverride, setAuthorImageOverride] = useState(null);
+  const [authorTitleOverride, setAuthorTitleOverride] = useState(null);
+  const [searchTerm, setSearchTerm] = useState('');
   const [searchParams, setSearchParams] = useSearchParams();
   const blogId = searchParams.get('post');
 
@@ -32,6 +93,40 @@ const Blog = ({ embedded }) => {
   useEffect(() => {
     fetchBlogs();
   }, []);
+
+  useEffect(() => {
+      const fetchLatestAuthorImage = async () => {
+          if (selectedBlog && !selectedBlog.authorImage && !selectedBlog.authorPhoto && selectedBlog.userId) {
+              try {
+                  // Try admins first
+                  let authorDoc = await getDoc(doc(db, 'admins', selectedBlog.userId));
+                  if (!authorDoc.exists()) {
+                      // Try members
+                      authorDoc = await getDoc(doc(db, 'members', selectedBlog.userId));
+                  }
+                  if (!authorDoc.exists()) {
+                      // Try users
+                      authorDoc = await getDoc(doc(db, 'users', selectedBlog.userId));
+                  }
+
+                  if (authorDoc.exists()) {
+                      const data = authorDoc.data();
+                      const img = data.profileImage || data.photoURL || (data.profile && data.profile.profileImage);
+                      if (img) setAuthorImageOverride(img);
+                      
+                      const title = data.role || (data.profile && (data.profile.role || data.profile.title)) || data.title;
+                      if (title) setAuthorTitleOverride(title);
+                  }
+              } catch (e) {
+                  console.error("Error fetching author image:", e);
+              }
+          } else {
+              setAuthorImageOverride(null);
+              setAuthorTitleOverride(null);
+          }
+      };
+      fetchLatestAuthorImage();
+  }, [selectedBlog]);
 
   // Handle scroll to top and title ONLY when a blog is selected/deselected
   useEffect(() => {
@@ -72,40 +167,67 @@ const Blog = ({ embedded }) => {
   // Find the pinned post
   const pinnedPost = blogs.find(b => b.pinned) || blogs[0];
   
-  const [searchTerm, setSearchTerm] = useState('');
+  
   const [didYouMean, setDidYouMean] = useState(null);
 
-  const handleSearch = (e) => {
-    const term = e.target.value.toLowerCase();
-    setSearchTerm(term);
+  const handleClearSearch = () => {
+    setSearchTerm('');
     setDidYouMean(null);
-
-    if (term.length > 3) {
-      const matches = blogs.filter(b => 
-        b.title.toLowerCase().includes(term) || 
-        b.content.toLowerCase().includes(term)
-      );
-      
-      if (matches.length === 0) {
-        // Simple fuzzy match for "Did you mean?"
-        const closest = blogs.find(b => {
-          const title = b.title.toLowerCase();
-          // Check if at least 60% of the search term matches the title words
-          const words = term.split(' ');
-          return words.some(word => word.length > 2 && title.includes(word.substring(0, 3)));
-        });
-        if (closest) setDidYouMean(closest);
-      }
-    }
   };
+
+  const currentFilter = searchTerm;
+
+  const filteredBlogs = blogs.filter(blog => {
+      const term = currentFilter.toLowerCase();
+      const matchesCategory = !selectedCategory || blog.category === selectedCategory;
+      const matchesSearch = blog.title.toLowerCase().includes(term) || 
+                           blog.content.toLowerCase().includes(term);
+      return matchesCategory && matchesSearch;
+  });
+
+  const getSuggestion = () => {
+      const term = currentFilter;
+      if (term.length < 3 || filteredBlogs.length > 0) return null;
+      
+      const similarity = (s1, s2) => {
+          const longer = s1.length > s2.length ? s1 : s2;
+          const shorter = s1.length > s2.length ? s2 : s1;
+          if (longer.length === 0) return 1.0;
+          const editDistance = (str1, str2) => {
+              const costs = [];
+              for (let i = 0; i <= str1.length; i++) {
+                  let lastValue = i;
+                  for (let j = 0; j <= str2.length; j++) {
+                      if (i === 0) costs[j] = j;
+                      else if (j > 0) {
+                          let newValue = costs[j - 1];
+                          if (str1.charAt(i - 1) !== str2.charAt(j - 1)) newValue = Math.min(Math.min(newValue, lastValue), costs[j]) + 1;
+                          costs[j - 1] = lastValue;
+                          lastValue = newValue;
+                      }
+                  }
+                  if (i > 0) costs[str2.length] = lastValue;
+              }
+              return costs[str2.length];
+          };
+          return (longer.length - editDistance(longer.toLowerCase(), shorter.toLowerCase())) / parseFloat(longer.length);
+      };
+
+      const bestMatch = blogs.find(blog => similarity(term, blog.title) > 0.4);
+      return bestMatch || null;
+  };
+
+  const suggestion = getSuggestion();
+
 
   // Filter posts for the grid
   const filteredPosts = blogs.filter(post => {
-      if (!selectedCategory && !searchTerm && post.id === pinnedPost?.id) return false;
+      if (!selectedCategory && !currentFilter && post.id === pinnedPost?.id) return false;
       
-      const matchesSearch = !searchTerm || 
-        post.title.toLowerCase().includes(searchTerm) || 
-        post.content.toLowerCase().includes(searchTerm);
+      const term = currentFilter.toLowerCase();
+      const matchesSearch = !currentFilter || 
+        post.title.toLowerCase().includes(term) || 
+        post.content.toLowerCase().includes(term);
 
       if (selectedCategory) {
           return (post.category === selectedCategory || (post.tags && post.tags.includes(selectedCategory))) && matchesSearch;
@@ -127,12 +249,6 @@ const Blog = ({ embedded }) => {
 
   return (
     <div style={{ backgroundColor: embedded ? 'transparent' : '#f5f5ee', minHeight: '100%', paddingBottom: embedded ? '2rem' : '10rem' }}>
-      <style>{`
-        body, html { 
-          overflow-y: auto !important; 
-          height: auto !important; 
-        }
-      `}</style>
       <div style={{ maxWidth: '1100px', margin: '0 auto', padding: embedded ? '2rem 0' : '2rem 2rem 0 2rem' }}>
         
         {selectedBlog ? (
@@ -170,14 +286,10 @@ const Blog = ({ embedded }) => {
                 <div style={{ borderTop: '1px solid #eee', paddingTop: '4rem', marginBottom: '6rem' }}>
                     <h4 style={{ fontSize: '12px', fontWeight: '700', color: '#999', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '2rem' }}>Author</h4>
                     <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'flex-start' }}>
-                        {selectedBlog.authorImage ? (
-                            <img src={selectedBlog.authorImage} alt={selectedBlog.author} style={{ width: '64px', height: '64px', borderRadius: '50%', objectFit: 'cover', border: '1px solid #eee' }} />
-                        ) : (
-                            <div style={{ width: '64px', height: '64px', borderRadius: '50%', backgroundColor: '#6300dd', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '24px' }}>{selectedBlog.author?.charAt(0)}</div>
-                        )}
+                        <AuthorAvatar authorId={selectedBlog.userId} authorName={selectedBlog.author} existingImg={selectedBlog.authorImage || selectedBlog.authorPhoto || authorImageOverride} size="64px" />
                         <div>
                             <h5 style={{ margin: '0 0 4px 0', fontSize: '18px', fontWeight: '700' }}>{selectedBlog.author}</h5>
-                            <p style={{ margin: 0, fontSize: '14px', color: '#666', lineHeight: '1.5' }}>X Foundary Contributor</p>
+                            <p style={{ margin: 0, fontSize: '14px', color: '#666', lineHeight: '1.5' }}>{selectedBlog.authorTitle || authorTitleOverride || 'X Foundary Contributor'}</p>
                         </div>
                     </div>
                 </div>
@@ -189,21 +301,63 @@ const Blog = ({ embedded }) => {
             <div style={{ padding: '8rem 0 0 0' }} />
             
             {/* Blog Nav & Search */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4rem', borderBottom: '1px solid #ddd' }}>
-                <div style={{ display: 'flex', gap: '1.5rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4rem', borderBottom: '1px solid #ddd', position: 'relative' }}>
+                <div style={{ display: 'flex', gap: '1.5rem', position: 'relative' }}>
                     {['All Posts', 'Startup Jobs', 'Startup School'].map(tab => (
-                        <span key={tab} onClick={() => { setActiveTab(tab); setSelectedCategory(null); }} style={tabStyle(tab)}>{tab}</span>
+                        <span 
+                            key={tab} 
+                            id={`tab-${tab.replace(/\s+/g, '-')}`}
+                            onClick={() => { setActiveTab(tab); setSelectedCategory(null); }} 
+                            style={{
+                                padding: '0.5rem 1rem',
+                                cursor: 'pointer',
+                                fontSize: '14px',
+                                fontWeight: '500',
+                                color: activeTab === tab ? '#111' : '#666',
+                                transition: 'color 0.3s ease',
+                                fontFamily: 'Inter, sans-serif'
+                            }}
+                        >
+                            {tab}
+                        </span>
                     ))}
+                    {/* Animated Indicator */}
+                    <div style={{
+                        position: 'absolute',
+                        bottom: '-1px',
+                        height: '2px',
+                        backgroundColor: '#ff6026',
+                        transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                        left: (() => {
+                            if (activeTab === 'All Posts') return '0';
+                            if (activeTab === 'Startup Jobs') return '100px';
+                            if (activeTab === 'Startup School') return '215px';
+                            return '0';
+                        })(),
+                        width: (() => {
+                            if (activeTab === 'All Posts') return '85px';
+                            if (activeTab === 'Startup Jobs') return '100px';
+                            if (activeTab === 'Startup School') return '110px';
+                            return '0';
+                        })()
+                    }} />
                 </div>
-                <div style={{ position: 'relative' }}>
-                    <input 
-                      type="text" 
-                      placeholder="Search Blog" 
-                      value={searchTerm}
-                      onChange={handleSearch}
-                      style={{ padding: '8px 12px 8px 35px', borderRadius: '4px', border: '1px solid #ddd', fontSize: '14px', width: '240px', outline: 'none' }} 
-                    />
-                    <svg style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#999' }} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                    <div style={{ position: 'relative', display: 'flex', alignItems: 'center', backgroundColor: '#fff', border: '1px solid #ddd', borderRadius: '4px', width: '280px' }}>
+                        <svg style={{ position: 'absolute', left: '10px', color: '#999' }} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                        <input 
+                          type="text" 
+                          placeholder="Search Blog" 
+                          value={searchTerm}
+                          onChange={(e) => setSearchTerm(e.target.value)}
+                          style={{ padding: '10px 35px 10px 35px', border: 'none', borderRadius: '4px', fontSize: '14px', width: '100%', outline: 'none', background: 'transparent' }} 
+                        />
+                        {searchTerm && (
+                            <button onClick={handleClearSearch} style={{ position: 'absolute', right: '10px', background: 'none', border: 'none', cursor: 'pointer', color: '#999', display: 'flex', alignItems: 'center', padding: '4px' }}>
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                            </button>
+                        )}
+                    </div>
                 </div>
             </div>
 
@@ -221,10 +375,15 @@ const Blog = ({ embedded }) => {
             )}
 
             {/* Featured Post */}
-            {!selectedCategory && !searchTerm && pinnedPost && (
+            {!selectedCategory && !currentFilter && pinnedPost && (
                 <div style={{ display: 'flex', gap: '4rem', marginBottom: '6rem', alignItems: 'center' }}>
                     <div style={{ flex: 1 }}>
-                        <h1 style={{ fontSize: '2.5rem', fontWeight: '500', marginBottom: '1.5rem', fontFamily: 'Inter, sans-serif', color: '#111', lineHeight: '1.2' }}>{pinnedPost.title}</h1>
+                        <h1 
+                            onClick={() => handleOpenBlog(pinnedPost)}
+                            style={{ fontSize: '2.5rem', fontWeight: '500', marginBottom: '1.5rem', fontFamily: 'Inter, sans-serif', color: '#111', lineHeight: '1.2', cursor: 'pointer' }}
+                        >
+                            {pinnedPost.title}
+                        </h1>
                         <p style={{ fontSize: '1.1rem', lineHeight: '1.6', color: '#333', marginBottom: '1.5rem', fontFamily: 'Inter, sans-serif', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
                             {pinnedPost.content?.replace(/<[^>]*>?/gm, '').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&')}
                         </p>
@@ -236,7 +395,10 @@ const Blog = ({ embedded }) => {
                         </button>
                     </div>
                     <div style={{ flex: 1 }}>
-                        <div style={{ width: '100%', aspectRatio: '16/10', borderRadius: '12px', overflow: 'hidden', boxShadow: '0 20px 40px rgba(0,0,0,0.1)' }}>
+                        <div 
+                            onClick={() => handleOpenBlog(pinnedPost)}
+                            style={{ width: '100%', aspectRatio: '16/10', borderRadius: '12px', overflow: 'hidden', boxShadow: '0 20px 40px rgba(0,0,0,0.1)', cursor: 'pointer' }}
+                        >
                             <img src={pinnedPost.image} alt="Featured" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                         </div>
                     </div>
@@ -245,7 +407,7 @@ const Blog = ({ embedded }) => {
 
             {/* Recent Posts Grid */}
             <h2 style={{ fontSize: '1rem', fontWeight: 'bold', color: '#ff6026', textTransform: 'uppercase', marginBottom: '2rem', letterSpacing: '0.05em' }}>
-                {searchTerm ? 'Search Results' : 'RECENT POSTS'} {selectedCategory && `(${selectedCategory.toUpperCase()})`}
+                {currentFilter ? `SEARCH RESULTS FOR "${currentFilter.toUpperCase()}"` : 'RECENT POSTS'} {selectedCategory && `(${selectedCategory.toUpperCase()})`}
             </h2>
             
             {filteredPosts.length > 0 ? (
@@ -271,11 +433,7 @@ const Blog = ({ embedded }) => {
                                 </div>
 
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                                    {post.authorImage ? (
-                                        <img src={post.authorImage} alt={post.author} style={{ width: '32px', height: '32px', borderRadius: '50%', objectFit: 'cover' }} />
-                                    ) : (
-                                        <div style={{ width: '32px', height: '32px', borderRadius: '50%', backgroundColor: '#6300dd', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '14px' }}>{post.author?.charAt(0)}</div>
-                                    )}
+                                    <AuthorAvatar authorId={post.userId || post.authorId} authorName={post.author} existingImg={post.authorImage || post.authorPhoto} size="32px" />
                                     <div>
                                         <p style={{ margin: 0, fontSize: '13px', fontWeight: '600' }}>{post.author}</p>
                                         <p style={{ margin: 0, fontSize: '12px', color: '#999' }}>{new Date(post.date || post.createdAt).toLocaleDateString()}</p>
@@ -286,14 +444,21 @@ const Blog = ({ embedded }) => {
                     ))}
                 </div>
             ) : (
-                <div style={{ textAlign: 'center', padding: '4rem', color: '#666' }}>
-                  <p style={{ fontSize: '1.2rem', fontWeight: '500' }}>No posts match your search.</p>
-                  <button onClick={() => setSearchTerm('')} style={{ color: '#ff6026', background: 'none', border: 'none', cursor: 'pointer', fontWeight: '600', textDecoration: 'underline' }}>Clear Search</button>
+                <div style={{ textAlign: 'center', padding: '6rem 2rem', color: '#666', backgroundColor: '#fff', borderRadius: '12px', border: '1px solid #eee', marginBottom: '8rem' }}>
+                  <p style={{ fontSize: '1.25rem', fontWeight: '600', color: '#111', marginBottom: '0.5rem' }}>No posts found for "{currentFilter}"</p>
+                  {suggestion ? (
+                      <p style={{ fontSize: '1rem', color: '#666', marginBottom: '1.5rem' }}>
+                          Did you mean: <span onClick={() => { setSearchTerm(suggestion.title); }} style={{ color: '#ff6026', cursor: 'pointer', fontWeight: 'bold', borderBottom: '2px solid #ff6026' }}>{suggestion.title}</span>?
+                      </p>
+                  ) : (
+                      <p style={{ fontSize: '1rem', color: '#888', marginBottom: '1.5rem' }}>Try adjusting your keywords or filters.</p>
+                  )}
+                  <button onClick={handleClearSearch} style={{ color: '#ff6026', background: 'none', border: '1px solid #ff6026', padding: '8px 24px', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', transition: 'all 0.2s ease' }} onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#ff6026'; e.currentTarget.style.color = '#fff'; }} onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = '#ff6026'; }}>Clear Search</button>
                 </div>
             )}
 
             {/* Categories Sidebar Layout */}
-            {!searchTerm && (
+            {!currentFilter && (
               <div style={{ display: 'flex', gap: '5rem' }}>
                   <div style={{ flex: 1 }}>
                       <h2 style={{ fontSize: '1rem', fontWeight: 'bold', color: '#ff6026', textTransform: 'uppercase', marginBottom: '2.5rem', letterSpacing: '0.05em' }}>All Posts</h2>

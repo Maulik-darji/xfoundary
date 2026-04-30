@@ -214,7 +214,7 @@ const ApplicationHome = () => {
                     <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1rem' }}>
                       {appStatus === 'approved' ? (
                         <button 
-                          onClick={() => navigate('/member')}
+                          onClick={() => navigate('/founderscompany/dashboard')}
                           style={{ 
                             backgroundColor: '#6300dd', 
                             color: 'white', 

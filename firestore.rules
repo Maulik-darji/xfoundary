@@ -31,15 +31,15 @@ service cloud.firestore {
       }
     }
 
-    // Team Members: Restricted to the specific member or admins
+    // Team Members: Restricted write, but publicly readable for blog author profiles
     match /members/{userId} {
-      allow read: if request.auth != null && (request.auth.uid == userId || isAdmin());
+      allow read: if true;
       allow write: if request.auth != null && (request.auth.uid == userId || isAdmin());
     }
 
-    // Administrators: Restricted to the specific admin or other admins
+    // Administrators: Restricted write, but publicly readable for blog author profiles
     match /admins/{userId} {
-      allow read: if request.auth != null && (request.auth.uid == userId || isAdmin());
+      allow read: if true;
       allow write: if request.auth != null && (request.auth.uid == userId || isAdmin());
     }
     

@@ -7,6 +7,7 @@ import {
     collection, query, where, getDocs, addDoc, deleteDoc 
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import Cropper from 'react-easy-crop';
 
 const FounderDashboard = () => {
     const [user, setUser] = useState(null);
@@ -22,16 +23,35 @@ const FounderDashboard = () => {
     const [editingJobId, setEditingJobId] = useState(null);
     const navigate = useNavigate();
     const fileInputRef = useRef(null);
+    const logoInputRef = useRef(null);
 
-    const industryOptions = [
-        "B2B", "Analytics", "Engineering, Product and Design", "Finance and Accounting", "Human Resources", "Infrastructure", "Legal", "Marketing", "Office Management", "Operations", "Productivity", "Recruiting and Talent", "Retail", "Sales", "Security", "Supply Chain and Logistics",
-        "Consumer", "Apparel and Cosmetics", "Consumer Electronics", "Content", "Food and Beverage", "Gaming", "Home and Personal", "Job and Career Services", "Social", "Transportation Services", "Travel, Leisure and Tourism", "Virtual and Augmented Reality",
-        "Fintech", "Asset Management", "Banking and Exchange", "Consumer Finance", "Credit and Lending", "Insurance", "Payments",
-        "Healthcare", "Consumer Health and Wellness", "Diagnostics", "Drug Discovery and Delivery", "Healthcare IT", "Healthcare Services", "Industrial Bio", "Medical Devices", "Therapeutics",
-        "Industrials", "Agriculture", "Automotive", "Aviation and Space", "Climate", "Defense", "Drones", "Energy", "Manufacturing and Robotics",
-        "Real Estate and Construction", "Construction", "Housing and Real Estate",
-        "Government", "Education"
-    ].sort();
+    // Image Upload & Crop State
+    const [selectedFile, setSelectedFile] = useState(null);
+    const [previewUrl, setPreviewUrl] = useState(null);
+    const [showPreviewModal, setShowPreviewModal] = useState(false);
+    const [showCropModal, setShowCropModal] = useState(false);
+    const [showSourceModal, setShowSourceModal] = useState(false);
+    const [sourceTarget, setSourceTarget] = useState('logo'); // 'logo' or 'profile'
+    const [justSaved, setJustSaved] = useState(false);
+    const [crop, setCrop] = useState({ x: 0, y: 0 });
+    const [zoom, setZoom] = useState(1);
+    const [croppedAreaPixels, setCroppedAreaPixels] = useState(null);
+    const [showPhotoViewerModal, setShowPhotoViewerModal] = useState(false);
+    const [rotation, setRotation] = useState(0);
+    const [flip, setFlip] = useState({ horizontal: false, vertical: false });
+    const [activeEditorTab, setActiveEditorTab] = useState('crop'); // 'crop', 'filter', 'adjust'
+
+    const industryHierarchy = {
+        'B2B': ['Analytics', 'Engineering, Product and Design', 'Finance and Accounting', 'Human Resources', 'Infrastructure', 'Legal', 'Marketing', 'Office Management', 'Operations', 'Productivity', 'Recruiting and Talent', 'Retail', 'Sales', 'Security', 'Supply Chain and Logistics'],
+        'Consumer': ['Apparel and Cosmetics', 'Consumer Electronics', 'Content', 'Food and Beverage', 'Gaming', 'Home and Personal', 'Job and Career Services', 'Social', 'Transportation Services', 'Travel, Leisure and Tourism', 'Virtual and Augmented Reality'],
+        'Fintech': ['Asset Management', 'Banking and Exchange', 'Consumer Finance', 'Credit and Lending', 'Insurance', 'Payments'],
+        'Healthcare': ['Consumer Health and Wellness', 'Diagnostics', 'Drug Discovery and Delivery', 'Healthcare IT', 'Healthcare Services', 'Industrial Bio', 'Medical Devices', 'Therapeutics'],
+        'Industrials': ['Agriculture', 'Automotive', 'Aviation and Space', 'Climate', 'Defense', 'Drones', 'Energy', 'Manufacturing and Robotics'],
+        'Real Estate and Construction': ['Construction', 'Housing and Real Estate'],
+        'Government': [],
+        'Education': []
+    };
+    const parentCategories = Object.keys(industryHierarchy);
 
     const locationSuggestions = [
         "Ahmedabad, India", "Bengaluru, India", "Mumbai, India", "Delhi NCR, India", "Hyderabad, India", "Pune, India", "Chennai, India", "Kolkata, India", "Jaipur, India", "Surat, India",
@@ -134,16 +154,26 @@ const FounderDashboard = () => {
         setMessage({ text: '', type: '' });
         try {
             const userRef = doc(db, 'users', user.uid);
+            // Build industries array: [parent] or [parent, subCategory]
+            const parent = appData.category || '';
+            const sub = appData.subCategory || '';
+            const industries = sub ? [parent, sub] : [parent];
             await updateDoc(userRef, {
                 'application.companyName': appData.companyName || '',
                 'application.companyDescription': appData.companyDescription || '',
                 'application.basedIn': appData.basedIn || '',
-                'application.category': appData.category || '',
+                'application.category': parent,
+                'application.subCategory': sub,
+                'application.industries': industries,
                 'application.companyUrl': appData.companyUrl || '',
                 'application.socials': appData.socials || {}
             });
-            setMessage({ text: 'Company information updated successfully!', type: 'success' });
-            setTimeout(() => setMessage({ text: '', type: '' }), 5000);
+            setMessage({ text: 'SAVED', type: 'success' });
+            setJustSaved(true);
+            setTimeout(() => {
+                setMessage({ text: '', type: '' });
+                setJustSaved(false);
+            }, 3000);
         } catch (error) {
             console.error("Error saving data:", error);
             setMessage({ text: 'Failed to update company info. Please try again.', type: 'error' });
@@ -184,8 +214,12 @@ const FounderDashboard = () => {
                 'socials': userData.socials || {}
             });
 
-            setMessage({ text: 'Profile updated successfully!', type: 'success' });
-            setTimeout(() => setMessage({ text: '', type: '' }), 5000);
+            setMessage({ text: 'SAVED', type: 'success' });
+            setJustSaved(true);
+            setTimeout(() => {
+                setMessage({ text: '', type: '' });
+                setJustSaved(false);
+            }, 3000);
         } catch (error) {
             console.error("Error saving profile:", error);
             setMessage({ text: 'Failed to update profile. ' + error.message, type: 'error' });
@@ -194,28 +228,176 @@ const FounderDashboard = () => {
         }
     };
 
-    const handleImageUpload = async (e) => {
+    const handleDrivePicker = () => {
+        alert("Google Drive integration is coming soon! Please use 'Browse from Device' for now.");
+    };
+
+    const handleFileChange = (e, target) => {
         const file = e.target.files[0];
-        if (!file || !user) return;
+        if (!file) return;
+
+        setSourceTarget(target);
+        setSelectedFile(file);
+        const reader = new FileReader();
+        reader.onload = () => {
+            setPreviewUrl(reader.result);
+            setShowCropModal(true);
+            setShowSourceModal(false);
+        };
+        reader.readAsDataURL(file);
+    };
+
+    const onCropComplete = (croppedArea, croppedAreaPixels) => {
+        setCroppedAreaPixels(croppedAreaPixels);
+    };
+
+    const confirmImageUpload = async (useCrop = false) => {
+        if (!selectedFile && !previewUrl) return;
 
         setSaving(true);
+        setShowPreviewModal(false);
+        setShowCropModal(false);
+
         try {
-            const storageRef = ref(storage, `profile_images/${user.uid}`);
-            await uploadBytes(storageRef, file);
-            const downloadURL = await getDownloadURL(storageRef);
+            let fileToUpload = selectedFile;
 
-            // Update Auth
-            await updateProfile(user, { photoURL: downloadURL });
+            if (useCrop && croppedAreaPixels) {
+                const image = await new Promise((resolve, reject) => {
+                    const img = new Image();
+                    img.crossOrigin = 'anonymous';
+                    img.onload = () => resolve(img);
+                    img.onerror = () => reject(new Error("Failed to load image for cropping. Ensure the URL is valid and CORS is supported."));
+                    img.src = previewUrl;
+                });
 
-            // Update Firestore
-            const userRef = doc(db, 'users', user.uid);
-            await updateDoc(userRef, { photoURL: downloadURL });
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
 
-            setUserData({ ...userData, photoURL: downloadURL });
-            setMessage({ text: 'Profile image updated!', type: 'success' });
+                const rotRad = (rotation * Math.PI) / 180;
+                
+                // Calculate bounding box for rotation
+                const { width: bWidth, height: bHeight } = {
+                    width: Math.abs(Math.cos(rotRad) * image.width) + Math.abs(Math.sin(rotRad) * image.height),
+                    height: Math.abs(Math.sin(rotRad) * image.width) + Math.abs(Math.cos(rotRad) * image.height),
+                };
+
+                canvas.width = bWidth;
+                canvas.height = bHeight;
+
+                ctx.translate(bWidth / 2, bHeight / 2);
+                ctx.rotate(rotRad);
+                ctx.scale(flip.horizontal ? -1 : 1, flip.vertical ? -1 : 1);
+                ctx.drawImage(image, -image.width / 2, -image.height / 2);
+
+                const croppedCanvas = document.createElement('canvas');
+                croppedCanvas.width = croppedAreaPixels.width;
+                croppedCanvas.height = croppedAreaPixels.height;
+                const croppedCtx = croppedCanvas.getContext('2d');
+
+                croppedCtx.drawImage(
+                    canvas,
+                    croppedAreaPixels.x,
+                    croppedAreaPixels.y,
+                    croppedAreaPixels.width,
+                    croppedAreaPixels.height,
+                    0,
+                    0,
+                    croppedAreaPixels.width,
+                    croppedAreaPixels.height
+                );
+
+                fileToUpload = await new Promise((resolve, reject) => {
+                    croppedCanvas.toBlob((blob) => {
+                        if (blob) resolve(blob);
+                        else reject(new Error("Failed to generate image blob."));
+                    }, 'image/png');
+                });
+            } else if (previewUrl && previewUrl.startsWith('data:')) {
+                try {
+                    const parts = previewUrl.split(',');
+                    const byteString = atob(parts[1]);
+                    const mimeString = parts[0].split(':')[1].split(';')[0];
+                    const ab = new ArrayBuffer(byteString.length);
+                    const ia = new Uint8Array(ab);
+                    for (let i = 0; i < byteString.length; i++) {
+                        ia[i] = byteString.charCodeAt(i);
+                    }
+                    fileToUpload = new Blob([ab], { type: mimeString });
+                } catch (e) {
+                    throw new Error("Failed to process data URL image.");
+                }
+            }
+
+            if (!fileToUpload) throw new Error("No file selected for upload.");
+
+            if (sourceTarget === 'logo') {
+                const storageRef = ref(storage, `company_logos/${user.uid}/${Date.now()}-${selectedFile?.name || 'logo.png'}`);
+                await uploadBytes(storageRef, fileToUpload);
+                const downloadURL = await getDownloadURL(storageRef);
+
+                const userRef = doc(db, 'users', user.uid);
+                await updateDoc(userRef, { 'application.companyLogo': downloadURL });
+                setAppData({ ...appData, companyLogo: downloadURL });
+                setMessage({ text: 'Company logo updated!', type: 'success' });
+            } else {
+                const storageRef = ref(storage, `profile_images/${user.uid}`);
+                await uploadBytes(storageRef, fileToUpload);
+                const downloadURL = await getDownloadURL(storageRef);
+                await updateProfile(user, { photoURL: downloadURL });
+                const userRef = doc(db, 'users', user.uid);
+                await updateDoc(userRef, { photoURL: downloadURL });
+                setUserData({ ...userData, photoURL: downloadURL });
+                setMessage({ text: 'Profile image updated!', type: 'success' });
+            }
+
+            setTimeout(() => setMessage({ text: '', type: '' }), 5000);
+            setPreviewUrl(null);
+            setSelectedFile(null);
         } catch (error) {
-            console.error("Error uploading image:", error);
-            setMessage({ text: 'Failed to upload image.', type: 'error' });
+            console.error("Error uploading:", error);
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            setMessage({ text: 'Failed to upload. ' + errorMessage, type: 'error' });
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const handleRemoveLogo = async () => {
+        if (!window.confirm("Are you sure you want to remove the company logo?")) return;
+        
+        setSaving(true);
+        try {
+            const userRef = doc(db, 'users', user.uid);
+            await updateDoc(userRef, { 
+                'application.companyLogo': '' 
+            });
+            setAppData({ ...appData, companyLogo: '' });
+            setMessage({ text: 'Company logo removed!', type: 'success' });
+            setTimeout(() => setMessage({ text: '', type: '' }), 5000);
+        } catch (error) {
+            console.error("Error removing logo:", error);
+            setMessage({ text: 'Failed to remove logo.', type: 'error' });
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const handleRemoveProfileImage = async () => {
+        if (!window.confirm("Are you sure you want to remove your profile photo?")) return;
+        
+        setSaving(true);
+        try {
+            await updateProfile(user, { photoURL: '' });
+            const userRef = doc(db, 'users', user.uid);
+            await updateDoc(userRef, { 
+                photoURL: '' 
+            });
+            setUserData({ ...userData, photoURL: '' });
+            setMessage({ text: 'Profile photo removed!', type: 'success' });
+            setTimeout(() => setMessage({ text: '', type: '' }), 5000);
+        } catch (error) {
+            console.error("Error removing photo:", error);
+            setMessage({ text: 'Failed to remove photo.', type: 'error' });
         } finally {
             setSaving(false);
         }
@@ -348,7 +530,44 @@ const FounderDashboard = () => {
                 }
                 .avatar-circle:hover { border-color: #111; }
                 .avatar-circle img { width: 100%; height: 100%; object-fit: cover; }
+                .toast-popup {
+                    position: fixed;
+                    bottom: 2rem;
+                    right: 2rem;
+                    z-index: 9999;
+                    display: flex;
+                    align-items: center;
+                    gap: 12px;
+                    padding: 14px 20px;
+                    border-radius: 10px;
+                    font-size: 14px;
+                    font-weight: 600;
+                    box-shadow: 0 8px 30px rgba(0,0,0,0.12);
+                    animation: toastIn 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+                    min-width: 240px;
+                    max-width: 380px;
+                }
+                .toast-popup.success {
+                    background: #fff;
+                    border: 1px solid #bbf7d0;
+                    color: #15803d;
+                }
+                .toast-popup.error {
+                    background: #fff;
+                    border: 1px solid #fecaca;
+                    color: #dc2626;
+                }
+                @keyframes toastIn {
+                    0%  { opacity: 0; transform: translateY(20px) scale(0.95); }
+                    100% { opacity: 1; transform: translateY(0) scale(1); }
+                }
             `}</style>
+
+            {message.text && (
+                <div className={`toast-popup ${message.type}`}>
+                    {message.text}
+                </div>
+            )}
 
             <aside className="simple-sidebar">
                 <div style={{ marginBottom: '3rem' }}>
@@ -390,29 +609,83 @@ const FounderDashboard = () => {
 
             <main className="portal-main">
                 <div className="content-section">
-                    {message.text && (
-                        <div style={{ 
-                            padding: '12px 16px', 
-                            borderRadius: '6px', 
-                            backgroundColor: message.type === 'success' ? '#f0fdf4' : '#fef2f2',
-                            color: message.type === 'success' ? '#16a34a' : '#dc2626',
-                            marginBottom: '2rem',
-                            fontSize: '14px',
-                            fontWeight: '500',
-                            border: `1px solid ${message.type === 'success' ? '#bbf7d0' : '#fecaca'}`,
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '10px'
-                        }}>
-                            {message.text}
-                        </div>
-                    )}
-
                     {activeTab === 'company' ? (
                         <>
-                            <div style={{ marginBottom: '3rem' }}>
-                                <h1 style={{ fontSize: '28px', fontWeight: '800', margin: 0, color: '#111' }}>Company Profile</h1>
-                                <p style={{ color: '#666', marginTop: '6px', fontSize: '15px' }}>Information displayed in the public startup directory</p>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '2rem', marginBottom: '3rem' }}>
+                                <div 
+                                    style={{ 
+                                        width: '100px', 
+                                        height: '100px', 
+                                        borderRadius: '16px', 
+                                        border: '1px solid #ddd', 
+                                        background: '#fff', 
+                                        display: 'flex', 
+                                        alignItems: 'center', 
+                                        justifyContent: 'center', 
+                                        cursor: 'pointer',
+                                        overflow: 'hidden',
+                                        position: 'relative'
+                                    }}
+                                >
+                                    <div style={{ width: '100%', height: '100%' }} onClick={() => { setSourceTarget('logo'); setShowSourceModal(true); }}>
+                                        {appData.companyLogo ? (
+                                            <img src={appData.companyLogo} alt="Logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                                        ) : (
+                                            <div style={{ fontSize: '11px', color: '#999', textAlign: 'center', padding: '10px' }}>Click to upload logo</div>
+                                        )}
+                                    </div>
+                                    
+                                    {appData.companyLogo && (
+                                        <button 
+                                            type="button"
+                                            onClick={(e) => { e.stopPropagation(); handleRemoveLogo(); }}
+                                            style={{
+                                                position: 'absolute',
+                                                top: '4px',
+                                                right: '4px',
+                                                backgroundColor: 'rgba(255,255,255,0.9)',
+                                                border: '1px solid #ddd',
+                                                borderRadius: '50%',
+                                                width: '24px',
+                                                height: '24px',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                cursor: 'pointer',
+                                                fontSize: '14px',
+                                                color: '#ff4d4f',
+                                                boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                                            }}
+                                            title="Remove logo"
+                                        >
+                                            ×
+                                        </button>
+                                    )}
+
+                                </div>
+                                <div>
+                                    <h1 style={{ fontSize: '28px', fontWeight: '800', margin: 0, color: '#111' }}>Company Profile</h1>
+                                    <p style={{ color: '#666', marginTop: '6px', fontSize: '15px', marginBottom: '12px' }}>Information displayed in the public startup directory</p>
+                                    <button 
+                                        type="button"
+                                        onClick={() => { setSourceTarget('logo'); setShowSourceModal(true); }}
+                                        style={{ 
+                                            background: '#f3f4f6', 
+                                            border: '1px solid #ddd', 
+                                            padding: '6px 12px', 
+                                            borderRadius: '6px', 
+                                            fontSize: '12px', 
+                                            fontWeight: '600', 
+                                            cursor: 'pointer',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '6px'
+                                        }}
+                                    >
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
+                                        Change Photo
+                                    </button>
+                                </div>
                             </div>
 
                             <form onSubmit={handleCompanySave}>
@@ -428,15 +701,39 @@ const FounderDashboard = () => {
 
                                 <div className="form-group">
                                     <label className="label-text">Category / Industry</label>
-                                    <select 
+                                    <select
                                         className="portal-input"
-                                        value={appData.category || ''}
-                                        onChange={(e) => setAppData({...appData, category: e.target.value})}
+                                        value={(() => {
+                                            const cat = appData.category || '';
+                                            return parentCategories.find(p => p === cat || industryHierarchy[p]?.includes(cat)) || '';
+                                        })()}
+                                        onChange={(e) => {
+                                            const parent = e.target.value;
+                                            setAppData({...appData, category: parent, subCategory: ''});
+                                        }}
                                         required
+                                        style={{ marginBottom: '10px' }}
                                     >
-                                        <option value="">Select an industry...</option>
-                                        {industryOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                                        <option value="">Select a category...</option>
+                                        {parentCategories.map(p => <option key={p} value={p}>{p}</option>)}
                                     </select>
+
+                                    {(() => {
+                                        const parent = parentCategories.find(p => p === appData.category || industryHierarchy[p]?.includes(appData.category)) || appData.category;
+                                        const subs = industryHierarchy[parent] || [];
+                                        if (!parent || subs.length === 0) return null;
+                                        const currentSub = subs.includes(appData.category) ? appData.category : (appData.subCategory || '');
+                                        return (
+                                            <select
+                                                className="portal-input"
+                                                value={currentSub}
+                                                onChange={(e) => setAppData({...appData, subCategory: e.target.value, category: parent})}
+                                            >
+                                                <option value="">All of {parent} (no sub-category)</option>
+                                                {subs.map(s => <option key={s} value={s}>{s}</option>)}
+                                            </select>
+                                        );
+                                    })()}
                                 </div>
 
                                 <div className="form-group">
@@ -486,34 +783,69 @@ const FounderDashboard = () => {
                                 </div>
 
                                 <div style={{ marginTop: '2.5rem' }}>
-                                    <button type="submit" disabled={saving} className="action-btn">
-                                        {saving ? 'Updating...' : 'Save Changes'}
+                                    <button type="submit" disabled={saving || justSaved} className="action-btn">
+                                        {saving ? 'Updating...' : justSaved ? 'SAVED' : 'Save Changes'}
                                     </button>
                                 </div>
                             </form>
                         </>
                     ) : activeTab === 'profile' ? (
                         <>
-                            <div className="profile-box">
-                                <div className="avatar-circle" onClick={() => fileInputRef.current.click()}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '2rem', marginBottom: '3rem' }}>
+                                <div 
+                                    className="avatar-circle" 
+                                    onClick={() => { 
+                                        if (userData.photoURL) {
+                                            setShowPhotoViewerModal(true);
+                                        } else {
+                                            setSourceTarget('profile'); 
+                                            setShowSourceModal(true); 
+                                        }
+                                    }}
+                                    style={{ 
+                                        width: '80px', 
+                                        height: '80px', 
+                                        borderRadius: '50%', 
+                                        backgroundColor: '#eee', 
+                                        display: 'flex', 
+                                        alignItems: 'center', 
+                                        justifyContent: 'center', 
+                                        overflow: 'hidden', 
+                                        cursor: 'pointer',
+                                        position: 'relative',
+                                        border: '1px solid #ddd'
+                                    }}
+                                >
                                     {userData.photoURL ? (
-                                        <img src={userData.photoURL} alt="Avatar" />
+                                        <img src={userData.photoURL} alt="Avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                                     ) : (
                                         <div style={{ fontSize: '24px', fontWeight: '700', color: '#999' }}>
                                             {userData.profile?.name?.charAt(0).toUpperCase() || 'F'}
                                         </div>
                                     )}
-                                    <input 
-                                        type="file" 
-                                        ref={fileInputRef} 
-                                        style={{ display: 'none' }} 
-                                        accept="image/*"
-                                        onChange={handleImageUpload}
-                                    />
                                 </div>
                                 <div>
                                     <h1 style={{ fontSize: '24px', fontWeight: '800', margin: 0, color: '#111' }}>Account Settings</h1>
-                                    <p style={{ color: '#666', marginTop: '4px', fontSize: '14px' }}>Personal information and contact details</p>
+                                    <p style={{ color: '#666', marginTop: '4px', fontSize: '14px', marginBottom: '8px' }}>Personal information and contact details</p>
+                                    <button 
+                                        type="button"
+                                        onClick={() => { setSourceTarget('profile'); setShowSourceModal(true); }}
+                                        style={{ 
+                                            background: '#f3f4f6', 
+                                            border: '1px solid #ddd', 
+                                            padding: '4px 10px', 
+                                            borderRadius: '6px', 
+                                            fontSize: '11px', 
+                                            fontWeight: '600', 
+                                            cursor: 'pointer',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '4px'
+                                        }}
+                                    >
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
+                                        Change Photo
+                                    </button>
                                 </div>
                             </div>
 
@@ -561,8 +893,8 @@ const FounderDashboard = () => {
                                 </div>
 
                                 <div style={{ marginTop: '2.5rem' }}>
-                                    <button type="submit" disabled={saving} className="action-btn">
-                                        {saving ? 'Updating...' : 'Save Profile'}
+                                    <button type="submit" disabled={saving || justSaved} className="action-btn">
+                                        {saving ? 'Updating...' : justSaved ? 'SAVED' : 'Save Profile'}
                                     </button>
                                 </div>
                             </form>
@@ -581,10 +913,10 @@ const FounderDashboard = () => {
 
                             <div style={{ display: 'grid', gap: '1rem' }}>
                                 {jobs.length > 0 ? jobs.map(job => (
-                                    <div key={job.id} style={{ padding: '1rem 1.5rem', border: '1px solid #e5e5e0', borderRadius: '8px', background: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <div key={job.id} style={{ padding: '1rem 1.25rem', border: '1px solid #e5e5e0', borderRadius: '4px', background: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                         <div>
-                                            <h3 style={{ margin: 0, fontSize: '16px', fontWeight: '700' }}>{job.role}</h3>
-                                            <div style={{ display: 'flex', gap: '12px', marginTop: '4px', fontSize: '13px', color: '#666' }}>
+                                            <h3 style={{ margin: 0, fontSize: '15px', fontWeight: '700' }}>{job.role}</h3>
+                                            <div style={{ display: 'flex', gap: '10px', marginTop: '4px', fontSize: '13px', color: '#666' }}>
                                                 <span>{job.type}</span>
                                                 <span>&bull;</span>
                                                 <span>{job.location}</span>
@@ -596,7 +928,7 @@ const FounderDashboard = () => {
                                         </div>
                                     </div>
                                 )) : (
-                                    <div style={{ padding: '3rem', textAlign: 'center', border: '1px dashed #ddd', borderRadius: '8px', color: '#999', fontSize: '14px' }}>
+                                    <div style={{ padding: '3rem', textAlign: 'center', border: '1px dashed #ddd', borderRadius: '4px', color: '#999', fontSize: '14px' }}>
                                         No active job postings.
                                     </div>
                                 )}
@@ -608,15 +940,15 @@ const FounderDashboard = () => {
 
             {/* Job Modal */}
             {showJobModal && (
-                <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.4)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <div style={{ backgroundColor: '#fff', borderRadius: '12px', padding: '2.5rem', width: '550px', boxShadow: '0 10px 40px rgba(0,0,0,0.1)', position: 'relative' }}>
-                        <h2 style={{ margin: '0 0 1.5rem 0', fontWeight: '800', fontSize: '20px' }}>{editingJobId ? 'Edit Job' : 'Post a Job'}</h2>
+                <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.3)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <div style={{ backgroundColor: '#fff', borderRadius: '4px', padding: '2rem', width: '500px', border: '1px solid #ddd', boxShadow: '0 4px 20px rgba(0,0,0,0.05)', position: 'relative' }}>
+                        <h2 style={{ margin: '0 0 1.5rem 0', fontWeight: '800', fontSize: '18px' }}>{editingJobId ? 'Edit Job' : 'Post a Job'}</h2>
                         <form onSubmit={handleJobSave}>
                             <div className="form-group">
                                 <label className="label-text">Position Role</label>
                                 <input className="portal-input" value={currentJob.role} onChange={e => setCurrentJob({...currentJob, role: e.target.value})} required />
                             </div>
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem' }}>
                                 <div className="form-group">
                                     <label className="label-text">Job Type</label>
                                     <select className="portal-input" value={currentJob.type} onChange={e => setCurrentJob({...currentJob, type: e.target.value})}>
@@ -635,7 +967,7 @@ const FounderDashboard = () => {
                                 <label className="label-text">Description</label>
                                 <textarea className="portal-input" style={{ minHeight: '100px' }} value={currentJob.description} onChange={e => setCurrentJob({...currentJob, description: e.target.value})} required />
                             </div>
-                            <div style={{ display: 'flex', gap: '1rem', marginTop: '1.5rem' }}>
+                            <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1.5rem' }}>
                                 <button type="submit" disabled={saving} className="action-btn" style={{ flex: 1 }}>{saving ? 'Saving...' : 'Publish'}</button>
                                 <button type="button" className="action-btn" style={{ background: '#f5f5f2', color: '#111', borderColor: '#ddd' }} onClick={() => setShowJobModal(false)}>Cancel</button>
                             </div>
@@ -643,6 +975,308 @@ const FounderDashboard = () => {
                     </div>
                 </div>
             )}
+
+            {/* Logo Preview Modal */}
+            {showPreviewModal && (
+                <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10001, backdropFilter: 'blur(8px)' }}>
+                    <div style={{ backgroundColor: '#fff', borderRadius: '12px', width: '420px', overflow: 'hidden', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.1)' }}>
+                        <div style={{ padding: '1.25rem', borderBottom: '1px solid #eee', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <h3 style={{ margin: 0, color: '#111', fontSize: '1.1rem', fontWeight: '800' }}>Company Logo Preview</h3>
+                            <button onClick={() => setShowPreviewModal(false)} style={{ background: 'none', border: 'none', color: '#999', cursor: 'pointer', fontSize: '20px' }}>×</button>
+                        </div>
+                        <div style={{ padding: '2.5rem 1.5rem', textAlign: 'center' }}>
+                            <div style={{ width: '160px', height: '160px', borderRadius: '16px', overflow: 'hidden', margin: '0 auto 1.5rem', border: '1px solid #eee', backgroundColor: '#fff', boxShadow: '0 4px 12px rgba(0,0,0,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                <img src={previewUrl} alt="preview" style={{ maxWidth: '90%', maxHeight: '90%', objectFit: 'contain' }} />
+                            </div>
+                            <p style={{ margin: '0 0 4px 0', color: '#111', fontSize: '14px', fontWeight: '600' }}>{selectedFile?.name}</p>
+                            <p style={{ margin: 0, color: '#666', fontSize: '12px' }}>{(selectedFile?.size / 1024 / 1024).toFixed(2)} MB • {selectedFile?.type}</p>
+                        </div>
+                        <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '10px', backgroundColor: '#f9f9f9' }}>
+                            <button onClick={() => confirmImageUpload(false)} style={{ width: '100%', padding: '12px', backgroundColor: '#111', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: '700', cursor: 'pointer' }}>Upload Logo</button>
+                            <button onClick={() => { setShowPreviewModal(false); setShowCropModal(true); }} style={{ width: '100%', padding: '12px', backgroundColor: '#fff', color: '#111', border: '1px solid #ddd', borderRadius: '8px', fontWeight: '700', cursor: 'pointer' }}>Crop Image First</button>
+                            <button onClick={() => setShowPreviewModal(false)} style={{ width: '100%', padding: '12px', backgroundColor: 'transparent', color: '#666', border: 'none', borderRadius: '8px', fontWeight: '600', cursor: 'pointer' }}>Cancel</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Photo Viewer Modal (LinkedIn style) */}
+            {showPhotoViewerModal && (
+                <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.9)', display: 'flex', flexDirection: 'column', zIndex: 10001 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem 2rem', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+                        <h3 style={{ color: '#fff', margin: 0, fontWeight: '600', fontSize: '18px' }}>Profile photo</h3>
+                        <button onClick={() => setShowPhotoViewerModal(false)} style={{ background: 'none', border: 'none', color: '#fff', fontSize: '24px', cursor: 'pointer' }}>&times;</button>
+                    </div>
+                    
+                    <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
+                        <div style={{ width: '400px', height: '400px', borderRadius: '50%', overflow: 'hidden', border: '4px solid #fff', boxShadow: '0 0 40px rgba(0,0,0,0.5)' }}>
+                            <img src={userData.photoURL} alt="Full view" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        </div>
+                        
+                        <div style={{ position: 'absolute', bottom: '2rem', left: '2rem' }}>
+                            <div style={{ backgroundColor: 'rgba(255,255,255,0.1)', padding: '6px 16px', borderRadius: '20px', color: '#fff', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                                Anyone
+                            </div>
+                        </div>
+                    </div>
+
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1.5rem 3rem', backgroundColor: '#000' }}>
+                        <div style={{ display: 'flex', gap: '2rem' }}>
+                            <div 
+                                onClick={() => { 
+                                    setPreviewUrl(userData.photoURL);
+                                    setSourceTarget('profile');
+                                    setShowCropModal(true);
+                                    setShowPhotoViewerModal(false);
+                                }}
+                                style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', color: '#fff', cursor: 'pointer' }}
+                            >
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                                <span style={{ fontSize: '12px' }}>Edit</span>
+                            </div>
+                            <div 
+                                onClick={() => { setShowSourceModal(true); setSourceTarget('profile'); setShowPhotoViewerModal(false); }}
+                                style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', color: '#fff', cursor: 'pointer' }}
+                            >
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
+                                <span style={{ fontSize: '12px' }}>Update</span>
+                            </div>
+                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', color: '#555', cursor: 'not-allowed' }}>
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
+                                <span style={{ fontSize: '12px' }}>Frames</span>
+                            </div>
+                        </div>
+                        <div 
+                            onClick={() => { handleRemoveProfileImage(); setShowPhotoViewerModal(false); }}
+                            style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', color: '#fff', cursor: 'pointer' }}
+                        >
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+                            <span style={{ fontSize: '12px' }}>Delete</span>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* LinkedIn Style Crop Modal */}
+            {showCropModal && (
+                <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10002 }}>
+                    <div style={{ backgroundColor: '#fff', borderRadius: '12px', width: '900px', height: '700px', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 25px 50px rgba(0,0,0,0.4)' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem 1.5rem', borderBottom: '1px solid #eee' }}>
+                            <h3 style={{ margin: 0, fontWeight: '600', color: '#111' }}>Edit image</h3>
+                            <button onClick={() => setShowCropModal(false)} style={{ background: 'none', border: 'none', fontSize: '24px', color: '#666', cursor: 'pointer' }}>&times;</button>
+                        </div>
+                        
+                        <div style={{ flex: 1, display: 'flex' }}>
+                            {/* Left Side: Editor */}
+                            <div style={{ flex: 1.5, backgroundColor: '#333', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+                                    <Cropper
+                                        image={previewUrl}
+                                        crop={crop}
+                                        zoom={zoom}
+                                        rotation={rotation}
+                                        aspect={sourceTarget === 'logo' ? 1 : 1}
+                                        cropShape={sourceTarget === 'profile' ? 'round' : 'rect'}
+                                        onCropChange={setCrop}
+                                        onZoomChange={setZoom}
+                                        onRotationChange={setRotation}
+                                        onCropComplete={onCropComplete}
+                                        showGrid={false}
+                                        style={{
+                                            containerStyle: { backgroundColor: '#333' },
+                                            cropAreaStyle: { border: '2px solid #fff' }
+                                        }}
+                                    />
+                                    <div style={{ position: 'absolute', top: '1rem', left: '1rem', width: '32px', height: '32px', backgroundColor: 'rgba(0,0,0,0.6)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: '12px', fontWeight: 'bold', zIndex: 10 }}>cr</div>
+                                </div>
+                            </div>
+
+                            {/* Right Side: Controls */}
+                            <div style={{ flex: 1, padding: '2rem', display: 'flex', flexDirection: 'column' }}>
+                                <div style={{ display: 'flex', borderBottom: '1px solid #eee', marginBottom: '2rem' }}>
+                                    {['Crop'].map(tab => (
+                                        <div 
+                                            key={tab}
+                                            onClick={() => setActiveEditorTab(tab.toLowerCase())}
+                                            style={{ 
+                                                padding: '0.5rem 1rem', 
+                                                fontSize: '14px', 
+                                                fontWeight: '600', 
+                                                color: activeEditorTab === tab.toLowerCase() ? '#111' : '#666', 
+                                                cursor: 'pointer',
+                                                borderBottom: activeEditorTab === tab.toLowerCase() ? '2px solid #0073b1' : 'none'
+                                            }}
+                                        >
+                                            {tab}
+                                        </div>
+                                    ))}
+                                </div>
+
+                                {activeEditorTab === 'crop' && (
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+                                        <div style={{ display: 'flex', gap: '1.5rem', color: '#111' }}>
+                                            <div onClick={() => setRotation(r => r - 90)} style={{ cursor: 'pointer' }}><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M2.5 2v6h6M2.66 15.57a10 10 0 1 0 .57-8.38"/></svg></div>
+                                            <div onClick={() => setRotation(r => r + 90)} style={{ cursor: 'pointer' }}><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38"/></svg></div>
+                                            <div onClick={() => setFlip(f => ({ ...f, horizontal: !f.horizontal }))} style={{ cursor: 'pointer' }}><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="15 3 21 3 21 9"></polyline><polyline points="9 21 3 21 3 15"></polyline><line x1="21" y1="3" x2="14" y2="10"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg></div>
+                                            <div onClick={() => setFlip(f => ({ ...f, vertical: !f.vertical }))} style={{ cursor: 'pointer' }}><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg></div>
+                                        </div>
+
+                                        <div>
+                                            <label style={{ fontSize: '14px', color: '#666', display: 'block', marginBottom: '1rem' }}>Zoom</label>
+                                            <input type="range" min={1} max={3} step={0.1} value={zoom} onChange={(e) => setZoom(Number(e.target.value))} style={{ width: '100%', accentColor: '#0073b1' }} />
+                                        </div>
+
+                                        <div>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                                                <label style={{ fontSize: '14px', color: '#666', margin: 0 }}>Straighten</label>
+                                                <button 
+                                                    onClick={() => setRotation(0)}
+                                                    style={{ background: 'none', border: 'none', color: '#0073b1', fontSize: '12px', fontWeight: '600', cursor: 'pointer', padding: 0 }}
+                                                >
+                                                    Reset
+                                                </button>
+                                            </div>
+                                            <input type="range" min={-45} max={45} step={1} value={rotation % 90} onChange={(e) => setRotation(Number(e.target.value))} style={{ width: '100%', accentColor: '#0073b1' }} />
+                                        </div>
+                                    </div>
+                                )}
+                                
+
+                                <div style={{ flex: 1 }}></div>
+                                <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '1rem 0' }}>
+                                    <button 
+                                        onClick={() => confirmImageUpload(true)}
+                                        style={{ padding: '0.6rem 1.5rem', backgroundColor: '#0073b1', color: '#fff', border: 'none', borderRadius: '24px', fontWeight: '600', cursor: 'pointer' }}
+                                    >
+                                        Save changes
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Upload Source Modal */}
+            {showSourceModal && (
+                <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000, backdropFilter: 'blur(8px)' }}>
+                    <div style={{ backgroundColor: '#fff', borderRadius: '16px', padding: '2.5rem', width: '440px', boxShadow: '0 25px 60px rgba(0,0,0,0.2)', animation: 'slideUp 0.3s ease-out' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
+                            <h3 style={{ margin: 0, fontWeight: '800', color: '#111', fontSize: '1.25rem' }}>Upload {sourceTarget === 'logo' ? 'Company Logo' : 'Profile Image'}</h3>
+                            <button onClick={() => setShowSourceModal(false)} style={{ background: 'none', border: 'none', fontSize: '24px', color: '#999', cursor: 'pointer' }}>&times;</button>
+                        </div>
+                        
+                        <div 
+                            onClick={() => { 
+                                setShowSourceModal(false); 
+                                if (sourceTarget === 'logo') logoInputRef.current.click();
+                                else fileInputRef.current.click();
+                            }}
+                            style={{ 
+                                padding: '2rem', 
+                                border: '2px dashed #eee', 
+                                borderRadius: '12px', 
+                                display: 'flex', 
+                                flexDirection: 'column', 
+                                alignItems: 'center', 
+                                justifyContent: 'center', 
+                                gap: '12px', 
+                                backgroundColor: '#f9f9f9',
+                                cursor: 'pointer',
+                                transition: 'all 0.2s',
+                                marginBottom: '1.5rem'
+                            }}
+                            onMouseEnter={e => e.currentTarget.style.borderColor = '#111'}
+                            onMouseLeave={e => e.currentTarget.style.borderColor = '#eee'}
+                        >
+                            <div style={{ width: '48px', height: '48px', backgroundColor: '#fff', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#111" strokeWidth="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                            </div>
+                            <div style={{ textAlign: 'center' }}>
+                                <div style={{ fontSize: '15px', fontWeight: '700', color: '#111' }}>Browse from Device</div>
+                                <div style={{ fontSize: '12px', color: '#888', marginTop: '2px' }}>JPEG, PNG up to 5MB</div>
+                            </div>
+                        </div>
+
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                            <button 
+                                onClick={async () => {
+                                    const url = window.prompt('Enter image URL:');
+                                    if (url) {
+                                        if (sourceTarget === 'logo') {
+                                            setPreviewUrl(url);
+                                            setShowPreviewModal(true);
+                                        } else {
+                                            setSaving(true);
+                                            try {
+                                                const userRef = doc(db, 'users', user.uid);
+                                                await updateDoc(userRef, { photoURL: url });
+                                                await updateProfile(user, { photoURL: url });
+                                                setUserData({ ...userData, photoURL: url });
+                                                setMessage({ text: 'Profile image updated!', type: 'success' });
+                                            } catch (err) {
+                                                console.error(err);
+                                                setMessage({ text: 'Failed to update profile image.', type: 'error' });
+                                            } finally {
+                                                setSaving(false);
+                                            }
+                                        }
+                                        setShowSourceModal(false);
+                                    }
+                                }}
+                                style={{ padding: '14px', backgroundColor: '#fff', color: '#111', border: '1px solid #eee', borderRadius: '12px', fontWeight: '700', cursor: 'pointer', fontSize: '13px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', transition: 'all 0.2s' }}
+                            >
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>
+                                Paste Link
+                            </button>
+                            <button 
+                                onClick={handleDrivePicker}
+                                style={{ padding: '14px', backgroundColor: '#fff', color: '#111', border: '1px solid #eee', borderRadius: '12px', fontWeight: '700', cursor: 'pointer', fontSize: '13px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', transition: 'all 0.2s' }}
+                            >
+                                <svg width="20" height="20" viewBox="0 0 24 24">
+                                    <path d="M7.74 2L12.25 10.14L16.74 2H7.74Z" fill="#0066DA"/>
+                                    <path d="M6.83 3.58L2.01 12L6.5 20L11.33 11.58L6.83 3.58Z" fill="#00AA4E"/>
+                                    <path d="M13.16 11.58L17.65 20H21.99L17.5 11.58H13.16Z" fill="#FFBA00"/>
+                                </svg>
+                                Google Drive
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+            {message.text && (
+                <div className={`toast-popup ${message.type}`}>
+                    {message.type === 'success' ? (
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                            <polyline points="22 4 12 14.01 9 11.01"/>
+                        </svg>
+                    ) : (
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                            <circle cx="12" cy="12" r="10"/>
+                            <line x1="12" y1="8" x2="12" y2="12"/>
+                            <line x1="12" y1="16" x2="12.01" y2="16"/>
+                        </svg>
+                    )}
+                    <span>{message.text}</span>
+                </div>
+            )}
+            {/* Hidden File Inputs */}
+            <input 
+                type="file" 
+                ref={logoInputRef} 
+                style={{ display: 'none' }} 
+                accept="image/*" 
+                onChange={(e) => handleFileChange(e, 'logo')} 
+            />
+            <input 
+                type="file" 
+                ref={fileInputRef} 
+                style={{ display: 'none' }} 
+                accept="image/*" 
+                onChange={(e) => handleFileChange(e, 'profile')} 
+            />
         </div>
     );
 };

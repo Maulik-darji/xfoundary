@@ -52,14 +52,14 @@ const CreateBlog = () => {
                     const data = adminDoc.data();
                     setUserRole('admin');
                     setAuthor(data.profile?.name || 'Admin');
-                    setAuthorImage(data.profileImage || '');
+                    setAuthorImage(data.profileImage || currentUser.photoURL || '');
                 } else {
                     const memberDoc = await getDoc(doc(db, 'members', currentUser.uid));
                     if (memberDoc.exists()) {
                         const data = memberDoc.data();
                         setUserRole('member');
                         setAuthor(data.profile?.name || currentUser.email.split('@')[0]);
-                        setAuthorImage(data.profileImage || '');
+                        setAuthorImage(data.profileImage || currentUser.photoURL || '');
                     } else {
                         navigate('/home');
                     }

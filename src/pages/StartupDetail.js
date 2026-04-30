@@ -1,7 +1,16 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { db } from '../firebase';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
+
+const industryHierarchy = {
+    'B2B': ['Analytics', 'Engineering, Product and Design', 'Finance and Accounting', 'Human Resources', 'Infrastructure', 'Legal', 'Marketing', 'Office Management', 'Operations', 'Productivity', 'Recruiting and Talent', 'Retail', 'Sales', 'Security', 'Supply Chain and Logistics'],
+    'Consumer': ['Apparel and Cosmetics', 'Consumer Electronics', 'Content', 'Food and Beverage', 'Gaming', 'Home and Personal', 'Job and Career Services', 'Social', 'Transportation Services', 'Travel, Leisure and Tourism', 'Virtual and Augmented Reality'],
+    'Fintech': ['Asset Management', 'Banking and Exchange', 'Consumer Finance', 'Credit and Lending', 'Insurance', 'Payments'],
+    'Healthcare': ['Consumer Health and Wellness', 'Diagnostics', 'Drug Discovery and Delivery', 'Healthcare IT', 'Healthcare Services', 'Industrial Bio', 'Medical Devices', 'Therapeutics'],
+    'Industrials': ['Agriculture', 'Automotive', 'Aviation and Space', 'Climate', 'Defense', 'Drones', 'Energy', 'Manufacturing and Robotics'],
+    'Real Estate and Construction': ['Construction', 'Housing and Real Estate']
+};
 
 const StartupDetail = () => {
     const { id } = useParams();
@@ -20,16 +29,37 @@ const StartupDetail = () => {
                     const data = docSnap.data();
                     const app = data.application || {};
                     
+                    const getLinkedInUsername = (url) => {
+                        if (!url) return null;
+                        const match = url.match(/linkedin\.com\/in\/([^/]+)/);
+                        return match ? match[1].trim() : null;
+                    };
+
+                    const linkedinUrl = data.socials?.linkedin || app.socials?.linkedin || '';
+                    const linkedinUser = getLinkedInUsername(linkedinUrl);
+                    
                     setStartup({
                         id: docSnap.id,
                         name: app.companyName || 'Unnamed Startup',
                         location: app.basedIn || 'Unknown Location',
-                        city: app.basedIn?.split(',')[0] || 'Unknown',
                         desc: app.companyDescription?.slice(0, 100) + '...' || 'No short description.',
                         fullDesc: app.companyDescription || 'No detailed description provided by the founder.',
                         batch: app.batch || 'Upcoming',
-                        industries: app.category ? [app.category.toUpperCase()] : ['OTHER'],
-                        logo: `https://logo.clearbit.com/${app.companyUrl?.replace(/^https?:\/\//, '')}` || 'https://via.placeholder.com/110?text=X',
+                        industries: (() => {
+                            const tags = new Set();
+                            const inds = Array.isArray(app.industries) ? app.industries : (app.category ? [app.category] : []);
+                            inds.forEach(ind => {
+                                if (industryHierarchy[ind]) {
+                                    tags.add(ind.toUpperCase());
+                                } else {
+                                    const parent = Object.keys(industryHierarchy).find(k => industryHierarchy[k].includes(ind));
+                                    if (parent) tags.add(parent.toUpperCase());
+                                    tags.add(ind.toUpperCase());
+                                }
+                            });
+                            return tags.size > 0 ? [...tags] : ['OTHER'];
+                        })(),
+                        logo: app.companyLogo || `https://logo.clearbit.com/${app.companyUrl?.replace(/^https?:\/\//, '')}` || 'https://via.placeholder.com/110?text=X',
                         url: app.companyUrl?.startsWith('http') ? app.companyUrl : `https://${app.companyUrl}`,
                         founded: app.howLongWork?.match(/\d{4}/)?.[0] || 'N/A',
                         teamSize: app.foundersKnown?.match(/\d+/)?.[0] || '1',
@@ -46,19 +76,20 @@ const StartupDetail = () => {
                                 name: data.profile?.name || data.displayName || 'Founder',
                                 role: 'Founder/CEO',
                                 bio: app.whyIdea || 'Founder bio not provided.',
-                                photo: data.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${docSnap.id}`,
+                                photo: linkedinUser 
+                                    ? `https://unavatar.io/linkedin/${linkedinUser}` 
+                                    : (data.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${docSnap.id}`),
                                 twitter: data.socials?.twitter || '',
-                                linkedin: data.socials?.linkedin || ''
+                                linkedin: linkedinUrl
                             }
                         ]
                     });
                     document.title = `${app.companyName || 'Startup'} | X Foundary`;
 
                     // Fetch Jobs
-                    const { collection, query, where, getDocs } = await import('firebase/firestore');
-                    const jobsQuery = query(collection(db, 'jobs'), where('founderId', '==', docSnap.id));
-                    const jobsSnap = await getDocs(jobsQuery);
-                    setJobs(jobsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+                    const jQ = query(collection(db, 'jobs'), where('founderId', '==', docSnap.id));
+                    const jSnap = await getDocs(jQ);
+                    setJobs(jSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
                 }
             } catch (error) {
                 console.error("Error fetching startup detail:", error);
@@ -237,17 +268,19 @@ const StartupDetail = () => {
                                 <h1>{startup.name}</h1>
                                 <p>{startup.desc}</p>
                                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
-                                    <span className="tag tag-batch">
-                                        <div style={{ width: '12px', height: '12px', background: '#fff', color: '#000', fontSize: '9px', display: 'flex', alignItems: 'center', justifyContent: 'center', marginRight: '6px', borderRadius: '2px', fontWeight: 900 }}>X</div>
+                                    <span className="tag tag-batch" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', backgroundColor: '#f0f0ed', color: '#1a1a1a' }}>
+                                        <span style={{ backgroundColor: '#6300dd', color: '#fff', padding: '1px 4px', borderRadius: '2px', lineHeight: 1, fontWeight: 900, fontSize: '9px' }}>X</span>
                                         {startup.batch}
                                     </span>
-                                    <span className="tag" style={{ display: 'flex', alignItems: 'center' }}>
-                                        <div className="status-dot" /> {startup.status}
-                                    </span>
                                     {startup.industries.map(ind => <span key={ind} className="tag">{ind}</span>)}
-                                    <span className="tag">{startup.city}</span>
+                                    <span className="tag">{startup.location}</span>
                                 </div>
                             </div>
+                        </div>
+
+                        <div className="tabs">
+                            <div className={`tab ${activeDetailTab === 'company' ? 'active' : ''}`} onClick={() => setActiveDetailTab('company')}>Company</div>
+                            <div className={`tab ${activeDetailTab === 'jobs' ? 'active' : ''}`} onClick={() => setActiveDetailTab('jobs')}>Jobs [{jobs.length}]</div>
                         </div>
 
                         {activeDetailTab === 'company' ? (
@@ -339,9 +372,13 @@ const StartupDetail = () => {
                                     <div className="status-dot" /> {startup.status}
                                 </span>
                             </div>
-                            <div className="stat-row">
+                             <div className="stat-row">
                                 <span className="stat-label">Location:</span>
-                                <span className="stat-value">{startup.city}</span>
+                                <span className="stat-value">{startup.location}</span>
+                            </div>
+                            <div className="stat-row">
+                                <span className="stat-label">Website:</span>
+                                <a href={startup.url} target="_blank" rel="noopener noreferrer" className="stat-value" style={{ color: '#6300dd', textDecoration: 'none' }}>{startup.url.replace(/^https?:\/\//, '').replace(/\/$/, '')}</a>
                             </div>
                             <div className="stat-row">
                                 <span className="stat-label">Primary Partner:</span>
