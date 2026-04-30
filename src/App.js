@@ -30,6 +30,12 @@ import LaunchXF from './pages/LaunchXF';
 import Library from './pages/Library';
 import StartupJobs from './pages/StartupJobs';
 import JobView from './pages/JobView';
+import Newsletter from './pages/Newsletter';
+import VerifyFounders from './pages/VerifyFounders';
+import HackerNews from './pages/HackerNews';
+import CoFounderMatching from './pages/CoFounderMatching';
+import CandidateProfile from './pages/CandidateProfile';
+import Inbox from './pages/Inbox';
 
 const Header = () => {
   const [isScrolled, setIsScrolled] = useState(false);
@@ -119,7 +125,7 @@ const Header = () => {
           <div className="nav-item has-dropdown">
             <span>Companies <svg className="arrow-svg" width="10" height="6" viewBox="0 0 10 6" fill="none"><path d="M1 1L5 5L9 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg></span>
             <div className="dropdown-menu">
-              <Link to="/directory" className="dropdown-item">Startup Directory</Link>
+              <Link to="/jobs" className="dropdown-item">Startup Directory</Link>
               <Link to="/founder-directory" className="dropdown-item">Founder Directory</Link>
               <Link to="/launch-xf" className="dropdown-item">Launch XF</Link>
             </div>
@@ -134,15 +140,11 @@ const Header = () => {
           <div className="nav-item has-dropdown">
             <span>Resources <svg className="arrow-svg" width="10" height="6" viewBox="0 0 10 6" fill="none"><path d="M1 1L5 5L9 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg></span>
             <div className="dropdown-menu">
-              <a href="#" className="dropdown-item">Startup School</a>
-              <a href="#" className="dropdown-item">Newsletter</a>
-              <a href="#" className="dropdown-item">Requests for Startups</a>
-              <a href="#" className="dropdown-item">For Investors</a>
-              <a href="#" className="dropdown-item">Verify Founders</a>
-              <a href="#" className="dropdown-item">Hacker News</a>
-              <a href="#" className="dropdown-item">Bookface</a>
-              <a href="#" className="dropdown-item">Safe</a>
-              <a href="#" className="dropdown-item">Find a Co-Founder</a>
+              <Link to="/newsletter" className="dropdown-item">Newsletter</Link>
+              <a href="https://www.ycombinator.com/rfs" target="_blank" rel="noopener noreferrer" className="dropdown-item">Requests for Startups</a>
+              <Link to="/verify-founders" className="dropdown-item">Verify Founders</Link>
+              <a href="https://news.ycombinator.com/news" target="_blank" rel="noopener noreferrer" className="dropdown-item">Hacker News</a>
+              <Link to="/find-co-founder" className="dropdown-item">Find a Co-Founder</Link>
             </div>
           </div>
           
@@ -200,7 +202,8 @@ const Footer = () => {
   const hideFooterOn = [
     '/founderscompany/dashboard',
     '/job/',
-    '/companies/'
+    '/companies/',
+    '/startup/'
   ];
   const shouldHide = hideFooterOn.some(path => location.pathname.includes(path));
   
@@ -219,7 +222,6 @@ const Footer = () => {
             <h4>Programs</h4>
             <ul>
               <li><a href="#">XF Program</a></li>
-              <li><a href="#">Startup School</a></li>
               <li><Link to="/jobs">Work at a Startup</Link></li>
               <li><a href="#">Co-Founder Matching</a></li>
             </ul>
@@ -316,6 +318,11 @@ function App() {
                 <Route path="/library" element={<Library />} />
                 <Route path="/jobs" element={<StartupJobs />} />
                 <Route path="/job/:id" element={<JobView />} />
+                <Route path="/newsletter" element={<Newsletter />} />
+                <Route path="/verify-founders" element={<VerifyFounders />} />
+                <Route path="/find-co-founder" element={<CoFounderMatching />} />
+                <Route path="/candidate/profile" element={<CandidateProfile />} />
+                <Route path="/candidate/inbox" element={<Inbox />} />
               </Routes>
               <Footer />
             </>

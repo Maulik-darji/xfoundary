@@ -74,9 +74,9 @@ const JobView = () => {
                 
                 {/* Breadcrumbs */}
                 <nav style={{ fontSize: '14px', color: '#0073b1', marginBottom: '2rem', fontWeight: '500' }}>
-                    <Link to="/startup-jobs" style={{ color: '#0073b1', textDecoration: 'none' }}>Companies</Link>
+                    <Link to="/jobs" style={{ color: '#0073b1', textDecoration: 'none' }}>Companies</Link>
                     <span style={{ margin: '0 8px', color: '#999' }}>/</span>
-                    <Link to={`/startup/${job.founderId}`} style={{ color: '#0073b1', textDecoration: 'none' }}>{companyName} ({batch})</Link>
+                    <Link to={`/companies/${job.founderId}`} style={{ color: '#0073b1', textDecoration: 'none' }}>{companyName} ({batch})</Link>
                     <span style={{ margin: '0 8px', color: '#999' }}>/</span>
                     <span style={{ color: '#333' }}>Jobs</span>
                 </nav>

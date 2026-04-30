@@ -6,243 +6,190 @@ import { collection, getDocs, query, orderBy, limit, startAfter } from 'firebase
 const StartupJobs = () => {
     const [jobs, setJobs] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [lastVisible, setLastVisible] = useState(null);
-    const [hasMore, setHasMore] = useState(true);
-    const [activeCategory, setActiveCategory] = useState('All');
+    const [searchQuery, setSearchQuery] = useState('');
     const navigate = useNavigate();
 
-    const categories = ['All', 'Engineering', 'Product', 'Design', 'Sales', 'Marketing', 'Operations'];
-
     useEffect(() => {
+        const fetchJobs = async () => {
+            try {
+                const q = query(collection(db, 'jobs'), orderBy('createdAt', 'desc'));
+                const snap = await getDocs(q);
+                const list = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                setJobs(list);
+            } catch (err) {
+                console.error("Error fetching jobs:", err);
+            } finally {
+                setLoading(false);
+            }
+        };
         fetchJobs();
     }, []);
 
-    const fetchJobs = async () => {
-        try {
-            const q = query(
-                collection(db, 'jobs'), 
-                orderBy('createdAt', 'desc'), 
-                limit(30)
-            );
-            const snap = await getDocs(q);
-            const list = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-            setJobs(list);
-            setLastVisible(snap.docs[snap.docs.length - 1]);
-            setHasMore(snap.docs.length === 30);
-        } catch (err) {
-            console.error("Error fetching jobs:", err);
-        } finally {
-            setLoading(false);
+    // Group jobs by company
+    const companies = jobs.reduce((acc, job) => {
+        const companyId = job.founderId || job.companyName;
+        if (!acc[companyId]) {
+            acc[companyId] = {
+                name: job.companyName,
+                logo: job.companyLogo,
+                batch: job.batch || 'S26',
+                tagline: job.companyDescription || 'No description available.',
+                location: job.location,
+                industry: job.industry || 'Tech',
+                founderId: job.founderId,
+                jobs: []
+            };
         }
-    };
+        acc[companyId].jobs.push(job);
+        return acc;
+    }, {});
 
-    const fetchMore = async () => {
-        if (!lastVisible) return;
-        try {
-            const q = query(
-                collection(db, 'jobs'), 
-                orderBy('createdAt', 'desc'), 
-                startAfter(lastVisible), 
-                limit(30)
-            );
-            const snap = await getDocs(q);
-            const list = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-            setJobs([...jobs, ...list]);
-            setLastVisible(snap.docs[snap.docs.length - 1]);
-            setHasMore(snap.docs.length === 30);
-        } catch (err) {
-            console.error("Error fetching more jobs:", err);
-        }
-    };
+    const filteredCompanies = Object.values(companies).filter(c => 
+        c.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+        c.jobs.some(j => j.role.toLowerCase().includes(searchQuery.toLowerCase()))
+    );
 
-    if (loading) return <div style={{ padding: '10rem', textAlign: 'center' }}>Loading jobs...</div>;
+    if (loading) return (
+        <div style={{ minHeight: '100vh', backgroundColor: '#fdfdfc', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div style={{ fontSize: '18px', color: '#111', fontWeight: 600 }}>Loading job board...</div>
+        </div>
+    );
 
     return (
-        <div style={{ backgroundColor: '#fdfdfc', minHeight: '100vh', paddingBottom: '10rem' }}>
-            {/* Hero Section */}
-            <div style={{ padding: '8rem 2rem 4rem 2rem', textAlign: 'center', backgroundColor: '#fdfdfc' }}>
-                <h1 style={{ fontSize: '3.5rem', fontWeight: '900', color: '#111', margin: '0 0 1.5rem 0', letterSpacing: '-2px' }}>
-                    Find the best startup jobs,<br />curated by X Foundary
-                </h1>
-                <ul style={{ 
-                    listStyle: 'none', 
-                    padding: 0, 
-                    display: 'flex', 
-                    flexDirection: 'column', 
-                    alignItems: 'center', 
-                    gap: '12px',
-                    color: '#444',
-                    fontSize: '18px',
-                    marginBottom: '2.5rem'
-                }}>
-                    <li>• Apply to thousands of startup jobs with a single profile.</li>
-                    <li>• Let XF founders contact you or browse companies privately.</li>
-                    <li>• Find the next big thing — only XF companies.</li>
-                </ul>
-                <button style={{ 
-                    backgroundColor: '#6300dd', 
-                    color: '#fff', 
-                    border: 'none', 
-                    padding: '16px 36px', 
-                    borderRadius: '8px', 
-                    fontSize: '18px', 
-                    fontWeight: '700', 
-                    cursor: 'pointer',
-                    boxShadow: '0 4px 14px rgba(99, 0, 221, 0.3)'
-                }}>
-                    Find a job ›
-                </button>
-                <p style={{ marginTop: '1.5rem', color: '#666', fontSize: '14px' }}>
-                    Already work at an XF startup? <a href="#" style={{ color: '#111', textDecoration: 'underline' }}>Browse privately</a>
-                </p>
-            </div>
-
-            {/* Filters & Content */}
-            <div style={{ maxWidth: '1100px', margin: '0 auto', padding: '0 2rem' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', borderBottom: '1px solid #eee', marginBottom: '2.5rem', paddingBottom: '1rem' }}>
-                    <h2 style={{ fontSize: '24px', fontWeight: '800' }}>Recent jobs added</h2>
-                    <div style={{ display: 'flex', gap: '1.5rem' }}>
-                        {categories.map(cat => (
-                            <span 
-                                key={cat} 
-                                onClick={() => setActiveCategory(cat)}
-                                style={{ 
-                                    fontSize: '14px', 
-                                    fontWeight: activeCategory === cat ? '700' : '500', 
-                                    color: activeCategory === cat ? '#ff6600' : '#0073b1',
-                                    cursor: 'pointer'
-                                }}
-                            >
-                                {cat}
-                            </span>
-                        ))}
+        <div style={{ backgroundColor: '#fdfdfc', minHeight: '100vh', fontFamily: '"Inter", sans-serif' }}>
+            {/* Top Sub-Nav */}
+            <div style={{ borderBottom: '1px solid #eee', padding: '1rem 2rem', backgroundColor: '#fff' }}>
+                <div style={{ maxWidth: '1400px', margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', gap: '2rem', alignItems: 'center' }}>
+                        <div style={{ fontSize: '15px', fontWeight: '800', color: '#111', borderBottom: '2px solid #ff6600', paddingBottom: '4px' }}>Companies & jobs</div>
+                        <Link to="/candidate/inbox" style={{ fontSize: '15px', fontWeight: '500', color: '#666', textDecoration: 'none' }}>Inbox</Link>
+                        <div style={{ fontSize: '15px', fontWeight: '500', color: '#666' }}>Education</div>
+                    </div>
+                    <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'center' }}>
+                        <Link to="/candidate/profile" style={{ fontSize: '15px', fontWeight: '500', color: '#666', textDecoration: 'none' }}>My profile</Link>
                     </div>
                 </div>
+            </div>
 
-                {/* Job Cards */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                    {jobs.map(job => (
-                        <div 
-                            key={job.id} 
-                            onClick={() => navigate(`/job/${job.id}`)}
-                            style={{ 
-                                display: 'flex', 
-                                alignItems: 'center', 
-                                padding: '1.5rem', 
-                                backgroundColor: '#fff', 
-                                border: '1px solid #eee', 
-                                borderRadius: '8px',
-                                transition: 'transform 0.2s',
-                                cursor: 'pointer'
-                            }}
-                            onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-2px)'}
-                            onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}
-                        >
-                            <div style={{ width: '60px', height: '60px', backgroundColor: '#fdfdfc', borderRadius: '12px', border: '1px solid #eee', overflow: 'hidden', marginRight: '1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                {job.companyLogo ? (
-                                    <img src={job.companyLogo} alt={job.companyName} style={{ width: '100%', height: '100%', objectFit: 'contain', padding: '8px' }} />
-                                ) : (
-                                    <div style={{ width: '40px', height: '400px', backgroundColor: '#ff6600', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '8px', fontSize: '20px', fontWeight: '900' }}>X</div>
-                                )}
-                            </div>
-                            <div style={{ flex: 1 }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-                                    <span style={{ fontWeight: '800', fontSize: '16px' }}>{job.companyName}</span>
-                                    <span style={{ color: '#666', fontSize: '14px' }}>({job.batch || 'S26'})</span>
-                                    <span style={{ color: '#999', fontSize: '14px' }}>• {job.industry || 'Tech'}</span>
-                                </div>
-                                <h3 style={{ margin: '0 0 6px 0', fontSize: '18px', color: '#0073b1', fontWeight: '700' }}>{job.role}</h3>
-                                <div style={{ fontSize: '14px', color: '#555', display: 'flex', gap: '12px' }}>
-                                    <span>{job.type}</span>
-                                    <span>•</span>
-                                    <span>{job.location}</span>
-                                </div>
-                            </div>
-                            <button style={{ 
-                                backgroundColor: '#ff6600', 
-                                color: '#fff', 
-                                border: 'none', 
-                                padding: '8px 24px', 
-                                borderRadius: '4px', 
-                                fontWeight: '700', 
-                                fontSize: '14px',
-                                cursor: 'pointer'
-                            }}>
-                                Apply
-                            </button>
+            <div style={{ maxWidth: '1400px', margin: '0 auto', display: 'grid', gridTemplateColumns: '280px 1fr', gap: '2rem', padding: '2rem' }}>
+                {/* Sidebar Filters */}
+                <aside style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                    <div>
+                        <label style={{ fontSize: '13px', fontWeight: '700', color: '#111', display: 'block', marginBottom: '8px' }}>Search</label>
+                        <input 
+                            type="text" 
+                            placeholder="Search by job title, tech stack..." 
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            style={{ width: '100%', padding: '10px 12px', border: '1px solid #ddd', borderRadius: '4px', fontSize: '14px', boxSizing: 'border-box' }}
+                        />
+                    </div>
+
+                    {[
+                        { label: 'Commitment', options: ['All', 'Full-time', 'Part-time', 'Contract', 'Internship'] },
+                        { label: 'Role', options: ['Any', 'Engineering', 'Product', 'Design', 'Sales', 'Marketing', 'Operations'] },
+                        { label: 'Company size', options: ['Any', '1-10', '11-50', '51-200', '201-500', '500+'] },
+                        { label: 'Industry', options: ['All', 'B2B', 'Consumer', 'Fintech', 'Healthcare', 'Industrials'] },
+                        { label: 'Experience', options: ['All', 'Junior', 'Mid-level', 'Senior', 'Lead'] },
+                        { label: 'Location', options: ['All', 'Remote', 'San Francisco', 'New York', 'London', 'India'] },
+                    ].map(filter => (
+                        <div key={filter.label}>
+                            <label style={{ fontSize: '13px', fontWeight: '700', color: '#111', display: 'block', marginBottom: '8px' }}>{filter.label}</label>
+                            <select style={{ width: '100%', padding: '10px', border: '1px solid #ddd', borderRadius: '4px', fontSize: '14px', backgroundColor: '#fff' }}>
+                                {filter.options.map(opt => <option key={opt}>{opt}</option>)}
+                            </select>
                         </div>
                     ))}
-                </div>
 
-                {hasMore && (
-                    <div style={{ textAlign: 'center', marginTop: '4rem' }}>
-                        <button 
-                            onClick={fetchMore}
-                            style={{ 
-                                backgroundColor: '#ff6600', 
-                                color: '#fff', 
-                                border: 'none', 
-                                padding: '14px 40px', 
-                                borderRadius: '8px', 
-                                fontSize: '16px', 
-                                fontWeight: '700', 
-                                cursor: 'pointer'
-                            }}
-                        >
-                            See more jobs ›
-                        </button>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '1rem' }}>
+                        {['Has salary range', 'Has equity range', 'Has interview process'].map(check => (
+                            <label key={check} style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', color: '#444', cursor: 'pointer' }}>
+                                <input type="checkbox" /> {check}
+                            </label>
+                        ))}
                     </div>
-                )}
-            </div>
+                </aside>
 
-            {/* Pre-Footer Section */}
-            <div style={{ maxWidth: '1200px', margin: '8rem auto 0 auto', padding: '4rem 2rem', borderTop: '1px solid #eee', display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '2rem' }}>
-                <div>
-                    <h4 style={{ fontWeight: '800', marginBottom: '1.5rem' }}>Work at a Startup</h4>
-                    <ul style={{ listStyle: 'none', padding: 0, fontSize: '14px', color: '#444', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                        <li>Jobs</li>
-                        <li>Internships</li>
-                        <li>Events</li>
-                        <li>How it works</li>
-                        <li>Sign In</li>
-                    </ul>
-                </div>
-                <div>
-                    <h4 style={{ fontWeight: '800', marginBottom: '1.5rem' }}>Jobs by Role</h4>
-                    <ul style={{ listStyle: 'none', padding: 0, fontSize: '14px', color: '#444', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                        <li>Software Engineer Jobs</li>
-                        <li>Design & UI/UX Jobs</li>
-                        <li>Product Manager Jobs</li>
-                        <li>Recruiting & HR Jobs</li>
-                        <li>Sales Jobs</li>
-                    </ul>
-                </div>
-                <div>
-                    <h4 style={{ fontWeight: '800', marginBottom: '1.5rem' }}>Jobs by Location</h4>
-                    <ul style={{ listStyle: 'none', padding: 0, fontSize: '14px', color: '#444', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                        <li>Jobs in San Francisco</li>
-                        <li>Jobs in New York</li>
-                        <li>Jobs in London</li>
-                        <li>Jobs in Bengaluru</li>
-                        <li>Jobs in India</li>
-                    </ul>
-                </div>
-                <div>
-                    <h4 style={{ fontWeight: '800', marginBottom: '1.5rem' }}>Jobs by Role & Location</h4>
-                    <ul style={{ listStyle: 'none', padding: 0, fontSize: '14px', color: '#444', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                        <li>Software Engineer Jobs in San Francisco</li>
-                        <li>Product Manager Jobs in New York</li>
-                        <li>Sales Jobs in London</li>
-                    </ul>
-                </div>
-                <div>
-                    <h4 style={{ fontWeight: '800', marginBottom: '1.5rem' }}>Remote Jobs</h4>
-                    <ul style={{ listStyle: 'none', padding: 0, fontSize: '14px', color: '#444', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                        <li>Remote Software Engineer Jobs</li>
-                        <li>Remote Design Jobs</li>
-                        <li>Remote Product Jobs</li>
-                    </ul>
-                </div>
+                {/* Main Content */}
+                <main>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
+                        <div style={{ display: 'flex', gap: '1.5rem' }}>
+                            <div style={{ fontSize: '14px', fontWeight: '700', color: '#111', backgroundColor: '#f0f0ed', padding: '6px 16px', borderRadius: '4px' }}>All</div>
+                            <div style={{ fontSize: '14px', fontWeight: '500', color: '#666', padding: '6px 16px' }}>Saved</div>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                            <span style={{ fontSize: '14px', color: '#666' }}>Sort by</span>
+                            <select style={{ border: '1px solid #ddd', borderRadius: '4px', padding: '6px 12px', fontSize: '14px' }}>
+                                <option>Newest jobs</option>
+                                <option>Company size</option>
+                                <option>Batch</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div style={{ fontSize: '15px', color: '#333', marginBottom: '1.5rem' }}>
+                        Showing <strong>{filteredCompanies.length}</strong> matching startups
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+                        {filteredCompanies.map(company => (
+                            <div key={company.founderId} style={{ backgroundColor: '#fff', border: '1px solid #eee', borderRadius: '8px', overflow: 'hidden' }}>
+                                {/* Company Header */}
+                                <div style={{ padding: '1.5rem', borderBottom: '1px solid #f9f9f9', display: 'flex', gap: '1.5rem' }}>
+                                    <div style={{ width: '60px', height: '60px', border: '1px solid #eee', borderRadius: '4px', overflow: 'hidden', flexShrink: 0 }}>
+                                        <img src={company.logo} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain', padding: '8px' }} />
+                                    </div>
+                                    <div style={{ flex: 1 }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                                            <h2 style={{ fontSize: '20px', fontWeight: '800', margin: 0 }}>{company.name}</h2>
+                                            <span style={{ color: '#999', fontSize: '14px' }}>({company.batch})</span>
+                                        </div>
+                                        <p style={{ fontSize: '14px', color: '#333', margin: '0 0 10px 0' }}>{company.tagline.split('.')[0]}.</p>
+                                        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                                            <span style={{ fontSize: '12px', color: '#666', backgroundColor: '#f5f5f2', padding: '2px 8px', borderRadius: '4px' }}>{company.location}</span>
+                                            <span style={{ fontSize: '12px', color: '#666', backgroundColor: '#f5f5f2', padding: '2px 8px', borderRadius: '4px' }}>{company.industry}</span>
+                                        </div>
+                                    </div>
+                                    <div style={{ display: 'flex', gap: '12px' }}>
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#999" strokeWidth="2.5"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="#999"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+                                    </div>
+                                </div>
+                                {/* Jobs List */}
+                                <div style={{ backgroundColor: '#fdfdfc' }}>
+                                    {company.jobs.map(job => (
+                                        <div 
+                                            key={job.id} 
+                                            onClick={() => navigate(`/job/${job.id}`)}
+                                            style={{ 
+                                                padding: '1.25rem 1.5rem', 
+                                                borderBottom: '1px solid #f0f0ed', 
+                                                display: 'flex', 
+                                                justifyContent: 'space-between', 
+                                                alignItems: 'center', 
+                                                cursor: 'pointer',
+                                                transition: 'background 0.2s'
+                                            }}
+                                            onMouseEnter={e => e.currentTarget.style.backgroundColor = '#f5f5f2'}
+                                            onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
+                                        >
+                                            <div>
+                                                <h3 style={{ fontSize: '16px', fontWeight: '700', color: '#111', margin: '0 0 4px 0' }}>{job.role}</h3>
+                                                <div style={{ fontSize: '13px', color: '#666' }}>
+                                                    {job.location} • {job.type} • $80K - $120K
+                                                </div>
+                                            </div>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                                                <button style={{ backgroundColor: '#ff6600', color: '#fff', border: 'none', padding: '8px 20px', borderRadius: '4px', fontWeight: '700', fontSize: '13px' }}>View job</button>
+                                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ddd" strokeWidth="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path></svg>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </main>
             </div>
         </div>
     );
