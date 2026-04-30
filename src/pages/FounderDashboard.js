@@ -36,7 +36,18 @@ const FounderDashboard = () => {
     }, [saving]);
     const [jobs, setJobs] = useState([]);
     const [showJobModal, setShowJobModal] = useState(false);
-    const [currentJob, setCurrentJob] = useState({ role: '', type: 'Full-time', location: '', description: '', link: '' });
+    const [currentJob, setCurrentJob] = useState({ 
+        role: '', 
+        type: 'Full-time', 
+        location: '', 
+        description: '', 
+        roleDescription: '',
+        whatYouWillDo: '',
+        whatYouNeed: '',
+        whatIsInIt: '',
+        technology: '',
+        link: '' 
+    });
     const [editingJobId, setEditingJobId] = useState(null);
     const navigate = useNavigate();
     const fileInputRef = useRef(null);
@@ -57,6 +68,55 @@ const FounderDashboard = () => {
     const [rotation, setRotation] = useState(0);
     const [flip, setFlip] = useState({ horizontal: false, vertical: false });
     const [activeEditorTab, setActiveEditorTab] = useState('crop'); // 'crop', 'filter', 'adjust'
+    
+    // Location Selector State
+    const [countries, setCountries] = useState([]);
+    const [states, setStates] = useState([]);
+    const [cities, setCities] = useState([]);
+    const [loc, setLoc] = useState({ country: '', state: '', city: '', otherCountry: '', otherState: '', otherCity: '' });
+    const [applicants, setApplicants] = useState({});
+
+    useEffect(() => {
+        fetch('https://countriesnow.space/api/v0.1/countries/positions')
+            .then(res => res.json())
+            .then(data => {
+                if (!data.error) setCountries(data.data.map(c => c.name).sort());
+            })
+            .catch(err => console.error("Error fetching countries:", err));
+    }, []);
+
+    const handleCountryChange = async (countryName) => {
+        setLoc(prev => ({ ...prev, country: countryName, state: '', city: '', otherCountry: '', otherState: '', otherCity: '' }));
+        setStates([]);
+        setCities([]);
+        if (countryName && countryName !== 'Other') {
+            try {
+                const res = await fetch('https://countriesnow.space/api/v0.1/countries/states', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ country: countryName })
+                });
+                const data = await res.json();
+                if (!data.error) setStates(data.data.states.map(s => s.name).sort());
+            } catch (e) { console.error(e); }
+        }
+    };
+
+    const handleStateChange = async (stateName) => {
+        setLoc(prev => ({ ...prev, state: stateName, city: '', otherState: '', otherCity: '' }));
+        setCities([]);
+        if (stateName && stateName !== 'Other' && loc.country !== 'Other') {
+            try {
+                const res = await fetch('https://countriesnow.space/api/v0.1/countries/state/cities', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ country: loc.country, state: stateName })
+                });
+                const data = await res.json();
+                if (!data.error) setCities(data.data.sort());
+            } catch (e) { console.error(e); }
+        }
+    };
 
     const industryHierarchy = {
         'B2B': ['Analytics', 'Engineering, Product and Design', 'Finance and Accounting', 'Human Resources', 'Infrastructure', 'Legal', 'Marketing', 'Office Management', 'Operations', 'Productivity', 'Recruiting and Talent', 'Retail', 'Sales', 'Security', 'Supply Chain and Logistics'],
@@ -109,7 +169,17 @@ const FounderDashboard = () => {
                     // Fetch Jobs
                     const jobsQuery = query(collection(db, 'jobs'), where('founderId', '==', currentUser.uid));
                     const jobsSnap = await getDocs(jobsQuery);
-                    setJobs(jobsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+                    const fetchedJobs = jobsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                    setJobs(fetchedJobs);
+
+                    // Fetch Applicants count for each job
+                    const applicantsMap = {};
+                    for (const job of fetchedJobs) {
+                        const appQuery = query(collection(db, 'job_applications'), where('jobId', '==', job.id));
+                        const appSnap = await getDocs(appQuery);
+                        applicantsMap[job.id] = appSnap.size;
+                    }
+                    setApplicants(applicantsMap);
                 } catch (err) {
                     console.error(err);
                     setLoading(false);
@@ -128,12 +198,23 @@ const FounderDashboard = () => {
         e.preventDefault();
         setSaving(true);
         try {
+            // Build location string: "City, State, Country"
+            const finalCity = loc.city === 'Other' ? loc.otherCity : (loc.city || '');
+            const finalState = loc.state === 'Other' ? loc.otherState : (loc.state || '');
+            const finalCountry = loc.country === 'Other' ? loc.otherCountry : (loc.country || '');
+            
+            const locationParts = [finalCity, finalState, finalCountry].filter(Boolean);
+            const locationString = locationParts.join(', ');
+
             const jobData = {
                 ...currentJob,
+                location: locationString || currentJob.location,
                 founderId: user.uid,
-                companyName: appData.companyName,
-                companyLogo: userData.photoURL || '',
-                createdAt: new Date().toISOString()
+                companyName: appData.companyName || '',
+                companyLogo: appData.companyLogo || '', 
+                batch: appData.batch || 'S26',
+                createdAt: currentJob.createdAt || new Date().toISOString(),
+                status: 'active'
             };
 
             if (editingJobId) {
@@ -145,14 +226,30 @@ const FounderDashboard = () => {
             }
 
             setShowJobModal(false);
-            setCurrentJob({ role: '', type: 'Full-time', location: '', description: '', link: '' });
             setEditingJobId(null);
-            setMessage({ text: 'Job posted successfully!', type: 'success' });
+            setCurrentJob({ role: '', type: 'Full-time', location: '' });
+            setLoc({ country: '', state: '', city: '', otherCountry: '', otherState: '', otherCity: '' });
+            setMessage({ text: 'Job posted successfully!', type: 'success', id: Date.now() });
         } catch (err) {
             console.error(err);
-            setMessage({ text: 'Failed to save job.', type: 'error' });
+            setMessage({ text: 'Error saving job.', type: 'error', id: Date.now() });
         } finally {
             setSaving(false);
+        }
+    };
+
+    const handleSyncBranding = async (job) => {
+        try {
+            const updatedData = {
+                companyName: appData.companyName || '',
+                companyLogo: appData.companyLogo || '',
+                batch: appData.batch || 'S26'
+            };
+            await updateDoc(doc(db, 'jobs', job.id), updatedData);
+            setJobs(jobs.map(j => j.id === job.id ? { ...j, ...updatedData } : j));
+            setMessage({ text: 'Branding synced!', type: 'success', id: Date.now() });
+        } catch (err) {
+            console.error(err);
         }
     };
 
@@ -547,9 +644,22 @@ const FounderDashboard = () => {
                     z-index: 50;
                     padding-top: 100px;
                 }
+                .applicants-sidebar {
+                    width: 300px;
+                    background-color: #fff;
+                    border-right: 1px solid #e5e5e0;
+                    padding: 2.5rem 1.5rem;
+                    height: 100vh;
+                    position: fixed;
+                    left: 240px;
+                    top: 0;
+                    z-index: 40;
+                    padding-top: 100px;
+                    overflow-y: auto;
+                }
                 .portal-main {
                     flex: 1;
-                    margin-left: 240px;
+                    margin-left: 540px;
                     padding: 5rem 4rem;
                     padding-top: 120px;
                     min-height: 100vh;
@@ -719,6 +829,43 @@ const FounderDashboard = () => {
                     </button>
                 </div>
             </aside>
+
+            <div className="applicants-sidebar">
+                <h2 style={{ fontSize: '12px', fontWeight: '800', color: '#999', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '1.5rem' }}>Job Activity</h2>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                    {jobs.length > 0 ? jobs.map(job => (
+                        <div key={job.id} style={{ borderBottom: '1px solid #eee', paddingBottom: '1rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
+                                {job.companyLogo && <img src={job.companyLogo} style={{ width: '24px', height: '24px', borderRadius: '4px' }} alt="" />}
+                                <div style={{ fontSize: '14px', fontWeight: '700', color: '#111' }}>{job.role}</div>
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <span style={{ fontSize: '13px', color: '#666' }}>{applicants[job.id] || 0} Applicants</span>
+                                <div>
+                                    <button 
+                                        onClick={() => handleSyncBranding(job)}
+                                        style={{ border: 'none', background: 'none', color: '#ff6600', fontSize: '11px', fontWeight: '700', cursor: 'pointer', padding: '4px 8px' }}
+                                    >
+                                        Sync Branding
+                                    </button>
+                                    <button 
+                                        onClick={() => {
+                                            setEditingJobId(job.id);
+                                            setCurrentJob({ role: job.role, type: job.type, location: job.location, description: job.description, link: job.link });
+                                            setShowJobModal(true);
+                                        }}
+                                        style={{ border: 'none', background: 'none', color: '#0073b1', fontSize: '11px', fontWeight: '700', cursor: 'pointer', padding: '4px 8px' }}
+                                    >
+                                        Edit
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )) : (
+                        <p style={{ fontSize: '13px', color: '#999', fontStyle: 'italic' }}>No active jobs to track.</p>
+                    )}
+                </div>
+            </div>
 
             <main className="portal-main">
                 <div className="content-section">
@@ -1042,6 +1189,16 @@ const FounderDashboard = () => {
                                     />
                                 </div>
 
+                                <div className="form-group">
+                                    <label className="label-text">Personal Twitter/X URL</label>
+                                    <input 
+                                        className="portal-input"
+                                        value={userData.socials?.twitter || ''}
+                                        onChange={(e) => setUserData({...userData, socials: {...(userData.socials || {}), twitter: e.target.value}})}
+                                        placeholder="https://x.com/username"
+                                    />
+                                </div>
+
                                 <div style={{ marginTop: '2.5rem' }}>
                                     <button type="submit" disabled={saving || justSaved} className="action-btn">
                                         {saving ? 'Updating...' : justSaved ? 'SAVED' : 'Save Profile'}
@@ -1056,7 +1213,11 @@ const FounderDashboard = () => {
                                     <h1 style={{ fontSize: '28px', fontWeight: '800', margin: 0, color: '#111' }}>Startup Jobs</h1>
                                     <p style={{ color: '#666', marginTop: '6px', fontSize: '15px' }}>Job openings at {appData.companyName}</p>
                                 </div>
-                                <button className="action-btn" onClick={() => { setEditingJobId(null); setCurrentJob({ role: '', type: 'Full-time', location: '', description: '', link: '' }); setShowJobModal(true); }}>
+                                <button className="action-btn" onClick={() => { 
+                                    setEditingJobId(null); 
+                                    setCurrentJob({ role: '', type: 'Full-time', location: '', description: '', roleDescription: '', whatYouWillDo: '', whatYouNeed: '', whatIsInIt: '', technology: '', link: '' }); 
+                                    setShowJobModal(true); 
+                                }}>
                                     + Post Job
                                 </button>
                             </div>
@@ -1088,12 +1249,24 @@ const FounderDashboard = () => {
                 </div>
             </main>
 
-            {/* Job Modal */}
+            {/* Job Modal - Full Page Overlay */}
             {showJobModal && (
-                <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.3)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <div style={{ backgroundColor: '#fff', borderRadius: '4px', padding: '2rem', width: '500px', border: '1px solid #ddd', boxShadow: '0 4px 20px rgba(0,0,0,0.05)', position: 'relative' }}>
-                        <h2 style={{ margin: '0 0 1.5rem 0', fontWeight: '800', fontSize: '18px' }}>{editingJobId ? 'Edit Job' : 'Post a Job'}</h2>
+                <div style={{ position: 'fixed', inset: 0, backgroundColor: '#fff', zIndex: 1000, overflowY: 'auto' }}>
+                    <div style={{ maxWidth: '800px', margin: '0 auto', padding: '4rem 2rem' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '3rem' }}>
+                            <h2 style={{ margin: 0, fontWeight: '900', fontSize: '32px', letterSpacing: '-1px' }}>{editingJobId ? 'Edit Job Posting' : 'Create a New Job'}</h2>
+                            <button onClick={() => setShowJobModal(false)} style={{ background: '#f5f5f2', border: 'none', padding: '10px 20px', borderRadius: '8px', fontWeight: '700', cursor: 'pointer', color: '#666' }}>Close</button>
+                        </div>
                         <form onSubmit={handleJobSave}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.5rem', padding: '1rem', backgroundColor: '#f9f9f9', borderRadius: '4px', border: '1px solid #eee' }}>
+                                <div style={{ width: '40px', height: '40px', borderRadius: '4px', backgroundColor: '#fff', border: '1px solid #ddd', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                                    {appData.companyLogo ? <img src={appData.companyLogo} style={{ width: '100%', height: '100%', objectFit: 'contain' }} /> : <span style={{ fontWeight: 'bold' }}>X</span>}
+                                </div>
+                                <div>
+                                    <div style={{ fontSize: '13px', fontWeight: '700' }}>{appData.companyName}</div>
+                                    <div style={{ fontSize: '11px', color: '#666' }}>This branding will be attached to your post</div>
+                                </div>
+                            </div>
                             <div className="form-group">
                                 <label className="label-text">Position Role</label>
                                 <input className="portal-input" value={currentJob.role} onChange={e => setCurrentJob({...currentJob, role: e.target.value})} required />
@@ -1109,13 +1282,105 @@ const FounderDashboard = () => {
                                     </select>
                                 </div>
                                 <div className="form-group">
-                                    <label className="label-text">Location</label>
-                                    <input className="portal-input" value={currentJob.location} onChange={e => setCurrentJob({...currentJob, location: e.target.value})} required />
+                                    <label className="label-text">Country</label>
+                                    <select 
+                                        className="portal-input" 
+                                        value={loc.country} 
+                                        onChange={(e) => handleCountryChange(e.target.value)}
+                                        required
+                                    >
+                                        <option value="">Select Country...</option>
+                                        {countries.map(c => <option key={c} value={c}>{c}</option>)}
+                                        <option value="Other">Other...</option>
+                                    </select>
+                                    {loc.country === 'Other' && (
+                                        <input 
+                                            className="portal-input" 
+                                            style={{ marginTop: '8px' }} 
+                                            placeholder="Enter Country Name"
+                                            value={loc.otherCountry}
+                                            onChange={e => setLoc({...loc, otherCountry: e.target.value})}
+                                            required
+                                        />
+                                    )}
+                                </div>
+                            </div>
+
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem' }}>
+                                <div className="form-group">
+                                    <label className="label-text">State / Province</label>
+                                    <select 
+                                        className="portal-input" 
+                                        value={loc.state} 
+                                        onChange={(e) => handleStateChange(e.target.value)}
+                                        disabled={!loc.country || loc.country === 'Other'}
+                                    >
+                                        <option value="">Select State...</option>
+                                        {states.map(s => <option key={s} value={s}>{s}</option>)}
+                                        <option value="Other">Other...</option>
+                                    </select>
+                                    {loc.state === 'Other' && (
+                                        <input 
+                                            className="portal-input" 
+                                            style={{ marginTop: '8px' }} 
+                                            placeholder="Enter State Name"
+                                            value={loc.otherState}
+                                            onChange={e => setLoc({...loc, otherState: e.target.value})}
+                                            required
+                                        />
+                                    )}
+                                </div>
+                                <div className="form-group">
+                                    <label className="label-text">City</label>
+                                    <select 
+                                        className="portal-input" 
+                                        value={loc.city} 
+                                        onChange={(e) => setLoc({...loc, city: e.target.value})}
+                                        disabled={!loc.state || loc.state === 'Other'}
+                                    >
+                                        <option value="">Select City...</option>
+                                        {cities.map(c => <option key={c} value={c}>{c}</option>)}
+                                        <option value="Other">Other...</option>
+                                    </select>
+                                    {loc.city === 'Other' && (
+                                        <input 
+                                            className="portal-input" 
+                                            style={{ marginTop: '8px' }} 
+                                            placeholder="Enter City Name"
+                                            value={loc.otherCity}
+                                            onChange={e => setLoc({...loc, otherCity: e.target.value})}
+                                            required
+                                        />
+                                    )}
                                 </div>
                             </div>
                             <div className="form-group">
-                                <label className="label-text">Description</label>
-                                <textarea className="portal-input" style={{ minHeight: '100px' }} value={currentJob.description} onChange={e => setCurrentJob({...currentJob, description: e.target.value})} required />
+                                <label className="label-text">One-line Description</label>
+                                <input className="portal-input" value={currentJob.description} onChange={e => setCurrentJob({...currentJob, description: e.target.value})} placeholder="Short hook for the job card" required />
+                            </div>
+                            <div className="form-group">
+                                <label className="label-text">About the role</label>
+                                <textarea className="portal-input" style={{ minHeight: '120px' }} value={currentJob.roleDescription} onChange={e => setCurrentJob({...currentJob, roleDescription: e.target.value})} placeholder="Detailed description of the position" required />
+                            </div>
+                            <div className="form-group">
+                                <label className="label-text">What you will do</label>
+                                <textarea className="portal-input" style={{ minHeight: '120px' }} value={currentJob.whatYouWillDo} onChange={e => setCurrentJob({...currentJob, whatYouWillDo: e.target.value})} placeholder="List of responsibilities..." />
+                            </div>
+                            <div className="form-group">
+                                <label className="label-text">What you need to have</label>
+                                <textarea className="portal-input" style={{ minHeight: '120px' }} value={currentJob.whatYouNeed} onChange={e => setCurrentJob({...currentJob, whatYouNeed: e.target.value})} placeholder="Requirements, skills, experience..." />
+                            </div>
+                            <div className="form-group">
+                                <label className="label-text">What is in it for you?</label>
+                                <textarea className="portal-input" style={{ minHeight: '100px' }} value={currentJob.whatIsInIt} onChange={e => setCurrentJob({...currentJob, whatIsInIt: e.target.value})} placeholder="Benefits, perks, culture..." />
+                            </div>
+                            <div className="form-group">
+                                <label className="label-text">Technology Stack</label>
+                                <input className="portal-input" value={currentJob.technology} onChange={e => setCurrentJob({...currentJob, technology: e.target.value})} placeholder="React, Node, Postgres, etc." />
+                            </div>
+                            <div className="form-group">
+                                <label className="label-text">External Application Link (Optional)</label>
+                                <input className="portal-input" value={currentJob.link} onChange={e => setCurrentJob({...currentJob, link: e.target.value})} placeholder="https://..." />
                             </div>
                             <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1.5rem' }}>
                                 <button type="submit" disabled={saving} className="action-btn" style={{ flex: 1 }}>{saving ? 'Saving...' : 'Publish'}</button>

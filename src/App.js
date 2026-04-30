@@ -28,6 +28,8 @@ import FounderDashboard from './pages/FounderDashboard';
 import CreateBlog from './pages/CreateBlog';
 import LaunchXF from './pages/LaunchXF';
 import Library from './pages/Library';
+import StartupJobs from './pages/StartupJobs';
+import JobView from './pages/JobView';
 
 const Header = () => {
   const [isScrolled, setIsScrolled] = useState(false);
@@ -144,7 +146,7 @@ const Header = () => {
             </div>
           </div>
           
-          <Link to="/blog" className="nav-item">Startup Jobs</Link>
+          <Link to="/jobs" className="nav-item">Startup Jobs</Link>
           
           {isApprovedFounder && (
             <Link to="/founderscompany/dashboard" className="nav-item" style={{ color: 'var(--yc-orange)', fontWeight: '600', textDecoration: 'none' }}>
@@ -195,7 +197,14 @@ const Header = () => {
 
 const Footer = () => {
   const location = useLocation();
-  if (location.pathname === '/founderscompany/dashboard') return null;
+  const hideFooterOn = [
+    '/founderscompany/dashboard',
+    '/job/',
+    '/companies/'
+  ];
+  const shouldHide = hideFooterOn.some(path => location.pathname.includes(path));
+  
+  if (shouldHide) return null;
 
   return (
   <footer className="footer-v2">
@@ -211,7 +220,7 @@ const Footer = () => {
             <ul>
               <li><a href="#">XF Program</a></li>
               <li><a href="#">Startup School</a></li>
-              <li><a href="#">Work at a Startup</a></li>
+              <li><Link to="/jobs">Work at a Startup</Link></li>
               <li><a href="#">Co-Founder Matching</a></li>
             </ul>
           </div>
@@ -305,6 +314,8 @@ function App() {
                 <Route path="/founderscompany/dashboard" element={<FounderDashboard />} />
                 <Route path="/launch-xf" element={<LaunchXF />} />
                 <Route path="/library" element={<Library />} />
+                <Route path="/jobs" element={<StartupJobs />} />
+                <Route path="/job/:id" element={<JobView />} />
               </Routes>
               <Footer />
             </>
