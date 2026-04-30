@@ -1,37 +1,46 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { auth, db } from '../firebase';
+import { collection, query, where, onSnapshot, orderBy } from 'firebase/firestore';
+import { onAuthStateChanged } from 'firebase/auth';
 
 const Inbox = () => {
     const [activeTab, setActiveTab] = useState('inbox');
-    const [selectedConv, setSelectedConv] = useState(0);
+    const [selectedConvIndex, setSelectedConvIndex] = useState(0);
+    const [conversations, setConversations] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [user, setUser] = useState(null);
     const navigate = useNavigate();
 
-    const conversations = [
-        {
-            id: 0,
-            company: 'Castari',
-            batch: 'F25',
-            time: '3 months',
-            unread: false,
-            tagline: 'Vercel for AI Agents — One click deploy for the Claude Agent SDK',
-            people: '3 people',
-            industry: 'B2B > Infrastructure',
-            messages: [
-                {
-                    sender: 'Maulik Darji',
-                    role: 'Candidate',
-                    text: 'Hi team,\n\nI came across Castari and would love to explore working with you. I\'m a CS student who enjoys building developer-facing tools and learning by working close to real systems rather than abstract tasks.\n\nI\'m looking to join a small team where engineers have ownership, move fast, and improve things by shipping and iterating. Even without a specific role listed, I\'d love to see if there\'s a way I could contribute.\n\nThanks,\nMaulik',
-                    time: '3 months'
-                }
-            ]
-        },
-        { id: 1, company: 'The Hog', batch: 'W24', time: '3 months', unread: true, tagline: 'AI for livestock management', people: '5 people', industry: 'AgTech', messages: [] },
-        { id: 2, company: 'DiligenceSquared', batch: 'S24', time: '3 months', unread: true, tagline: 'Automated due diligence', people: '4 people', industry: 'Fintech', messages: [] },
-        { id: 3, company: 'Clicks', batch: 'F24', time: '3 months', unread: true, tagline: 'Social layer for the web', people: '2 people', industry: 'Consumer', messages: [] },
-        { id: 4, company: 'Cignara', batch: 'W23', time: '3 months', unread: true, tagline: 'Next-gen firewall', people: '12 people', industry: 'Security', messages: [] }
-    ];
+    useEffect(() => {
+        const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
+            setUser(currentUser);
+            if (currentUser) {
+                // Fetch conversations where current user is a participant
+                const q = query(
+                    collection(db, 'conversations'),
+                    where('participants', 'array-contains', currentUser.uid),
+                    orderBy('lastMessageAt', 'desc')
+                );
+                
+                const unsubConvs = onSnapshot(q, (snap) => {
+                    const list = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                    setConversations(list);
+                    setLoading(false);
+                }, (err) => {
+                    console.error("Inbox error:", err);
+                    setLoading(false);
+                });
+                
+                return () => unsubConvs();
+            } else {
+                setLoading(false);
+            }
+        });
+        return () => unsubscribeAuth();
+    }, []);
 
-    const current = conversations[selectedConv];
+    const current = conversations[selectedConvIndex];
 
     return (
         <div style={{ backgroundColor: '#fdfdfc', minHeight: '100vh', fontFamily: '"Inter", sans-serif', color: '#111' }}>
@@ -81,99 +90,133 @@ const Inbox = () => {
                             style={{ width: '100%', padding: '8px 12px', border: '1px solid #ddd', borderRadius: '4px', fontSize: '14px' }}
                         />
                     </div>
-                    {conversations.map((conv, i) => (
-                        <div 
-                            key={conv.id} 
-                            onClick={() => setSelectedConv(i)}
-                            style={{ 
-                                padding: '15px', 
-                                borderBottom: '1px solid #eee', 
-                                cursor: 'pointer', 
-                                backgroundColor: selectedConv === i ? '#d9e2ec' : '#fff',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '12px'
-                            }}
-                        >
-                            <div style={{ width: '32px', height: '32px', borderRadius: '4px', backgroundColor: '#eee', flexShrink: 0 }}></div>
-                            <div style={{ flex: 1 }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                    <span style={{ fontWeight: '700', fontSize: '14px' }}>{conv.company}</span>
-                                    <span style={{ fontSize: '11px', color: '#666' }}>{conv.time}</span>
+                    {loading ? (
+                        <div style={{ padding: '2rem', textAlign: 'center', color: '#999', fontSize: '14px' }}>Loading...</div>
+                    ) : conversations.length === 0 ? (
+                        <div style={{ padding: '2rem', textAlign: 'center', color: '#999', fontSize: '14px' }}>No conversations yet.</div>
+                    ) : (
+                        conversations.map((conv, i) => (
+                            <div 
+                                key={conv.id} 
+                                onClick={() => setSelectedConvIndex(i)}
+                                style={{ 
+                                    padding: '15px', 
+                                    borderBottom: '1px solid #eee', 
+                                    cursor: 'pointer', 
+                                    backgroundColor: selectedConvIndex === i ? '#d9e2ec' : '#fff',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '12px'
+                                }}
+                            >
+                                <div style={{ width: '32px', height: '32px', borderRadius: '4px', backgroundColor: '#eee', flexShrink: 0, backgroundImage: `url(${conv.companyLogo})`, backgroundSize: 'contain', backgroundPosition: 'center', backgroundRepeat: 'no-repeat' }}></div>
+                                <div style={{ flex: 1 }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        <span style={{ fontWeight: '700', fontSize: '14px' }}>{conv.companyName}</span>
+                                        <span style={{ fontSize: '11px', color: '#666' }}>{conv.lastMessageAt ? new Date(conv.lastMessageAt.seconds * 1000).toLocaleDateString() : ''}</span>
+                                    </div>
+                                    <div style={{ fontSize: '12px', color: '#888', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{conv.lastMessage}</div>
                                 </div>
+                                {conv.unread && <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#ff6600' }}></div>}
                             </div>
-                            {conv.unread && <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#ff6600' }}></div>}
-                        </div>
-                    ))}
+                        ))
+                    )}
                 </aside>
 
                 {/* Center: Conversation View */}
-                <main style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-                    <div style={{ padding: '15px', borderBottom: '1px solid #eee', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                            <div style={{ width: '32px', height: '32px', borderRadius: '50%', backgroundColor: '#eee' }}></div>
-                            <div>
-                                <div style={{ fontWeight: '700', fontSize: '15px' }}>Maulik Darji</div>
-                                <div style={{ fontSize: '12px', color: '#666' }}>{current.company}</div>
+                <main style={{ display: 'flex', flexDirection: 'column', height: '100%', borderRight: '1px solid #eee' }}>
+                    {!current ? (
+                        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#999', padding: '2rem', textAlign: 'center' }}>
+                            <div style={{ backgroundColor: '#f9f9f9', padding: '24px', borderRadius: '50%', marginBottom: '1rem' }}>
+                                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#ccc" strokeWidth="1.5"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
                             </div>
+                            <h3 style={{ margin: '0 0 8px 0', color: '#666' }}>Your Inbox is Empty</h3>
+                            <p style={{ margin: 0, fontSize: '14px' }}>When you message a startup or a founder, the conversation will appear here.</p>
                         </div>
-                        <div style={{ fontSize: '12px', color: '#666' }}>{current.time}</div>
-                    </div>
-
-                    <div style={{ flex: 1, overflowY: 'auto', padding: '2rem' }}>
-                        {current.messages.map((msg, i) => (
-                            <div key={i} style={{ backgroundColor: '#fff', padding: '1.5rem', borderRadius: '4px', border: '1px solid #eee', marginBottom: '1.5rem', maxWidth: '600px' }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem' }}>
-                                    <span style={{ fontWeight: '700', fontSize: '14px' }}>{msg.sender}</span>
-                                    <span style={{ fontSize: '11px', color: '#666' }}>{msg.time}</span>
+                    ) : (
+                        <>
+                            <div style={{ padding: '15px', borderBottom: '1px solid #eee', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                    <div style={{ width: '32px', height: '32px', borderRadius: '50%', backgroundColor: '#eee', backgroundImage: `url(${current.companyLogo})`, backgroundSize: 'cover' }}></div>
+                                    <div>
+                                        <div style={{ fontWeight: '700', fontSize: '15px' }}>{current.companyName}</div>
+                                        <div style={{ fontSize: '12px', color: '#666' }}>{current.batch}</div>
+                                    </div>
                                 </div>
-                                <div style={{ whiteSpace: 'pre-wrap', fontSize: '14px', lineHeight: '1.6', color: '#333' }}>
-                                    {msg.text}
+                                <div style={{ fontSize: '12px', color: '#666' }}>{current.lastMessageAt ? new Date(current.lastMessageAt.seconds * 1000).toLocaleString() : ''}</div>
+                            </div>
+
+                            <div style={{ flex: 1, overflowY: 'auto', padding: '2rem', backgroundColor: '#fdfdfc' }}>
+                                {(current.messages || []).map((msg, i) => (
+                                    <div key={i} style={{ 
+                                        backgroundColor: '#fff', 
+                                        padding: '1.25rem', 
+                                        borderRadius: '12px', 
+                                        border: '1px solid #eee', 
+                                        marginBottom: '1.25rem', 
+                                        maxWidth: '85%',
+                                        marginLeft: msg.senderId === user?.uid ? 'auto' : '0',
+                                        boxShadow: '0 2px 8px rgba(0,0,0,0.02)'
+                                    }}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                                            <span style={{ fontWeight: '700', fontSize: '13px', color: msg.senderId === user?.uid ? '#ff6600' : '#111' }}>{msg.senderName}</span>
+                                            <span style={{ fontSize: '10px', color: '#999' }}>{msg.time}</span>
+                                        </div>
+                                        <div style={{ whiteSpace: 'pre-wrap', fontSize: '14px', lineHeight: '1.5', color: '#333' }}>
+                                            {msg.text}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+
+                            {/* Compose Area */}
+                            <div style={{ padding: '20px', borderTop: '1px solid #eee', backgroundColor: '#fff' }}>
+                                <textarea 
+                                    placeholder="Type message..." 
+                                    style={{ width: '100%', height: '80px', padding: '12px', border: '1px solid #ddd', borderRadius: '8px', fontSize: '14px', resize: 'none', boxSizing: 'border-box', marginBottom: '10px', outline: 'none', transition: 'border-color 0.2s' }}
+                                    onFocus={(e) => e.target.style.borderColor = '#ff6600'}
+                                    onBlur={(e) => e.target.style.borderColor = '#ddd'}
+                                />
+                                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '15px', alignItems: 'center' }}>
+                                    <button style={{ backgroundColor: '#ff6600', color: '#fff', border: 'none', padding: '10px 24px', borderRadius: '6px', fontWeight: '700', fontSize: '14px', cursor: 'pointer' }}>Send Message</button>
                                 </div>
                             </div>
-                        ))}
-                    </div>
-
-                    {/* Compose Area */}
-                    <div style={{ padding: '20px', borderTop: '1px solid #eee', backgroundColor: '#f9f9f9' }}>
-                        <textarea 
-                            placeholder="Type message" 
-                            style={{ width: '100%', height: '100px', padding: '15px', border: '1px solid #ddd', borderRadius: '4px', fontSize: '14px', resize: 'none', boxSizing: 'border-box', marginBottom: '10px' }}
-                        />
-                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '15px', alignItems: 'center' }}>
-                            <span style={{ fontSize: '13px', color: '#333', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                                Not interested...
-                            </span>
-                            <button style={{ backgroundColor: '#ff6600', color: '#fff', border: 'none', padding: '10px 24px', borderRadius: '4px', fontWeight: '700', fontSize: '14px' }}>Send</button>
-                        </div>
-                    </div>
+                        </>
+                    )}
                 </main>
 
                 {/* Right Sidebar: Context */}
-                <aside style={{ borderLeft: '1px solid #eee', padding: '2rem', overflowY: 'auto' }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                            <div style={{ width: '48px', height: '48px', borderRadius: '8px', backgroundColor: '#eee' }}></div>
-                            <span style={{ fontSize: '18px', fontWeight: '800' }}>{current.company}</span>
-                        </div>
-                        
-                        <h3 style={{ fontSize: '18px', fontWeight: '800', color: '#ff6600', margin: '0' }}>{current.company} ({current.batch})</h3>
-                        <p style={{ fontSize: '14px', color: '#444', lineHeight: '1.5', margin: '0' }}>{current.tagline}</p>
-                        
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '13px', color: '#666' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-                                {current.people}
+                <aside style={{ padding: '2rem', overflowY: 'auto', backgroundColor: '#fdfdfc' }}>
+                    {current ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                <div style={{ width: '48px', height: '48px', borderRadius: '8px', backgroundColor: '#eee', backgroundImage: `url(${current.companyLogo})`, backgroundSize: 'contain', backgroundPosition: 'center', backgroundRepeat: 'no-repeat', border: '1px solid #eee' }}></div>
+                                <span style={{ fontSize: '18px', fontWeight: '800' }}>{current.companyName}</span>
                             </div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
-                                {current.industry}
+                            
+                            <h3 style={{ fontSize: '18px', fontWeight: '800', color: '#ff6600', margin: '0' }}>{current.companyName} ({current.batch})</h3>
+                            <p style={{ fontSize: '14px', color: '#444', lineHeight: '1.5', margin: '0' }}>{current.tagline}</p>
+                            
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', fontSize: '13px', color: '#666' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                                    {current.people || '1-10 people'}
+                                </div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
+                                    {current.industry || 'B2B'}
+                                </div>
                             </div>
-                        </div>
 
-                        <a href="#" style={{ fontSize: '13px', color: '#ff6600', textDecoration: 'none', fontWeight: '500' }}>{current.company.toLowerCase()}.com</a>
-                    </div>
+                            <a href={current.website || '#'} target="_blank" rel="noopener noreferrer" style={{ fontSize: '14px', color: '#ff6600', textDecoration: 'none', fontWeight: '600' }}>
+                                {current.website?.replace(/^https?:\/\//, '') || 'Visit website'}
+                            </a>
+                        </div>
+                    ) : (
+                        <div style={{ textAlign: 'center', color: '#999', fontSize: '14px', marginTop: '2rem' }}>
+                            Select a conversation to see details.
+                        </div>
+                    )}
                 </aside>
             </div>
         </div>

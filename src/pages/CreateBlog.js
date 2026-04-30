@@ -3,7 +3,8 @@ import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth, db, storage } from '../firebase';
 import { collection, addDoc, doc, getDoc } from 'firebase/firestore';
-import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
+import { ref, uploadBytesResumable, getDownloadURL, uploadBytes } from 'firebase/storage';
+import Cropper from 'react-easy-crop';
 
 const CATEGORIES = [
     'General', 'Admissions', 'Advice', 'Biotech', 'Blockchain',
@@ -24,8 +25,8 @@ const CreateBlog = () => {
     const [category, setCategory] = useState('General');
     const [coverImage, setCoverImage] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const [editId, setEditId] = useState(null);
-    const [isEditing, setIsEditing] = useState(false);
+    const [editId, setEditId] = useState(new URLSearchParams(window.location.search).get('edit'));
+    const [isEditing, setIsEditing] = useState(!!new URLSearchParams(window.location.search).get('edit'));
     const [showToast, setShowToast] = useState(false);
     const [authorImage, setAuthorImage] = useState('');
     const [imageModalConfig, setImageModalConfig] = useState({ show: false, type: 'cover' });
@@ -35,6 +36,14 @@ const CreateBlog = () => {
 
     const [isUploading, setIsUploading] = useState(false);
     const [uploadProgress, setUploadProgress] = useState(0);
+    const [showCropModal, setShowCropModal] = useState(false);
+    const [crop, setCrop] = useState({ x: 0, y: 0 });
+    const [zoom, setZoom] = useState(1);
+    const [croppedAreaPixels, setCroppedAreaPixels] = useState(null);
+    const [tempFile, setTempFile] = useState(null);
+    const [tempPreviewUrl, setTempPreviewUrl] = useState(null);
+    const contentLoadedRef = useRef(null); // Tracks if content has been loaded to prevent re-renders wiping it
+    const [postData, setPostData] = useState(null);
 
     const editorRef = useRef(null);
     const coverInputRef = useRef(null);
@@ -70,6 +79,58 @@ const CreateBlog = () => {
         return () => unsubscribe();
     }, [navigate]);
 
+    // Initial content loader (Drafts or Existing Post)
+    useEffect(() => {
+        if (!editorRef.current) return;
+
+        if (isEditing) {
+            // Wait for postData to arrive
+            if (postData && contentLoadedRef.current !== editId) {
+                editorRef.current.innerHTML = postData.content || '<p><br /></p>';
+                contentLoadedRef.current = editId;
+                
+                // Resize title textarea if needed
+                setTimeout(() => {
+                    const titleEl = document.querySelector('textarea');
+                    if (titleEl) {
+                        titleEl.style.height = 'auto';
+                        titleEl.style.height = titleEl.scrollHeight + 'px';
+                    }
+                }, 100);
+            }
+        } else {
+            // Load draft if not already loaded
+            if (contentLoadedRef.current !== 'draft') {
+                const savedTitle = localStorage.getItem('xf_blog_draft_title');
+                const savedCategory = localStorage.getItem('xf_blog_draft_category');
+                const savedCover = localStorage.getItem('xf_blog_draft_cover');
+                const savedContent = localStorage.getItem('xf_blog_draft_content');
+
+                if (savedTitle) setTitle(savedTitle);
+                if (savedCategory) setCategory(savedCategory);
+                if (savedCover) setCoverImage(savedCover);
+                
+                editorRef.current.innerHTML = savedContent || '<p><br /></p>';
+                contentLoadedRef.current = 'draft';
+            }
+        }
+    }, [isEditing, postData, editId]);
+
+    // Save draft to localStorage
+    useEffect(() => {
+        if (isEditing) return; // Don't overwrite drafts when editing existing posts
+        localStorage.setItem('xf_blog_draft_title', title);
+        localStorage.setItem('xf_blog_draft_category', category);
+        localStorage.setItem('xf_blog_draft_cover', coverImage);
+    }, [title, category, coverImage, isEditing]);
+
+    const handleEditorInput = () => {
+        if (!isEditing) {
+            localStorage.setItem('xf_blog_draft_content', editorRef.current.innerHTML);
+        }
+        updateActiveFormats();
+    };
+
     const { search } = useLocation();
     useEffect(() => {
         const id = new URLSearchParams(search).get('edit');
@@ -80,8 +141,6 @@ const CreateBlog = () => {
         }
     }, [search]);
 
-    const [initialContentSet, setInitialContentSet] = useState(false);
-
     const fetchPost = async (id) => {
         try {
             const snap = await getDoc(doc(db, 'blog', id));
@@ -90,26 +149,10 @@ const CreateBlog = () => {
                 setTitle(data.title || '');
                 setCategory(data.category || 'General');
                 setCoverImage(data.image || '');
-                // We'll set the content in a separate effect once editorRef is ready
                 setPostData(data);
             }
         } catch (e) { console.error("Error fetching post:", e); }
     };
-
-    const [postData, setPostData] = useState(null);
-
-    useEffect(() => {
-        if (postData && editorRef.current && !initialContentSet) {
-            editorRef.current.innerHTML = postData.content || '';
-            setInitialContentSet(true);
-            // Trigger auto-resize for title
-            const titleEl = document.querySelector('textarea');
-            if (titleEl) {
-                titleEl.style.height = 'auto';
-                titleEl.style.height = titleEl.scrollHeight + 'px';
-            }
-        }
-    }, [postData, initialContentSet]);
 
     const handlePaste = (e) => {
         e.preventDefault();
@@ -208,6 +251,17 @@ const CreateBlog = () => {
 
         setImageModalConfig(prev => ({ ...prev, show: false }));
 
+        if (type === 'cover') {
+            setTempFile(file);
+            const reader = new FileReader();
+            reader.onload = () => {
+                setTempPreviewUrl(reader.result);
+                setShowCropModal(true);
+            };
+            reader.readAsDataURL(file);
+            return;
+        }
+
         if (type === 'editor') {
             const tempUrl = URL.createObjectURL(file);
             const imageId = `img-${Date.now()}`;
@@ -257,12 +311,54 @@ const CreateBlog = () => {
             }
             return;
         }
+    };
+
+    const onCropComplete = (croppedArea, croppedAreaPixels) => {
+        setCroppedAreaPixels(croppedAreaPixels);
+    };
+
+    const confirmCropUpload = async () => {
+        if (!tempFile || !tempPreviewUrl || !croppedAreaPixels) return;
 
         setIsUploading(true);
+        setShowCropModal(false);
         setUploadProgress(0);
+
         try {
-            const fileRef = ref(storage, `blog/${user.uid}/${Date.now()}-${file.name}`);
-            const uploadTask = uploadBytesResumable(fileRef, file);
+            const image = await new Promise((resolve, reject) => {
+                const img = new Image();
+                img.addEventListener('load', () => resolve(img));
+                img.addEventListener('error', (error) => reject(error));
+                img.src = tempPreviewUrl;
+            });
+
+            const canvas = document.createElement('canvas');
+            canvas.width = croppedAreaPixels.width;
+            canvas.height = croppedAreaPixels.height;
+            const ctx = canvas.getContext('2d');
+
+            ctx.drawImage(
+                image,
+                croppedAreaPixels.x,
+                croppedAreaPixels.y,
+                croppedAreaPixels.width,
+                croppedAreaPixels.height,
+                0,
+                0,
+                croppedAreaPixels.width,
+                croppedAreaPixels.height
+            );
+
+            const blob = await new Promise((resolve) => {
+                canvas.toBlob((blob) => resolve(blob), 'image/jpeg', 0.9);
+            });
+
+            const fileName = tempFile.name || `cover_${Date.now()}.jpg`;
+            const fileRef = ref(storage, `blog/${user.uid}/${Date.now()}-${fileName}`);
+            
+            // For cover image, we can use simple uploadBytes if it's small, 
+            // but let's use uploadBytesResumable to show progress
+            const uploadTask = uploadBytesResumable(fileRef, blob);
 
             uploadTask.on('state_changed', 
                 (snapshot) => {
@@ -279,14 +375,14 @@ const CreateBlog = () => {
                     setCoverImage(url);
                     setIsUploading(false);
                     setUploadProgress(0);
+                    setTempFile(null);
+                    setTempPreviewUrl(null);
                 }
             );
         } catch (error) {
-            console.error("Upload error:", error);
-            alert("Failed to upload cover image.");
+            console.error("Crop/Upload error:", error);
+            alert("Failed to process image.");
             setIsUploading(false);
-        } finally {
-            e.target.value = null;
         }
     };
 
@@ -338,6 +434,11 @@ const CreateBlog = () => {
             setShowToast(true);
             setTimeout(() => {
                 setShowToast(false);
+                // Clear draft after successful submission
+                localStorage.removeItem('xf_blog_draft_title');
+                localStorage.removeItem('xf_blog_draft_category');
+                localStorage.removeItem('xf_blog_draft_cover');
+                localStorage.removeItem('xf_blog_draft_content');
                 navigate(userRole === 'admin' ? '/admin' : '/member');
             }, 2000);
         } catch (e) {
@@ -380,8 +481,8 @@ const CreateBlog = () => {
                         Back to Portal
                     </Link>
                     <div style={{ width: '1px', height: '24px', backgroundColor: '#eee' }} />
-                    <span style={{ fontWeight: '600', fontSize: '15px' }}>New Blog Post</span>
-                    {userRole === 'member' && <span style={{ fontSize: '12px', color: '#ff9500', backgroundColor: 'rgba(255,149,0,0.1)', padding: '3px 8px', borderRadius: '20px', fontWeight: '600' }}>Requires Approval</span>}
+                    <span style={{ fontWeight: '600', fontSize: '15px' }}>{isEditing ? 'Edit Blog Post' : 'New Blog Post'}</span>
+                    {userRole === 'member' && !isEditing && <span style={{ fontSize: '12px', color: '#ff9500', backgroundColor: 'rgba(255,149,0,0.1)', padding: '3px 8px', borderRadius: '20px', fontWeight: '600' }}>Requires Approval</span>}
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
                     <button onClick={() => navigate(userRole === 'admin' ? '/admin' : '/member')} style={{ background: 'none', border: 'none', color: '#666', cursor: 'pointer', fontSize: '14px' }}>Cancel</button>
@@ -390,7 +491,7 @@ const CreateBlog = () => {
                         disabled={isSubmitting || !title}
                         style={{ backgroundColor: (isSubmitting || !title) ? '#e2e2e2' : '#6300dd', color: '#fff', border: 'none', padding: '9px 22px', borderRadius: '8px', fontWeight: '600', fontSize: '14px', cursor: (isSubmitting || !title) ? 'not-allowed' : 'pointer', transition: 'all 0.2s' }}
                     >
-                        {isSubmitting ? 'Submitting...' : userRole === 'admin' ? 'Publish Now' : 'Submit for Review'}
+                        {isSubmitting ? 'Submitting...' : isEditing ? 'Save Changes' : (userRole === 'admin' ? 'Publish Now' : 'Submit for Review')}
                     </button>
                 </div>
             </nav>
@@ -405,9 +506,12 @@ const CreateBlog = () => {
                             <div style={{ fontSize: '13px', color: '#999', fontWeight: '600' }}>Uploading to Cloud Storage...</div>
                         </div>
                     ) : coverImage ? (
-                        <div style={{ position: 'relative' }}>
+                        <div style={{ position: 'relative', cursor: 'pointer' }} onClick={() => setImageModalConfig({ show: true, type: 'cover' })}>
                             <img src={coverImage} alt="Cover" style={{ width: '100%', height: '280px', objectFit: 'cover', borderRadius: '12px', border: '1px solid #eee' }} onError={() => setCoverImage('')} />
-                            <button onClick={() => setCoverImage('')} style={{ position: 'absolute', top: '12px', right: '12px', backgroundColor: 'rgba(0,0,0,0.5)', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: '600' }}>Remove</button>
+                            <div style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(0,0,0,0.2)', opacity: 0, transition: 'opacity 0.2s', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }} onMouseEnter={e => e.currentTarget.style.opacity = 1} onMouseLeave={e => e.currentTarget.style.opacity = 0}>
+                                <div style={{ backgroundColor: '#fff', color: '#111', padding: '8px 16px', borderRadius: '20px', fontWeight: '700', fontSize: '13px' }}>Change Cover</div>
+                            </div>
+                            <button onClick={(e) => { e.stopPropagation(); setCoverImage(''); }} style={{ position: 'absolute', top: '12px', right: '12px', backgroundColor: 'rgba(0,0,0,0.5)', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: '600', zIndex: 10 }}>Remove</button>
                         </div>
                     ) : (
                         <div
@@ -561,9 +665,9 @@ const CreateBlog = () => {
                             contentEditable
                             suppressContentEditableWarning
                             data-placeholder="Write your story..."
-                            onKeyUp={updateActiveFormats}
-                            onMouseUp={updateActiveFormats}
-                            onInput={updateActiveFormats}
+                            onKeyUp={handleEditorInput}
+                            onMouseUp={handleEditorInput}
+                            onInput={handleEditorInput}
                             onPaste={handlePaste}
                             style={{
                                 minHeight: '420px',
@@ -574,10 +678,10 @@ const CreateBlog = () => {
                                 border: 'none',
                                 padding: '0',
                                 width: '100%',
-                                fontFamily: 'Inter, sans-serif'
+                                fontFamily: 'Inter, sans-serif',
+                                whiteSpace: 'pre-wrap'
                             }}
                         >
-                            <p><br /></p>
                         </div>
                     </div>
                 </div>
@@ -591,6 +695,7 @@ const CreateBlog = () => {
                     pointer-events: none;
                 }
                 [contenteditable] h2 { font-size: 1.8rem; font-weight: 800; margin: 1.5rem 0 0.75rem; color: #111; }
+                [contenteditable] p, [contenteditable] div { margin: 0; padding: 0; }
                 [contenteditable] blockquote { border-left: 4px solid #6300dd; padding: 0.5rem 0 0.5rem 1.5rem; margin: 1.5rem 0; color: #555; font-style: italic; }
                 [contenteditable] a { color: #6300dd; }
                 [contenteditable] img { max-width: 100%; border-radius: 12px; margin: 1rem 0; display: block; }
@@ -678,6 +783,42 @@ const CreateBlog = () => {
                 <div style={{ position: 'fixed', bottom: '40px', right: '40px', backgroundColor: '#111', color: '#fff', padding: '14px 24px', borderRadius: '10px', boxShadow: '0 8px 24px rgba(0,0,0,0.15)', display: 'flex', alignItems: 'center', gap: '12px', zIndex: 9999, animation: 'slideUp 0.3s ease-out' }}>
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4caf50" strokeWidth="3"><polyline points="20 6 9 17 4 12"></polyline></svg>
                     <span style={{ fontWeight: '600' }}>{userRole === 'admin' ? 'Published successfully!' : 'Submitted for review!'}</span>
+                </div>
+            )}
+
+            {/* Crop Modal */}
+            {showCropModal && (
+                <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.8)', zIndex: 20000, display: 'flex', flexDirection: 'column' }}>
+                    <div style={{ position: 'relative', flex: 1 }}>
+                        <Cropper
+                            image={tempPreviewUrl}
+                            crop={crop}
+                            zoom={zoom}
+                            aspect={16 / 7}
+                            onCropChange={setCrop}
+                            onCropComplete={onCropComplete}
+                            onZoomChange={setZoom}
+                        />
+                    </div>
+                    <div style={{ padding: '2rem', backgroundColor: '#fff', display: 'flex', flexDirection: 'column', gap: '1.5rem', alignItems: 'center' }}>
+                        <div style={{ width: '100%', maxWidth: '400px' }}>
+                            <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '8px', color: '#666' }}>ZOOM</label>
+                            <input
+                                type="range"
+                                value={zoom}
+                                min={1}
+                                max={3}
+                                step={0.1}
+                                aria-labelledby="Zoom"
+                                onChange={(e) => setZoom(parseFloat(e.target.value))}
+                                style={{ width: '100%', height: '4px', appearance: 'none', backgroundColor: '#eee', borderRadius: '2px', outline: 'none' }}
+                            />
+                        </div>
+                        <div style={{ display: 'flex', gap: '1rem' }}>
+                            <button onClick={() => setShowCropModal(false)} style={{ padding: '10px 24px', borderRadius: '8px', border: '1px solid #ddd', background: '#fff', fontWeight: '600', cursor: 'pointer' }}>Cancel</button>
+                            <button onClick={confirmCropUpload} style={{ padding: '10px 32px', borderRadius: '8px', border: 'none', background: '#6300dd', color: '#fff', fontWeight: '700', cursor: 'pointer' }}>Apply & Upload</button>
+                        </div>
+                    </div>
                 </div>
             )}
         </div>

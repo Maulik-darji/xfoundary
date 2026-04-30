@@ -7,6 +7,7 @@ import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import Cropper from 'react-easy-crop';
 import Blog from './Blog';
 import Directory from './Directory';
+import FounderDirectory from './FounderDirectory';
 
 const ToastNotification = ({ message }) => {
   if (!message) return null;
@@ -499,7 +500,7 @@ const Member = () => {
       <nav style={{ display: 'flex', justifyContent: 'space-between', padding: '1.25rem 2.5rem', backgroundColor: '#fff', alignItems: 'center', borderBottom: '1px solid #eee' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}><div style={{ backgroundColor: '#6300dd', width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 'bold', borderRadius: '4px' }}>X</div><span>Team Portal</span></div>
         <div style={{ display: 'flex', gap: '2rem' }}>
-            {['Applications', 'Manage Blog', 'My Blog', 'Startup Directory', 'Settings'].map(tab => (
+            {['Applications', 'Manage Blog', 'My Blog', 'Startup Directory', 'Founder Directory', 'Settings'].map(tab => (
                 <span key={tab} onClick={() => setActiveTab(tab)} style={{ fontSize: '14px', fontWeight: '600', textShadow: activeTab === tab ? '0 0 0.5px #6300dd' : 'none', color: activeTab === tab ? '#6300dd' : '#666', cursor: 'pointer', transition: 'color 0.2s' }}>{tab}</span>
             ))}
         </div>
@@ -863,6 +864,10 @@ const Member = () => {
                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
                 </button>
             </div>
+        )}
+
+        {activeTab === 'Founder Directory' && (
+            <FounderDirectory embedded={true} />
         )}
 
         {activeTab === 'Startup Directory' && (

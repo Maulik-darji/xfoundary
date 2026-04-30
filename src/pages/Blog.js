@@ -279,9 +279,28 @@ const Blog = ({ embedded }) => {
 
                 <div 
                     className="blog-content-body"
-                    style={{ fontSize: '1.2rem', lineHeight: '1.8', color: '#333', marginBottom: '5rem' }}
+                    style={{ 
+                        fontSize: '1.2rem', 
+                        lineHeight: '1.6', 
+                        color: '#333', 
+                        marginBottom: '5rem', 
+                        whiteSpace: 'pre-wrap',
+                        wordBreak: 'break-word'
+                    }}
                     dangerouslySetInnerHTML={{ __html: selectedBlog.content }}
                 />
+
+                <style>{`
+                    .blog-content-body p, 
+                    .blog-content-body div { 
+                        margin: 0; 
+                        padding: 0;
+                    }
+                    .blog-content-body h2 {
+                        margin-top: 1.5rem;
+                        margin-bottom: 1rem;
+                    }
+                `}</style>
 
                 <div style={{ borderTop: '1px solid #eee', paddingTop: '4rem', marginBottom: '6rem' }}>
                     <h4 style={{ fontSize: '12px', fontWeight: '700', color: '#999', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '2rem' }}>Author</h4>

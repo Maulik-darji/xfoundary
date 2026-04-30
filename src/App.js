@@ -126,7 +126,7 @@ const Header = () => {
           <div className="nav-item has-dropdown">
             <span>Companies <svg className="arrow-svg" width="10" height="6" viewBox="0 0 10 6" fill="none"><path d="M1 1L5 5L9 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg></span>
             <div className="dropdown-menu">
-              <Link to="/jobs" className="dropdown-item">Startup Directory</Link>
+              <Link to="/directory" className="dropdown-item">Startup Directory</Link>
               <Link to="/founder-directory" className="dropdown-item">Founder Directory</Link>
               <Link to="/launch-xf" className="dropdown-item">Launch XF</Link>
             </div>

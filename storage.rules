@@ -7,8 +7,20 @@ service firebase.storage {
       allow write: if request.auth != null && request.auth.uid == userId;
     }
 
+    // Profiles folder (alternative path used in code)
+    match /profiles/{userId}/{allPaths=**} {
+      allow read: if true;
+      allow write: if request.auth != null && request.auth.uid == userId;
+    }
+
     // Company logos
     match /company_logos/{userId}/{allPaths=**} {
+      allow read: if true;
+      allow write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // Blog images: Publicly readable, writeable by the author
+    match /blog/{userId}/{allPaths=**} {
       allow read: if true;
       allow write: if request.auth != null && request.auth.uid == userId;
     }
