@@ -1,0 +1,31 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Allow users to read and write their own profile
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+      
+      // Allow access to subcollections if any
+      match /{allSubcollections=**} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+    }
+    
+    // Allow users to read/write their own login codes (though usually handled by admin functions)
+    match /login_codes/{email} {
+      allow read: if false; 
+      allow write: if false;
+    }
+    
+    // Allow the mail collection for the email trigger extension
+    match /mail/{document=**} {
+      allow create: if request.auth != null;
+      allow read, write: if false;
+    }
+    
+    // Default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

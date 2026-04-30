@@ -8,6 +8,21 @@ import Login from './pages/Login';
 import SignUp from './pages/SignUp';
 import Apply from './pages/Apply';
 import ResetPassword from './pages/ResetPassword';
+import ApplicationHome from './pages/ApplicationHome';
+import Settings from './pages/Settings';
+import ApplyForm from './pages/ApplyForm';
+import PreviewApplication from './pages/PreviewApplication';
+import FounderProfile from './pages/FounderProfile';
+import WhatHappens from './pages/WhatHappens';
+import FAQ from './pages/FAQ';
+import People from './pages/People';
+import Blog from './pages/Blog';
+import Admin from './pages/Admin';
+import Member from './pages/Member';
+
+import Directory from './pages/Directory';
+import StartupDetail from './pages/StartupDetail';
+import FounderDashboard from './pages/FounderDashboard';
 
 const Header = () => {
   const [isScrolled, setIsScrolled] = useState(false);
@@ -47,11 +62,11 @@ const Header = () => {
   <path d="M1 1L5 5L9 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
 </svg></span>
               <div className="dropdown-menu">
-                <a href="#" className="dropdown-item">What Happens at XF</a>
-                <a href="#" className="dropdown-item">XF Research</a>
-                <a href="#" className="dropdown-item">Team</a>
-                <a href="#" className="dropdown-item">Jobs</a>
-                <a href="#" className="dropdown-item">Press</a>
+                <Link to="/what-happens" className="dropdown-item">What Happens at XF?</Link>
+                <Link to="/apply" className="dropdown-item">Apply</Link>
+                <Link to="/faq" className="dropdown-item">FAQ</Link>
+                <Link to="/people" className="dropdown-item">People</Link>
+                <Link to="/blog" className="dropdown-item">XF Blog</Link>
               </div>
             </div>
             <div className="nav-item">
@@ -59,7 +74,7 @@ const Header = () => {
   <path d="M1 1L5 5L9 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
 </svg></span>
               <div className="dropdown-menu">
-                <a href="#" className="dropdown-item">Startup Directory</a>
+                <Link to="/directory" className="dropdown-item">Startup Directory</Link>
                 <a href="#" className="dropdown-item">Top Companies</a>
                 <a href="#" className="dropdown-item">Revenue</a>
                 <a href="#" className="dropdown-item">Valuation</a>
@@ -72,7 +87,7 @@ const Header = () => {
             </div>
           </div>
           
-          <Link to="/" className="yc-logo" style={{ textDecoration: 'none' }}>XF</Link>
+          <Link to="/" className="yc-logo" style={{ textDecoration: 'none' }}>X</Link>
           
           <div className="nav-group">
             <div className="nav-item">
@@ -138,7 +153,8 @@ const Footer = () => (
       <div className="footer-column">
         <h4>Resources</h4>
         <ul>
-          <li><a href="#">Startup Directory</a></li>
+          <li><Link to="/directory">Startup Directory</Link></li>
+          <li><Link to="/faq">FAQ</Link></li>
           <li><a href="#">Startup Library</a></li>
           <li><a href="#">Investors</a></li>
           <li><a href="#">Demo Day</a></li>
@@ -175,12 +191,30 @@ function App() {
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<SignUp />} />
           <Route path="/reset-password" element={<ResetPassword />} />
-          <Route path="*" element={
+          
+          {/* Portal Pages (No main header/footer) */}
+          <Route path="/home" element={<ApplicationHome />} />
+          <Route path="/settings" element={<Settings />} />
+          <Route path="/apply-form" element={<ApplyForm />} />
+          <Route path="/preview-application" element={<PreviewApplication />} />
+          <Route path="/founder-profile" element={<FounderProfile />} />
+          <Route path="/admin" element={<Admin />} />
+          <Route path="/member" element={<Member />} />
+          <Route path="/founder" element={<FounderDashboard />} />
+
+          {/* Main Website Pages */}
+          <Route path="/*" element={
             <>
               <Header />
               <Routes>
                 <Route path="/" element={<Home />} />
                 <Route path="/apply" element={<Apply />} />
+                <Route path="/what-happens" element={<WhatHappens />} />
+                <Route path="/faq" element={<FAQ />} />
+                <Route path="/people" element={<People />} />
+                <Route path="/blog" element={<Blog />} />
+                <Route path="/directory" element={<Directory />} />
+                <Route path="/companies/:id" element={<StartupDetail />} />
               </Routes>
               <Footer />
             </>

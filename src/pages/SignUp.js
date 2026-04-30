@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { auth, db } from '../firebase';
@@ -22,19 +22,26 @@ const SignUp = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [username, setUsername] = useState('');
   const [error, setError] = useState('');
+  const [isSigningUp, setIsSigningUp] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
+  const queryParams = new URLSearchParams(location.search);
+  const context = queryParams.get('context');
 
   const handleSignUp = async (e) => {
     e.preventDefault();
     setError('');
+    setIsSigningUp(true);
 
     // Username validation
     if (username.length > 20) {
       setError('Username must be 20 characters or less.');
+      setIsSigningUp(false);
       return;
     }
     if (/\s/.test(username)) {
       setError('Username cannot contain spaces.');
+      setIsSigningUp(false);
       return;
     }
 
@@ -52,7 +59,7 @@ const SignUp = () => {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       await updateProfile(userCredential.user, { displayName: username });
       
-      // 3. Save the mapping to Firestore
+      // 3. Save the mapping and user profile to Firestore
       await setDoc(usernameRef, {
         email: email,
         uid: userCredential.user.uid,
@@ -60,17 +67,29 @@ const SignUp = () => {
         createdAt: new Date()
       });
 
+      await setDoc(doc(db, 'users', userCredential.user.uid), {
+        email: email,
+        profile: {
+            name: username,
+            pin: '000000'
+        },
+        role: 'founder',
+        createdAt: new Date().toISOString()
+      });
+
       navigate('/');
     } catch (err) {
       setError(getErrorMessage(err));
+    } finally {
+      setIsSigningUp(false);
     }
   };
 
   return (
     <div className="login-page">
       <div className="login-card" style={{ maxWidth: '520px' }}>
-        <Link to="/" className="login-logo">XF</Link>
-        <h1>Sign up</h1>
+        <Link to="/" className="login-logo">X</Link>
+        <h1>{context === 'apply' ? 'Sign up to access the X Application' : 'Sign up'}</h1>
         
         {error && (
           <div className="error-message">
@@ -141,11 +160,22 @@ const SignUp = () => {
             <input type="text" placeholder="https://www.linkedin.com/in/username/" />
           </div>
           
-          <button type="submit" className="btn-login-submit" style={{ marginTop: '1rem' }}>Sign Up</button>
+          <button 
+            type="submit" 
+            className="btn-login-submit"
+            disabled={isSigningUp}
+            style={{
+              marginTop: '1rem',
+              opacity: isSigningUp ? 0.7 : 1,
+              cursor: isSigningUp ? 'not-allowed' : 'pointer'
+            }}
+          >
+            {isSigningUp ? 'Signing up...' : 'Sign Up'}
+          </button>
         </form>
         
         <div className="login-footer" style={{ marginTop: '2rem' }}>
-          <p>Already have an account? <Link to="/login">Log in.</Link></p>
+          <p>Already have an account? <Link to={`/login${context === 'apply' ? '?context=apply' : ''}`}>Log in.</Link></p>
         </div>
       </div>
     </div>

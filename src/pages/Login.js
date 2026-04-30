@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { 
   signInWithEmailAndPassword, 
   sendPasswordResetEmail, 
@@ -37,6 +37,7 @@ const Login = () => {
   const [loginLinkEmail, setLoginLinkEmail] = useState('');
   const [userOtp, setUserOtp] = useState('');
   const [isVerifyingOtp, setIsVerifyingOtp] = useState(false);
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [isSendingLink, setIsSendingLink] = useState(false);
   const [resendTimer, setResendTimer] = useState(0);
   const [isPageLoading, setIsPageLoading] = useState(true);
@@ -53,6 +54,9 @@ const Login = () => {
   const [modalMessage, setModalMessage] = useState('');
   const [toast, setToast] = useState({ visible: false, message: '' });
   const navigate = useNavigate();
+  const location = useLocation();
+  const queryParams = new URLSearchParams(location.search);
+  const context = queryParams.get('context');
 
   const showToast = (message) => {
     setToast({ visible: true, message });
@@ -182,7 +186,7 @@ const Login = () => {
       if (token) {
         await signInWithCustomToken(auth, token);
         window.localStorage.removeItem('emailForSignIn');
-        navigate('/');
+        navigate('/home');
       } else {
         throw new Error("Invalid response from server.");
       }
@@ -216,7 +220,7 @@ const Login = () => {
         signInWithEmailLink(auth, emailForSignIn, window.location.href)
           .then(() => {
             window.localStorage.removeItem('emailForSignIn');
-            navigate('/');
+            navigate('/home');
           })
           .catch((err) => {
             setError("Failed to sign in with link: " + err.message);
@@ -248,10 +252,13 @@ const Login = () => {
         }
       }
 
+      setIsLoggingIn(true);
       await signInWithEmailAndPassword(auth, loginEmail, password);
-      navigate('/');
+      navigate('/home');
     } catch (err) {
       setError(getErrorMessage(err));
+    } finally {
+      setIsLoggingIn(false);
     }
   };
 
@@ -284,12 +291,14 @@ const Login = () => {
     );
   }
 
+
+
   return (
     <div className="login-page">
       {view === 'login' ? (
         <div className="login-card">
-          <Link to="/" className="login-logo">XF</Link>
-          <h1>Log in</h1>
+          <Link to="/" className="login-logo">X</Link>
+          <h1>{context === 'apply' ? 'Log in to access the X Application' : 'Log in'}</h1>
           
           {error && (
             <div className="error-message">
@@ -338,18 +347,28 @@ const Login = () => {
               Forgot your <a href="#" onClick={(e) => { e.preventDefault(); setShowForgotUsername(true); }}>username</a> or <a href="#" onClick={(e) => { e.preventDefault(); setShowForgotPassword(true); }}>password</a>?
             </div>
             
-            <button type="submit" className="btn-login-submit">Log In</button>
+            <button 
+              type="submit" 
+              className="btn-login-submit" 
+              disabled={isLoggingIn}
+              style={{
+                opacity: isLoggingIn ? 0.7 : 1,
+                cursor: isLoggingIn ? 'not-allowed' : 'pointer'
+              }}
+            >
+              {isLoggingIn ? 'Logging in...' : 'Log In'}
+            </button>
           </form>
           
           <div className="login-footer">
-            <p>Don't have an account? <Link to="/signup">Create an account.</Link></p>
+            <p>Don't have an account? <Link to={`/signup${context === 'apply' ? '?context=apply' : ''}`}>Create an account.</Link></p>
             <p>Trouble signing in? <a href="#" onClick={(e) => { e.preventDefault(); setView('email-login'); }}>Get a login link emailed to you.</a></p>
           </div>
         </div>
       ) : (
         <div className="login-card" style={{ textAlign: 'center', padding: '2.5rem 2.25rem', maxWidth: '400px', borderRadius: '12px', boxShadow: '0 8px 30px rgba(0,0,0,0.05)' }}>
           <div style={{ backgroundColor: '#6300dd', width: '42px', height: '42px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1.5rem', borderRadius: '4px', color: 'white', fontWeight: '800', fontSize: '1rem' }}>
-            XF
+            X
           </div>
           <h1 style={{ fontSize: '1.6rem', fontWeight: '700', marginBottom: '2rem', color: '#111', fontFamily: "'Inter', sans-serif" }}>Log in with email</h1>
           

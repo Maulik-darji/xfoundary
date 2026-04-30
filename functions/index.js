@@ -15,6 +15,12 @@ exports.onuserdelete = functions.auth.user().onDelete(async (user) => {
   try {
     const batch = db.batch();
 
+    // Delete from all possible user collections
+    batch.delete(db.collection("users").doc(uid));
+    batch.delete(db.collection("admins").doc(uid));
+    batch.delete(db.collection("members").doc(uid));
+    batch.delete(db.collection("memberApplications").doc(uid));
+
     // 1. Find and delete their username mapping
     const usernameSnapshot = await db.collection("usernames").where("uid", "==", uid).get();
     usernameSnapshot.forEach((doc) => {
