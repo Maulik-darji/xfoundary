@@ -14,6 +14,7 @@ const Settings = () => {
   // Form states
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
+  const [username, setUsername] = useState('');
   const [linkedin, setLinkedin] = useState('');
   const [twitter, setTwitter] = useState('');
   const [instagram, setInstagram] = useState('');
@@ -35,6 +36,7 @@ const Settings = () => {
           const data = docSnap.data();
           setFirstName(data.firstName || currentUser.displayName?.split(' ')[0] || '');
           setLastName(data.lastName || currentUser.displayName?.split(' ')[1] || '');
+          setUsername(data.username || '');
           setLinkedin(data.linkedin || '');
           setTwitter(data.twitter || '');
           setInstagram(data.instagram || '');
@@ -56,6 +58,7 @@ const Settings = () => {
       await setDoc(doc(db, 'users', user.uid), {
         firstName,
         lastName,
+        username,
         linkedin,
         twitter,
         instagram,
@@ -188,6 +191,10 @@ const Settings = () => {
             <div>
               <label style={labelStyle}>Email</label>
               <input type="email" style={{ ...inputStyle, color: '#ccc' }} value={user?.email || ''} readOnly />
+            </div>
+            <div>
+              <label style={labelStyle}>Username</label>
+              <input type="text" style={inputStyle} value={username} onChange={(e) => setUsername(e.target.value)} placeholder="Choose a unique username" />
             </div>
             <div>
               <label style={labelStyle}>Your LinkedIn Profile URL</label>

@@ -71,6 +71,13 @@ service cloud.firestore {
       allow read, write: if false; 
     }
 
+    // Startup Jobs: Publicly readable, writeable by the founder or staff
+    match /jobs/{jobId} {
+      allow read: if true;
+      allow create: if request.auth != null;
+      allow update, delete: if request.auth != null && (request.auth.uid == resource.data.founderId || isAdmin() || isMember());
+    }
+
     // Global default: Deny all other access
     match /{document=**} {
       allow read, write: if false;

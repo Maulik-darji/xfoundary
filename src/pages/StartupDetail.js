@@ -6,7 +6,9 @@ import { doc, getDoc } from 'firebase/firestore';
 const StartupDetail = () => {
     const { id } = useParams();
     const [startup, setStartup] = useState(null);
+    const [jobs, setJobs] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [activeDetailTab, setActiveDetailTab] = useState('company');
 
     useEffect(() => {
         const fetchStartup = async () => {
@@ -33,16 +35,30 @@ const StartupDetail = () => {
                         teamSize: app.foundersKnown?.match(/\d+/)?.[0] || '1',
                         status: app.legalEntityRadio === 'yes' ? 'Public' : 'Private',
                         partner: 'X Foundary',
+                        socials: {
+                            twitter: app.socials?.twitter || '',
+                            linkedin: app.socials?.linkedin || '',
+                            github: app.socials?.github || '',
+                            facebook: app.socials?.facebook || ''
+                        },
                         founders: [
                             {
-                                name: data.displayName || 'Founder',
+                                name: data.profile?.name || data.displayName || 'Founder',
                                 role: 'Founder/CEO',
                                 bio: app.whyIdea || 'Founder bio not provided.',
-                                photo: data.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${docSnap.id}`
+                                photo: data.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${docSnap.id}`,
+                                twitter: data.socials?.twitter || '',
+                                linkedin: data.socials?.linkedin || ''
                             }
                         ]
                     });
                     document.title = `${app.companyName || 'Startup'} | X Foundary`;
+
+                    // Fetch Jobs
+                    const { collection, query, where, getDocs } = await import('firebase/firestore');
+                    const jobsQuery = query(collection(db, 'jobs'), where('founderId', '==', docSnap.id));
+                    const jobsSnap = await getDocs(jobsQuery);
+                    setJobs(jobsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
                 }
             } catch (error) {
                 console.error("Error fetching startup detail:", error);
@@ -234,19 +250,42 @@ const StartupDetail = () => {
                             </div>
                         </div>
 
-                        <div className="tabs">
-                            <div className="tab active">Company</div>
-                            <div className="tab">Jobs <span style={{ background: '#f0f0ed', padding: '2px 8px', borderRadius: '12px', fontSize: '12px', marginLeft: '6px', fontWeight: 700 }}>0</span></div>
-                            <div className="tab">News</div>
-                            <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '15px', color: '#000', fontWeight: 600 }}>
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
-                                <a href={startup.url} target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', textDecoration: 'none' }}>{startup.url.replace(/^https?:\/\//, '')}</a>
+                        {activeDetailTab === 'company' ? (
+                            <div style={{ fontSize: '17px', lineHeight: '1.8', color: '#444', whiteSpace: 'pre-wrap', marginBottom: '4rem' }}>
+                                {startup.fullDesc}
                             </div>
-                        </div>
-
-                        <div style={{ fontSize: '17px', lineHeight: '1.8', color: '#444', whiteSpace: 'pre-wrap', marginBottom: '4rem' }}>
-                            {startup.fullDesc}
-                        </div>
+                        ) : activeDetailTab === 'jobs' ? (
+                            <div style={{ marginBottom: '4rem' }}>
+                                {jobs.length > 0 ? (
+                                    <div style={{ display: 'grid', gap: '1.5rem' }}>
+                                        {jobs.map(job => (
+                                            <div key={job.id} style={{ padding: '2rem', background: '#fff', border: '1px solid #e5e5e0', borderRadius: '16px' }}>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem' }}>
+                                                    <div>
+                                                        <h3 style={{ margin: 0, fontSize: '20px', fontWeight: '800' }}>{job.role}</h3>
+                                                        <div style={{ display: 'flex', gap: '15px', marginTop: '6px', fontSize: '14px', color: '#666', fontWeight: '600' }}>
+                                                            <span>{job.type}</span>
+                                                            <span>&bull;</span>
+                                                            <span>{job.location}</span>
+                                                        </div>
+                                                    </div>
+                                                    {job.link && (
+                                                        <a href={job.link.startsWith('http') ? job.link : `mailto:${job.link}`} target="_blank" rel="noopener noreferrer" style={{ backgroundColor: '#000', color: '#fff', padding: '10px 24px', borderRadius: '8px', fontSize: '14px', fontWeight: '700', textDecoration: 'none' }}>Apply</a>
+                                                    )}
+                                                </div>
+                                                <p style={{ fontSize: '15px', color: '#555', lineHeight: '1.6', margin: 0 }}>{job.description}</p>
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <div style={{ padding: '4rem', textAlign: 'center', border: '2px dashed #e5e5e0', borderRadius: '24px', color: '#888' }}>
+                                        No active job openings at this time.
+                                    </div>
+                                )}
+                            </div>
+                        ) : (
+                            <div style={{ padding: '4rem', textAlign: 'center', color: '#888' }}>News coming soon.</div>
+                        )}
 
                         <div style={{ marginTop: '4rem' }}>
                             <h2 style={{ fontSize: '26px', fontWeight: '800', marginBottom: '2rem', letterSpacing: '-0.01em' }}>Active Founders</h2>
@@ -256,8 +295,16 @@ const StartupDetail = () => {
                                     <div>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '6px' }}>
                                             <span style={{ fontSize: '20px', fontWeight: '700', color: '#1a1a1a' }}>{founder.name}</span>
-                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#666" strokeWidth="2.5"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="#0077b5"><path d="M19 0h-14c-2.761 0-5 2.239-5 5v14c0 2.761 2.239 5 5 5h14c2.762 0 5-2.239 5-5v-14c0-2.761-2.238-5-5-5zm-11 19h-3v-11h3v11zm-1.5-12.268c-.966 0-1.75-.79-1.75-1.764s.784-1.764 1.75-1.764 1.75.79 1.75 1.764-.783 1.764-1.75 1.764zm13.5 12.268h-3v-5.604c0-3.368-4-3.113-4 0v5.604h-3v-11h3v1.765c1.396-2.586 7-2.777 7 2.476v6.759z"/></svg>
+                                            {founder.twitter && (
+                                                <a href={founder.twitter} target="_blank" rel="noopener noreferrer" style={{ color: '#1DA1F2' }}>
+                                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M24 4.557c-.883.392-1.832.656-2.828.775 1.017-.609 1.798-1.574 2.165-2.724-.951.564-2.005.974-3.127 1.195-.897-.957-2.178-1.555-3.594-1.555-3.179 0-5.515 2.966-4.797 6.045-4.091-.205-7.719-2.165-10.148-5.144-1.29 2.213-.669 5.108 1.523 6.574-.806-.026-1.566-.247-2.229-.616-.054 2.281 1.581 4.415 3.949 4.89-.693.188-1.452.232-2.224.084.626 1.956 2.444 3.379 4.6 3.419-2.07 1.623-4.678 2.348-7.29 2.04 2.179 1.397 4.768 2.212 7.548 2.212 9.142 0 14.307-7.721 13.995-14.646.962-.695 1.797-1.562 2.457-2.549z"/></svg>
+                                                </a>
+                                            )}
+                                            {founder.linkedin && (
+                                                <a href={founder.linkedin} target="_blank" rel="noopener noreferrer" style={{ color: '#0077b5' }}>
+                                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M19 0h-14c-2.761 0-5 2.239-5 5v14c0 2.761 2.239 5 5 5h14c2.762 0 5-2.239 5-5v-14c0-2.761-2.238-5-5-5zm-11 19h-3v-11h3v11zm-1.5-12.268c-.966 0-1.75-.79-1.75-1.764s.784-1.764 1.75-1.764 1.75.79 1.75 1.764-.783 1.764-1.75 1.764zm13.5 12.268h-3v-5.604c0-3.368-4-3.113-4 0v5.604h-3v-11h3v1.765c1.396-2.586 7-2.777 7 2.476v6.759z"/></svg>
+                                                </a>
+                                            )}
                                         </div>
                                         <div style={{ color: '#000', fontSize: '15px', marginBottom: '14px', fontWeight: '600' }}>{founder.role}</div>
                                         <div style={{ fontSize: '15px', color: '#555', lineHeight: '1.6' }}>{founder.bio}</div>
@@ -302,13 +349,26 @@ const StartupDetail = () => {
                             </div>
                             
                             <div className="social-icons">
-                                <div className="social-icon">
-                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
-                                </div>
-                                <div className="social-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M19 0h-14c-2.761 0-5 2.239-5 5v14c0 2.761 2.239 5 5 5h14c2.762 0 5-2.239 5-5v-14c0-2.761-2.238-5-5-5zm-11 19h-3v-11h3v11zm-1.5-12.268c-.966 0-1.75-.79-1.75-1.764s.784-1.764 1.75-1.764 1.75.79 1.75 1.764-.783 1.764-1.75 1.764zm13.5 12.268h-3v-5.604c0-3.368-4-3.113-4 0v5.604h-3v-11h3v1.765c1.396-2.586 7-2.777 7 2.476v6.759z"/></svg></div>
-                                <div className="social-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg></div>
-                                <div className="social-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.469h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.469h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg></div>
-                                <div className="social-icon" style={{ background: '#004c8c', color: '#fff', fontSize: '11px', fontWeight: 'bold' }}>cb</div>
+                                {startup.url && (
+                                    <a href={startup.url} target="_blank" rel="noopener noreferrer" className="social-icon">
+                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+                                    </a>
+                                )}
+                                {startup.socials?.linkedin && (
+                                    <a href={startup.socials.linkedin} target="_blank" rel="noopener noreferrer" className="social-icon">
+                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M19 0h-14c-2.761 0-5 2.239-5 5v14c0 2.761 2.239 5 5 5h14c2.762 0 5-2.239 5-5v-14c0-2.761-2.238-5-5-5zm-11 19h-3v-11h3v11zm-1.5-12.268c-.966 0-1.75-.79-1.75-1.764s.784-1.764 1.75-1.764 1.75.79 1.75 1.764-.783 1.764-1.75 1.764zm13.5 12.268h-3v-5.604c0-3.368-4-3.113-4 0v5.604h-3v-11h3v1.765c1.396-2.586 7-2.777 7 2.476v6.759z"/></svg>
+                                    </a>
+                                )}
+                                {startup.socials?.twitter && (
+                                    <a href={startup.socials.twitter} target="_blank" rel="noopener noreferrer" className="social-icon">
+                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+                                    </a>
+                                )}
+                                {startup.socials?.facebook && (
+                                    <a href={startup.socials.facebook} target="_blank" rel="noopener noreferrer" className="social-icon">
+                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.469h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.469h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
+                                    </a>
+                                )}
                             </div>
                         </div>
                     </aside>

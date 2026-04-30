@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { auth, db } from './firebase';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, onSnapshot } from 'firebase/firestore';
 import './index.css';
 import Home from './pages/Home';
 import Login from './pages/Login';
@@ -39,37 +39,53 @@ const Header = () => {
   }, []);
 
   const [userRole, setUserRole] = useState(null);
+  const [isApprovedFounder, setIsApprovedFounder] = useState(false);
+  const [authLoading, setAuthLoading] = useState(true);
 
   useEffect(() => {
+    let unsubUser = null;
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
       if (currentUser) {
         try {
+          // Real-time listener for user status
+          unsubUser = onSnapshot(doc(db, 'users', currentUser.uid), (docSnap) => {
+            if (docSnap.exists()) {
+              const data = docSnap.data();
+              setIsApprovedFounder(data.application?.status === 'approved');
+              setUserRole('user');
+            }
+            setAuthLoading(false);
+          });
+
+          // Check if admin or member (these are usually static roles)
           const adminDoc = await getDoc(doc(db, 'admins', currentUser.uid));
           if (adminDoc.exists()) {
             setUserRole('admin');
+            setAuthLoading(false);
             return;
           }
           const memberDoc = await getDoc(doc(db, 'members', currentUser.uid));
           if (memberDoc.exists()) {
             setUserRole('member');
+            setAuthLoading(false);
             return;
           }
-          const memberAppDoc = await getDoc(doc(db, 'memberApplications', currentUser.uid));
-          if (memberAppDoc.exists()) {
-            setUserRole('member');
-            return;
-          }
-          setUserRole('user');
         } catch (error) {
           console.error("Error fetching role:", error);
           setUserRole('user');
+          setAuthLoading(false);
         }
       } else {
         setUserRole(null);
+        setIsApprovedFounder(false);
+        setAuthLoading(false);
       }
     });
-    return () => unsubscribe();
+    return () => {
+      unsubscribe();
+      if (unsubUser) unsubUser();
+    };
   }, []);
 
   const handleLogout = async () => {
@@ -85,59 +101,21 @@ const Header = () => {
       <div className={`header-inner ${isScrolled ? 'scrolled' : ''}`}>
         <div className="header-left-empty" />
         <nav className="nav-links-centered">
-          <div className="nav-group">
-            <div className="nav-item">
-              <span>About <svg className="arrow-svg" width="10" height="6" viewBox="0 0 10 6" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <path d="M1 1L5 5L9 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-</svg></span>
-              <div className="dropdown-menu">
-                <Link to="/what-happens" className="dropdown-item">What Happens at XF?</Link>
-                {(!userRole || userRole === 'user') && <Link to="/apply" className="dropdown-item">Apply</Link>}
-                <Link to="/faq" className="dropdown-item">FAQ</Link>
-                <Link to="/people" className="dropdown-item">People</Link>
-                <Link to="/blog" className="dropdown-item">XF Blog</Link>
-              </div>
-            </div>
-            <div className="nav-item">
-              <span>Companies <svg className="arrow-svg" width="10" height="6" viewBox="0 0 10 6" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <path d="M1 1L5 5L9 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-</svg></span>
-              <div className="dropdown-menu">
-                <Link to="/directory" className="dropdown-item">Startup Directory</Link>
-                <a href="#" className="dropdown-item">Top Companies</a>
-                <a href="#" className="dropdown-item">Revenue</a>
-                <a href="#" className="dropdown-item">Valuation</a>
-                <a href="#" className="dropdown-item">Industry</a>
-                <a href="#" className="dropdown-item">Region</a>
-              </div>
-            </div>
-            <div className="nav-item">
-              <Link to="/" style={{ textDecoration: 'none', color: 'inherit' }}>Library</Link>
-            </div>
-          </div>
+          <Link to="/what-happens" className="nav-item">About</Link>
+          <Link to="/directory" className="nav-item">Companies</Link>
+          <Link to="/" className="nav-item">Library</Link>
           
-          <Link to="/" className="yc-logo" style={{ textDecoration: 'none' }}>X</Link>
+          <Link to="/" className="logo-container" style={{ textDecoration: 'none' }}>
+            <div className="yc-logo">X</div>
+          </Link>
           
-          <div className="nav-group">
-            <div className="nav-item">
-              <a href="#" style={{ textDecoration: 'none', color: 'inherit' }}>Partners</a>
-            </div>
-            <div className="nav-item">
-              <span>Resources <svg className="arrow-svg" width="10" height="6" viewBox="0 0 10 6" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <path d="M1 1L5 5L9 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-</svg></span>
-              <div className="dropdown-menu">
-                <a href="#" className="dropdown-item">Startup Library</a>
-                <a href="#" className="dropdown-item">Hacker News</a>
-                <a href="#" className="dropdown-item">XF Blog</a>
-                <a href="#" className="dropdown-item">Work at a Startup</a>
-                <a href="#" className="dropdown-item">Founder Matching</a>
-              </div>
-            </div>
-            <div className="nav-item">
-              <a href="#" style={{ textDecoration: 'none', color: 'inherit' }}>Startup Jobs</a>
-            </div>
-          </div>
+          <Link to="/faq" className="nav-item">Resources</Link>
+          <Link to="/blog" className="nav-item">Startup Jobs</Link>
+          {isApprovedFounder && (
+            <Link to="/founderscompany/dashboard" className="nav-item" style={{ color: 'var(--yc-orange)', fontWeight: '600', textDecoration: 'none' }}>
+              Founder Dashboard
+            </Link>
+          )}
         </nav>
         <div className="nav-actions">
           {user ? (
@@ -230,7 +208,7 @@ function App() {
           <Route path="/admin" element={<Admin />} />
           <Route path="/member" element={<Member />} />
           <Route path="/create-blog" element={<CreateBlog />} />
-          <Route path="/founderscompany/dashboard" element={<FounderDashboard />} />
+
 
           {/* Main Website Pages */}
           <Route path="/*" element={
@@ -245,6 +223,7 @@ function App() {
                 <Route path="/blog" element={<Blog />} />
                 <Route path="/directory" element={<Directory />} />
                 <Route path="/companies/:id" element={<StartupDetail />} />
+                <Route path="/founderscompany/dashboard" element={<FounderDashboard />} />
               </Routes>
               <Footer />
             </>

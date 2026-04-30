@@ -382,7 +382,21 @@ const Admin = () => {
         }
       `}</style>
 
-      <aside style={{ width: '300px', backgroundColor: 'rgba(223, 234, 234, 0.8)', backdropFilter: 'blur(30px)', color: '#000', borderRight: '1px solid rgba(201, 218, 218, 0.5)', padding: '2rem 1.5rem', height: '100vh', position: 'sticky', top: 0, display: 'flex', flexDirection: 'column', zIndex: 10 }}>
+      <aside style={{ 
+        width: '300px', 
+        backgroundColor: 'rgba(223, 234, 234, 0.8)', 
+        backdropFilter: 'blur(30px)', 
+        color: '#000', 
+        borderRight: '1px solid rgba(201, 218, 218, 0.5)', 
+        padding: '2rem 1.5rem', 
+        height: '100vh', 
+        position: 'fixed', 
+        left: 0,
+        top: 0, 
+        display: 'flex', 
+        flexDirection: 'column', 
+        zIndex: 10 
+      }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '3rem' }}>
           <div style={{ backgroundColor: '#000', width: '40px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: '900', borderRadius: '10px', fontSize: '20px' }}>X</div>
           <span style={{ fontWeight: '800', color: '#000', fontSize: '20px', letterSpacing: '-0.02em' }}>X Foundary</span>
@@ -467,32 +481,39 @@ const Admin = () => {
         </div>
       </aside>
 
-      <main style={{ flex: 1, padding: '2.5rem', zIndex: 1, position: 'relative', overflowY: 'auto' }}>
+      <main style={{ 
+        flex: 1, 
+        marginLeft: '300px',
+        padding: activeTab === 'Blog' ? '0' : '2.5rem', 
+        zIndex: 1, 
+        position: 'relative', 
+        minHeight: '100vh'
+      }}>
         {activeTab === 'Overview' && (
             <>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '1.5rem' }}>
                  <div onClick={() => setActiveTab('Pending Apps')} className="glass-card" style={{ padding: '1.5rem', borderRadius: '20px', cursor: 'pointer', background: 'linear-gradient(135deg, rgba(0, 122, 255, 0.15) 0%, rgba(0, 122, 255, 0.05) 100%)', border: '1px solid rgba(0, 122, 255, 0.2)' }}>
-                    <div style={{ color: '#000', fontSize: '11px', marginBottom: '10px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.1em', opacity: 0.6 }}>Applications written</div>
+                    <div style={{ color: '#000', fontSize: '11px', marginBottom: '10px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Applications written</div>
                     <div style={{ fontSize: '2.5rem', fontWeight: '800', color: '#000' }}>{stats.pending}</div>
                 </div>
                 <div onClick={() => setActiveTab('Applications')} className="glass-card" style={{ padding: '1.5rem', borderRadius: '20px', cursor: 'pointer', background: 'linear-gradient(135deg, rgba(52, 199, 89, 0.15) 0%, rgba(52, 199, 89, 0.05) 100%)', border: '1px solid rgba(52, 199, 89, 0.2)' }}>
-                    <div style={{ color: '#000', fontSize: '11px', marginBottom: '10px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.1em', opacity: 0.6 }}>Applications</div>
+                    <div style={{ color: '#000', fontSize: '11px', marginBottom: '10px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Applications</div>
                     <div style={{ fontSize: '2.5rem', fontWeight: '800', color: '#000' }}>{stats.pending + stats.approved + applications.filter(a => a.status === 'hold' || a.status === 'rejected').length}</div>
                 </div>
                 <div onClick={() => setActiveTab('Founders')} className="glass-card" style={{ padding: '1.5rem', borderRadius: '20px', cursor: 'pointer', background: 'linear-gradient(135deg, rgba(255, 149, 0, 0.15) 0%, rgba(255, 149, 0, 0.05) 100%)', border: '1px solid rgba(255, 149, 0, 0.2)' }}>
-                    <div style={{ color: '#000', fontSize: '11px', marginBottom: '10px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.1em', opacity: 0.6 }}>Total Founders</div>
+                    <div style={{ color: '#000', fontSize: '11px', marginBottom: '10px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Total Founders</div>
                     <div style={{ fontSize: '2.5rem', fontWeight: '800', color: '#000' }}>{stats.totalUsers}</div>
                 </div>
                 <div onClick={() => setActiveTab('Members')} className="glass-card" style={{ padding: '1.5rem', borderRadius: '20px', cursor: 'pointer', background: 'linear-gradient(135deg, rgba(88, 86, 214, 0.15) 0%, rgba(88, 86, 214, 0.05) 100%)', border: '1px solid rgba(88, 86, 214, 0.2)' }}>
-                    <div style={{ color: '#000', fontSize: '11px', marginBottom: '10px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.1em', opacity: 0.6 }}>Total Members</div>
+                    <div style={{ color: '#000', fontSize: '11px', marginBottom: '10px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Total Members</div>
                     <div style={{ fontSize: '2.5rem', fontWeight: '800', color: '#000' }}>{stats.totalMembers}</div>
                 </div>
                 <div onClick={() => setActiveTab('Admins')} className="glass-card" style={{ padding: '1.5rem', borderRadius: '20px', cursor: 'pointer', background: 'linear-gradient(135deg, rgba(142, 142, 147, 0.15) 0%, rgba(142, 142, 147, 0.05) 100%)', border: '1px solid rgba(142, 142, 147, 0.2)' }}>
-                    <div style={{ color: '#000', fontSize: '11px', marginBottom: '10px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.1em', opacity: 0.6 }}>Total Admins</div>
+                    <div style={{ color: '#000', fontSize: '11px', marginBottom: '10px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Total Admins</div>
                     <div style={{ fontSize: '2.5rem', fontWeight: '800', color: '#000' }}>{stats.totalAdmins}</div>
                 </div>
                 <div onClick={() => setActiveTab('Member Requests')} className="glass-card" style={{ padding: '1.5rem', borderRadius: '20px', cursor: 'pointer', background: 'linear-gradient(135deg, rgba(255, 59, 48, 0.15) 0%, rgba(255, 59, 48, 0.05) 100%)', border: '1px solid rgba(255, 59, 48, 0.2)' }}>
-                    <div style={{ color: '#000', fontSize: '11px', marginBottom: '10px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.1em', opacity: 0.6 }}>Pending Members</div>
+                    <div style={{ color: '#000', fontSize: '11px', marginBottom: '10px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Pending Members</div>
                     <div style={{ fontSize: '2.5rem', fontWeight: '800', color: '#000' }}>{stats.pendingMembers}</div>
                 </div>
             </div>
@@ -976,9 +997,9 @@ const Admin = () => {
             </div>
         )}
 
-        {activeTab === 'XF Blog' && (
-            <div style={{ margin: '-2.5rem -2.5rem -2.5rem -2.5rem', height: 'calc(100vh - 0px)', overflowY: 'auto' }}>
-                <Blog embedded={true} />
+        {activeTab === 'Blog' && (
+            <div style={{ minHeight: '100vh', backgroundColor: '#f6f6ef' }}>
+                <Blog />
             </div>
         )}
 
