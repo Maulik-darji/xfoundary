@@ -419,9 +419,24 @@ const FounderDashboard = () => {
             };
 
             if (sourceTarget === 'logo') {
-                const storageRef = ref(storage, `company_logos/${user.uid}/${Date.now()}-logo.png`);
-                const downloadURL = await uploadWithProgress(storageRef, fileToUpload, 'main', progressMap);
-                await updateDoc(doc(db, 'users', user.uid), { 'application.companyLogo': downloadURL });
+                const currentMsgId = Date.now();
+                const storageRef = ref(storage, `company_logos/${user.uid}/logo.png`);
+                const croppedPromise = uploadWithProgress(storageRef, fileToUpload, 'main', progressMap);
+
+                let originalLogoURL = appData.originalCompanyLogo || appData.companyLogo || '';
+                if (selectedFile) {
+                    const originalRef = ref(storage, `company_logos/${user.uid}/original.png`);
+                    originalLogoURL = await uploadWithProgress(originalRef, selectedFile, 'orig', progressMap);
+                }
+
+                const rawDownloadURL = await croppedPromise;
+                const downloadURL = rawDownloadURL + (rawDownloadURL.includes('?') ? '&' : '?') + 't=' + Date.now();
+
+                await updateDoc(doc(db, 'users', user.uid), { 
+                    'application.companyLogo': downloadURL,
+                    'application.originalCompanyLogo': originalLogoURL
+                });
+                
                 setMessage({ text: 'Logo updated successfully!', type: 'success', id: Date.now() });
             } else {
                 if (selectedFile) progressMap.orig = 0;
@@ -725,7 +740,18 @@ const FounderDashboard = () => {
                                         position: 'relative'
                                     }}
                                 >
-                                    <div style={{ width: '100%', height: '100%' }} onClick={() => { setSourceTarget('logo'); setShowSourceModal(true); }}>
+                                    <div style={{ width: '100%', height: '100%' }} onClick={() => { 
+                                        if (appData.companyLogo) {
+                                            const sourceUrl = appData.originalCompanyLogo || appData.companyLogo;
+                                            const bustSource = sourceUrl + (sourceUrl.includes('?') ? '&' : '?') + 'cache=' + Date.now();
+                                            setPreviewUrl(bustSource);
+                                            setSourceTarget('logo');
+                                            setShowCropModal(true);
+                                        } else {
+                                            setSourceTarget('logo'); 
+                                            setShowSourceModal(true);
+                                        }
+                                    }}>
                                         {appData.companyLogo ? (
                                             <img src={appData.companyLogo} alt="Logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
                                         ) : (
@@ -734,30 +760,56 @@ const FounderDashboard = () => {
                                     </div>
                                     
                                     {appData.companyLogo && (
-                                        <button 
-                                            type="button"
-                                            onClick={(e) => { e.stopPropagation(); handleRemoveLogo(); }}
-                                            style={{
-                                                position: 'absolute',
-                                                top: '4px',
-                                                right: '4px',
-                                                backgroundColor: 'rgba(255,255,255,0.9)',
-                                                border: '1px solid #ddd',
-                                                borderRadius: '50%',
-                                                width: '24px',
-                                                height: '24px',
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                justifyContent: 'center',
-                                                cursor: 'pointer',
-                                                fontSize: '14px',
-                                                color: '#ff4d4f',
-                                                boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
-                                            }}
-                                            title="Remove logo"
-                                        >
-                                            ×
-                                        </button>
+                                        <div style={{ position: 'absolute', top: '4px', right: '4px', display: 'flex', gap: '4px' }}>
+                                            <button 
+                                                type="button"
+                                                onClick={(e) => { 
+                                                    e.stopPropagation(); 
+                                                    const sourceUrl = appData.originalCompanyLogo || appData.companyLogo;
+                                                    const bustSource = sourceUrl + (sourceUrl.includes('?') ? '&' : '?') + 'cache=' + Date.now();
+                                                    setPreviewUrl(bustSource);
+                                                    setSourceTarget('logo');
+                                                    setShowCropModal(true);
+                                                }}
+                                                style={{
+                                                    backgroundColor: 'rgba(255,255,255,0.9)',
+                                                    border: '1px solid #ddd',
+                                                    borderRadius: '50%',
+                                                    width: '24px',
+                                                    height: '24px',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'center',
+                                                    cursor: 'pointer',
+                                                    color: '#0073b1',
+                                                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                                                }}
+                                                title="Re-crop logo"
+                                            >
+                                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                                            </button>
+                                            <button 
+                                                type="button"
+                                                onClick={(e) => { e.stopPropagation(); handleRemoveLogo(); }}
+                                                style={{
+                                                    backgroundColor: 'rgba(255,255,255,0.9)',
+                                                    border: '1px solid #ddd',
+                                                    borderRadius: '50%',
+                                                    width: '24px',
+                                                    height: '24px',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'center',
+                                                    cursor: 'pointer',
+                                                    fontSize: '14px',
+                                                    color: '#ff4d4f',
+                                                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                                                }}
+                                                title="Remove logo"
+                                            >
+                                                ×
+                                            </button>
+                                        </div>
                                     )}
 
                                 </div>

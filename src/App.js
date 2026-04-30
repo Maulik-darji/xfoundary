@@ -27,6 +27,7 @@ import StartupDetail from './pages/StartupDetail';
 import FounderDashboard from './pages/FounderDashboard';
 import CreateBlog from './pages/CreateBlog';
 import LaunchXF from './pages/LaunchXF';
+import Library from './pages/Library';
 
 const Header = () => {
   const [isScrolled, setIsScrolled] = useState(false);
@@ -122,7 +123,7 @@ const Header = () => {
             </div>
           </div>
           
-          <Link to="/" className="nav-item">Library</Link>
+          <Link to="/library" className="nav-item">Library</Link>
           
           <Link to="/" className="logo-container" style={{ textDecoration: 'none' }}>
             <div className="yc-logo">X</div>
@@ -218,7 +219,7 @@ const Footer = () => {
             <h4>Resources</h4>
             <ul>
               <li><Link to="/directory">Startup Directory</Link></li>
-              <li><a href="#">Startup Library</a></li>
+              <li><Link to="/library">Startup Library</Link></li>
               <li><a href="#">Investors</a></li>
               <li><a href="#">Demo Day</a></li>
               <li><a href="#">Safe</a></li>
