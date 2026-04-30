@@ -4,8 +4,8 @@
   --yc-orange: #6300dd;
   --text-main: #111111;
   --text-light: #666666;
-  --bg-main: #f6f6ef; /* The official YC/HN cream */
-  --bg-white: #ffffff;
+  --bg-main: #f5f5ee; /* The official brand cream */
+  --bg-white: #f5f5ee;
   --border-color: #111111;
 }
 
@@ -56,7 +56,7 @@ a {
   position: absolute;
   inset: 0;
   z-index: -1;
-  background: #f3f2ee; /* Official YC background */
+  background: #f5f5ee; /* Official brand background */
   border-radius: inherit;
   transition: all 0.6s cubic-bezier(0.16, 1, 0.3, 1);
 }
@@ -395,7 +395,20 @@ a {
 }
 
 .btn-primary-large:hover {
-  background-color: #4b00a8;
+  background-color: #f5f5ee;
+}
+
+.blog-content-body *, .blog-content-body {
+  background-color: transparent !important;
+}
+
+.blog-list-item:hover {
+  background-color: rgba(0, 0, 0, 0.03) !important;
+  transform: translateY(-2px);
+}
+
+.blog-list-item {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 /* Companies / Facts */

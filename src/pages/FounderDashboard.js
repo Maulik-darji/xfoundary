@@ -231,15 +231,13 @@ const FounderDashboard = () => {
     );
 
     return (
-        <div style={{ minHeight: '100vh', backgroundColor: '#f6f6ef', display: 'flex' }}>
+        <div style={{ minHeight: '100vh', backgroundColor: '#f5f5ee', display: 'flex' }}>
             <style>{`
-                .glass-sidebar {
-                    width: 300px;
-                    background-color: rgba(223, 234, 234, 0.8);
-                    backdrop-filter: blur(30px);
-                    color: #000;
-                    border-right: 1px solid rgba(201, 218, 218, 0.5);
-                    padding: 2rem 1.5rem;
+                .simple-sidebar {
+                    width: 240px;
+                    background-color: #f5f5ee;
+                    border-right: 1px solid #e5e5e0;
+                    padding: 2.5rem 1.25rem;
                     height: 100vh;
                     position: fixed;
                     left: 0;
@@ -249,206 +247,179 @@ const FounderDashboard = () => {
                     z-index: 50;
                     padding-top: 100px;
                 }
-                .main-content {
+                .portal-main {
                     flex: 1;
-                    margin-left: 300px;
-                    padding: 4rem 3rem;
+                    margin-left: 240px;
+                    padding: 5rem 4rem;
                     padding-top: 120px;
                     min-height: 100vh;
                 }
-                .sidebar-btn {
+                .nav-btn {
                     width: 100%;
                     text-align: left;
-                    padding: 14px 18px;
-                    border-radius: 14px;
-                    border: none;
+                    padding: 10px 14px;
+                    border-radius: 4px;
+                    border: 1px solid transparent;
                     background: transparent;
-                    font-size: 15px;
+                    font-size: 14px;
                     font-weight: 600;
-                    color: #444;
+                    color: #555;
                     cursor: pointer;
-                    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+                    transition: all 0.15s ease;
                     display: flex;
                     align-items: center;
-                    gap: 12px;
-                    margin-bottom: 8px;
+                    gap: 10px;
+                    margin-bottom: 2px;
                 }
-                .sidebar-btn.active {
-                    background: #000;
-                    color: #fff;
-                    box-shadow: 0 10px 20px rgba(0,0,0,0.1);
-                }
-                .sidebar-btn:hover:not(.active) {
-                    background: rgba(0,0,0,0.05);
-                    transform: translateX(4px);
-                }
-                .dashboard-card {
+                .nav-btn.active {
                     background: #fff;
-                    border: 1px solid rgba(0,0,0,0.05);
-                    border-radius: 24px;
-                    padding: 3.5rem;
-                    box-shadow: 0 4px 24px rgba(0,0,0,0.02);
-                    width: 100%;
+                    color: #111;
+                    border-color: #ddd;
                 }
-                .form-group { margin-bottom: 2.25rem; }
-                .form-label {
+                .nav-btn:hover:not(.active) {
+                    background: rgba(0,0,0,0.03);
+                }
+                .content-section {
+                    max-width: 750px;
+                }
+                .form-group { margin-bottom: 1.75rem; }
+                .label-text {
                     display: block;
-                    font-size: 13px;
-                    font-weight: 800;
-                    margin-bottom: 0.85rem;
-                    color: #000;
+                    font-size: 11px;
+                    font-weight: 700;
+                    margin-bottom: 0.5rem;
+                    color: #777;
                     text-transform: uppercase;
                     letter-spacing: 0.05em;
                 }
-                .form-input {
+                .portal-input {
                     width: 100%;
-                    padding: 16px 20px;
-                    border: 1px solid #e5e5e0;
-                    border-radius: 14px;
-                    font-size: 16px;
-                    outline: none;
-                    transition: all 0.2s;
-                    background: #f9f9f7;
-                    color: #000;
-                }
-                .form-input:focus { 
-                    border-color: #000; 
-                    background: #fff;
-                    box-shadow: 0 0 0 4px rgba(0, 0, 0, 0.03); 
-                }
-                .save-btn {
-                    background: #000;
-                    color: #fff;
-                    border: none;
-                    padding: 16px 32px;
-                    border-radius: 14px;
-                    font-weight: 700;
+                    padding: 10px 14px;
+                    border: 1px solid #ddd;
+                    border-radius: 4px;
                     font-size: 15px;
+                    outline: none;
+                    transition: border-color 0.2s;
+                    background: #fff;
+                    color: #111;
+                    font-family: 'Inter', sans-serif;
+                }
+                .portal-input:focus { 
+                    border-color: #111; 
+                }
+                .action-btn {
+                    background: #111;
+                    color: #fff;
+                    border: 1px solid #111;
+                    padding: 10px 20px;
+                    border-radius: 4px;
+                    font-weight: 600;
+                    font-size: 14px;
                     cursor: pointer;
                     transition: all 0.2s;
                 }
-                .save-btn:hover {
-                    transform: translateY(-2px);
-                    box-shadow: 0 8px 20px rgba(0,0,0,0.15);
+                .action-btn:hover {
+                    background: #333;
                 }
-                .save-btn:disabled {
+                .action-btn:disabled {
                     background: #ccc;
+                    border-color: #ccc;
                     cursor: not-allowed;
-                    transform: none;
                 }
-                .profile-header {
+                .profile-box {
                     display: flex;
                     align-items: center;
-                    gap: 2rem;
+                    gap: 1.5rem;
                     margin-bottom: 3.5rem;
-                    padding-bottom: 2rem;
-                    border-bottom: 1px solid #f0f0ed;
                 }
-                .avatar-upload {
-                    width: 100px;
-                    height: 100px;
-                    border-radius: 30px;
-                    background: #f0f0ed;
+                .avatar-circle {
+                    width: 64px;
+                    height: 64px;
+                    border-radius: 50%;
+                    background: #fff;
+                    border: 1px solid #ddd;
                     display: flex;
                     align-items: center;
                     justify-content: center;
                     cursor: pointer;
                     position: relative;
                     overflow: hidden;
-                    transition: all 0.3s;
-                    border: 2px solid #fff;
-                    box-shadow: 0 10px 25px rgba(0,0,0,0.05);
+                    transition: all 0.2s;
                 }
-                .avatar-upload:hover .avatar-overlay { opacity: 1; }
-                .avatar-upload img { width: 100%; height: 100%; object-fit: cover; }
-                .avatar-overlay {
-                    position: absolute;
-                    inset: 0;
-                    background: rgba(0,0,0,0.4);
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    color: #fff;
-                    opacity: 0;
-                    transition: all 0.3s;
-                }
+                .avatar-circle:hover { border-color: #111; }
+                .avatar-circle img { width: 100%; height: 100%; object-fit: cover; }
             `}</style>
 
-            <aside className="glass-sidebar">
+            <aside className="simple-sidebar">
                 <div style={{ marginBottom: '3rem' }}>
-                    <h2 style={{ fontSize: '18px', fontWeight: '900', margin: 0 }}>Founder Portal</h2>
-                    <p style={{ fontSize: '12px', color: '#666', marginTop: '4px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Manage your startup</p>
+                    <h2 style={{ fontSize: '16px', fontWeight: '800', margin: 0, color: '#111' }}>Founder Portal</h2>
+                    <p style={{ fontSize: '11px', color: '#888', marginTop: '4px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Manage your startup</p>
                 </div>
 
                 <nav style={{ flex: 1 }}>
                     <button 
-                        className={`sidebar-btn ${activeTab === 'company' ? 'active' : ''}`}
+                        className={`nav-btn ${activeTab === 'company' ? 'active' : ''}`}
                         onClick={() => setActiveTab('company')}
                     >
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
                         Company Profile
                     </button>
                     <button 
-                        className={`sidebar-btn ${activeTab === 'profile' ? 'active' : ''}`}
+                        className={`nav-btn ${activeTab === 'profile' ? 'active' : ''}`}
                         onClick={() => setActiveTab('profile')}
                     >
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
                         Account Settings
                     </button>
                     <button 
-                        className={`sidebar-btn ${activeTab === 'jobs' ? 'active' : ''}`}
+                        className={`nav-btn ${activeTab === 'jobs' ? 'active' : ''}`}
                         onClick={() => setActiveTab('jobs')}
                     >
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path></svg>
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path></svg>
                         Startup Jobs
                     </button>
                 </nav>
 
-                <div style={{ marginTop: 'auto', paddingTop: '2rem', borderTop: '1px solid rgba(0,0,0,0.05)' }}>
-                    <button className="sidebar-btn" onClick={() => navigate('/directory')}>
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                <div style={{ marginTop: 'auto', paddingTop: '1.5rem', borderTop: '1px solid #e5e5e0' }}>
+                    <button className="nav-btn" onClick={() => navigate('/directory')}>
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
                         View Directory
                     </button>
                 </div>
             </aside>
 
-            <main className="main-content">
-                <div className="dashboard-card">
+            <main className="portal-main">
+                <div className="content-section">
                     {message.text && (
                         <div style={{ 
-                            padding: '1rem 1.5rem', 
-                            borderRadius: '12px', 
-                            backgroundColor: message.type === 'success' ? '#eafaf1' : '#fef1f1',
-                            color: message.type === 'success' ? '#27ae60' : '#eb5757',
-                            marginBottom: '2.5rem',
+                            padding: '12px 16px', 
+                            borderRadius: '6px', 
+                            backgroundColor: message.type === 'success' ? '#f0fdf4' : '#fef2f2',
+                            color: message.type === 'success' ? '#16a34a' : '#dc2626',
+                            marginBottom: '2rem',
                             fontSize: '14px',
-                            fontWeight: '600',
-                            border: `1px solid ${message.type === 'success' ? '#27ae6022' : '#eb575722'}`,
+                            fontWeight: '500',
+                            border: `1px solid ${message.type === 'success' ? '#bbf7d0' : '#fecaca'}`,
                             display: 'flex',
                             alignItems: 'center',
                             gap: '10px'
                         }}>
-                            {message.type === 'success' ? (
-                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                            ) : (
-                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
-                            )}
                             {message.text}
                         </div>
                     )}
 
                     {activeTab === 'company' ? (
                         <>
-                            <div style={{ marginBottom: '3.5rem' }}>
-                                <h1 style={{ fontSize: '32px', fontWeight: '900', margin: 0, letterSpacing: '-0.02em' }}>Company Profile</h1>
-                                <p style={{ color: '#666', marginTop: '8px', fontSize: '16px' }}>Information displayed in the public startup directory</p>
+                            <div style={{ marginBottom: '3rem' }}>
+                                <h1 style={{ fontSize: '28px', fontWeight: '800', margin: 0, color: '#111' }}>Company Profile</h1>
+                                <p style={{ color: '#666', marginTop: '6px', fontSize: '15px' }}>Information displayed in the public startup directory</p>
                             </div>
 
                             <form onSubmit={handleCompanySave}>
                                 <div className="form-group">
-                                    <label className="form-label">Company Name</label>
+                                    <label className="label-text">Company Name</label>
                                     <input 
-                                        className="form-input"
+                                        className="portal-input"
                                         value={appData.companyName || ''}
                                         onChange={(e) => setAppData({...appData, companyName: e.target.value})}
                                         required
@@ -456,9 +427,9 @@ const FounderDashboard = () => {
                                 </div>
 
                                 <div className="form-group">
-                                    <label className="form-label">Category / Industry</label>
+                                    <label className="label-text">Category / Industry</label>
                                     <select 
-                                        className="form-input"
+                                        className="portal-input"
                                         value={appData.category || ''}
                                         onChange={(e) => setAppData({...appData, category: e.target.value})}
                                         required
@@ -469,9 +440,9 @@ const FounderDashboard = () => {
                                 </div>
 
                                 <div className="form-group">
-                                    <label className="form-label">Location (City, Country)</label>
+                                    <label className="label-text">Location (City, Country)</label>
                                     <input 
-                                        className="form-input"
+                                        className="portal-input"
                                         list="location-list"
                                         value={appData.basedIn || ''}
                                         onChange={(e) => setAppData({...appData, basedIn: e.target.value})}
@@ -484,9 +455,9 @@ const FounderDashboard = () => {
                                 </div>
 
                                 <div className="form-group">
-                                    <label className="form-label">Website URL</label>
+                                    <label className="label-text">Website URL</label>
                                     <input 
-                                        className="form-input"
+                                        className="portal-input"
                                         value={appData.companyUrl || ''}
                                         onChange={(e) => setAppData({...appData, companyUrl: e.target.value})}
                                         required
@@ -494,9 +465,9 @@ const FounderDashboard = () => {
                                 </div>
 
                                 <div className="form-group">
-                                    <label className="form-label">Company Twitter/X URL</label>
+                                    <label className="label-text">Company Twitter/X URL</label>
                                     <input 
-                                        className="form-input"
+                                        className="portal-input"
                                         value={appData.socials?.twitter || ''}
                                         onChange={(e) => setAppData({...appData, socials: {...(appData.socials || {}), twitter: e.target.value}})}
                                         placeholder="https://x.com/yourcompany"
@@ -504,9 +475,9 @@ const FounderDashboard = () => {
                                 </div>
 
                                 <div className="form-group">
-                                    <label className="form-label">One-line Description</label>
+                                    <label className="label-text">One-line Description</label>
                                     <textarea 
-                                        className="form-input"
+                                        className="portal-input"
                                         style={{ minHeight: '100px', resize: 'vertical' }}
                                         value={appData.companyDescription || ''}
                                         onChange={(e) => setAppData({...appData, companyDescription: e.target.value})}
@@ -514,27 +485,24 @@ const FounderDashboard = () => {
                                     />
                                 </div>
 
-                                <div style={{ marginTop: '3rem' }}>
-                                    <button type="submit" disabled={saving} className="save-btn">
-                                        {saving ? 'Updating...' : 'Save Company Info'}
+                                <div style={{ marginTop: '2.5rem' }}>
+                                    <button type="submit" disabled={saving} className="action-btn">
+                                        {saving ? 'Updating...' : 'Save Changes'}
                                     </button>
                                 </div>
                             </form>
                         </>
                     ) : activeTab === 'profile' ? (
                         <>
-                            <div className="profile-header">
-                                <div className="avatar-upload" onClick={() => fileInputRef.current.click()}>
+                            <div className="profile-box">
+                                <div className="avatar-circle" onClick={() => fileInputRef.current.click()}>
                                     {userData.photoURL ? (
                                         <img src={userData.photoURL} alt="Avatar" />
                                     ) : (
-                                        <div style={{ fontSize: '32px', fontWeight: '800', color: '#999' }}>
+                                        <div style={{ fontSize: '24px', fontWeight: '700', color: '#999' }}>
                                             {userData.profile?.name?.charAt(0).toUpperCase() || 'F'}
                                         </div>
                                     )}
-                                    <div className="avatar-overlay">
-                                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
-                                    </div>
                                     <input 
                                         type="file" 
                                         ref={fileInputRef} 
@@ -544,26 +512,26 @@ const FounderDashboard = () => {
                                     />
                                 </div>
                                 <div>
-                                    <h1 style={{ fontSize: '28px', fontWeight: '800', margin: 0, color: '#1a1a1a' }}>Account Settings</h1>
-                                    <p style={{ color: '#666', marginTop: '4px' }}>Manage your personal information and security</p>
+                                    <h1 style={{ fontSize: '24px', fontWeight: '800', margin: 0, color: '#111' }}>Account Settings</h1>
+                                    <p style={{ color: '#666', marginTop: '4px', fontSize: '14px' }}>Personal information and contact details</p>
                                 </div>
                             </div>
 
                             <form onSubmit={handleProfileSave}>
                                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
                                     <div className="form-group">
-                                        <label className="form-label">Display Name</label>
+                                        <label className="label-text">Display Name</label>
                                         <input 
-                                            className="form-input"
+                                            className="portal-input"
                                             value={userData.profile?.name || ''}
                                             onChange={(e) => setUserData({...userData, profile: {...(userData.profile || {}), name: e.target.value}})}
                                             required
                                         />
                                     </div>
                                     <div className="form-group">
-                                        <label className="form-label">Username</label>
+                                        <label className="label-text">Username</label>
                                         <input 
-                                            className="form-input"
+                                            className="portal-input"
                                             value={userData.username || ''}
                                             onChange={(e) => setUserData({...userData, username: e.target.value})}
                                             required
@@ -572,75 +540,64 @@ const FounderDashboard = () => {
                                 </div>
 
                                 <div className="form-group">
-                                    <label className="form-label">Email Address</label>
+                                    <label className="label-text">Email Address</label>
                                     <input 
-                                        className="form-input"
+                                        className="portal-input"
                                         type="email"
                                         value={userData.email || ''}
                                         onChange={(e) => setUserData({...userData, email: e.target.value})}
                                         required
                                     />
-                                    <p style={{ fontSize: '12px', color: '#888', marginTop: '6px' }}>Note: This updates your login email and directory contact info.</p>
                                 </div>
 
                                 <div className="form-group">
-                                    <label className="form-label">Personal LinkedIn URL</label>
+                                    <label className="label-text">Personal LinkedIn URL</label>
                                     <input 
-                                        className="form-input"
+                                        className="portal-input"
                                         value={userData.socials?.linkedin || ''}
                                         onChange={(e) => setUserData({...userData, socials: {...(userData.socials || {}), linkedin: e.target.value}})}
                                         placeholder="https://linkedin.com/in/username"
                                     />
                                 </div>
 
-                                <div className="form-group">
-                                    <label className="form-label">Personal Twitter/X URL</label>
-                                    <input 
-                                        className="form-input"
-                                        value={userData.socials?.twitter || ''}
-                                        onChange={(e) => setUserData({...userData, socials: {...(userData.socials || {}), twitter: e.target.value}})}
-                                        placeholder="https://x.com/username"
-                                    />
-                                </div>
-
-                                <div style={{ marginTop: '3rem' }}>
-                                    <button type="submit" disabled={saving} className="save-btn">
-                                        {saving ? 'Updating...' : 'Save Profile Settings'}
+                                <div style={{ marginTop: '2.5rem' }}>
+                                    <button type="submit" disabled={saving} className="action-btn">
+                                        {saving ? 'Updating...' : 'Save Profile'}
                                     </button>
                                 </div>
                             </form>
                         </>
                     ) : (
                         <>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '3.5rem' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '3rem' }}>
                                 <div>
-                                    <h1 style={{ fontSize: '32px', fontWeight: '900', margin: 0, letterSpacing: '-0.02em' }}>Startup Jobs</h1>
-                                    <p style={{ color: '#666', marginTop: '8px', fontSize: '16px' }}>Manage job openings at {appData.companyName}</p>
+                                    <h1 style={{ fontSize: '28px', fontWeight: '800', margin: 0, color: '#111' }}>Startup Jobs</h1>
+                                    <p style={{ color: '#666', marginTop: '6px', fontSize: '15px' }}>Job openings at {appData.companyName}</p>
                                 </div>
-                                <button className="save-btn" onClick={() => { setEditingJobId(null); setCurrentJob({ role: '', type: 'Full-time', location: '', description: '', link: '' }); setShowJobModal(true); }}>
-                                    + Post a Job
+                                <button className="action-btn" onClick={() => { setEditingJobId(null); setCurrentJob({ role: '', type: 'Full-time', location: '', description: '', link: '' }); setShowJobModal(true); }}>
+                                    + Post Job
                                 </button>
                             </div>
 
-                            <div style={{ display: 'grid', gap: '1.5rem' }}>
+                            <div style={{ display: 'grid', gap: '1rem' }}>
                                 {jobs.length > 0 ? jobs.map(job => (
-                                    <div key={job.id} style={{ padding: '1.5rem', border: '1px solid #f0f0ed', borderRadius: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <div key={job.id} style={{ padding: '1rem 1.5rem', border: '1px solid #e5e5e0', borderRadius: '8px', background: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                         <div>
-                                            <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '700' }}>{job.role}</h3>
-                                            <div style={{ display: 'flex', gap: '15px', marginTop: '6px', fontSize: '14px', color: '#666' }}>
+                                            <h3 style={{ margin: 0, fontSize: '16px', fontWeight: '700' }}>{job.role}</h3>
+                                            <div style={{ display: 'flex', gap: '12px', marginTop: '4px', fontSize: '13px', color: '#666' }}>
                                                 <span>{job.type}</span>
                                                 <span>&bull;</span>
                                                 <span>{job.location}</span>
                                             </div>
                                         </div>
-                                        <div style={{ display: 'flex', gap: '10px' }}>
-                                            <button onClick={() => { setEditingJobId(job.id); setCurrentJob(job); setShowJobModal(true); }} style={{ padding: '8px 16px', borderRadius: '8px', border: '1px solid #ddd', background: '#fff', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }}>Edit</button>
-                                            <button onClick={() => deleteJob(job.id)} style={{ padding: '8px 16px', borderRadius: '8px', border: '1px solid #fee2e2', background: '#fef1f1', color: '#eb5757', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }}>Delete</button>
+                                        <div style={{ display: 'flex', gap: '8px' }}>
+                                            <button onClick={() => { setEditingJobId(job.id); setCurrentJob(job); setShowJobModal(true); }} style={{ padding: '6px 12px', borderRadius: '4px', border: '1px solid #ddd', background: '#fff', fontSize: '12px', fontWeight: '600', cursor: 'pointer' }}>Edit</button>
+                                            <button onClick={() => deleteJob(job.id)} style={{ padding: '6px 12px', borderRadius: '4px', border: '1px solid #fee2e2', background: '#fef2f2', color: '#dc2626', fontSize: '12px', fontWeight: '600', cursor: 'pointer' }}>Delete</button>
                                         </div>
                                     </div>
                                 )) : (
-                                    <div style={{ padding: '4rem', textAlign: 'center', border: '2px dashed #f0f0ed', borderRadius: '24px', color: '#999' }}>
-                                        No jobs posted yet. Start hiring by clicking "Post a Job".
+                                    <div style={{ padding: '3rem', textAlign: 'center', border: '1px dashed #ddd', borderRadius: '8px', color: '#999', fontSize: '14px' }}>
+                                        No active job postings.
                                     </div>
                                 )}
                             </div>
@@ -651,18 +608,18 @@ const FounderDashboard = () => {
 
             {/* Job Modal */}
             {showJobModal && (
-                <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(4px)' }}>
-                    <div style={{ backgroundColor: '#fff', borderRadius: '24px', padding: '3rem', width: '600px', boxShadow: '0 20px 60px rgba(0,0,0,0.2)', position: 'relative' }}>
-                        <h2 style={{ margin: '0 0 2rem 0', fontWeight: '900' }}>{editingJobId ? 'Edit Job Posting' : 'Post a New Job'}</h2>
+                <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.4)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <div style={{ backgroundColor: '#fff', borderRadius: '12px', padding: '2.5rem', width: '550px', boxShadow: '0 10px 40px rgba(0,0,0,0.1)', position: 'relative' }}>
+                        <h2 style={{ margin: '0 0 1.5rem 0', fontWeight: '800', fontSize: '20px' }}>{editingJobId ? 'Edit Job' : 'Post a Job'}</h2>
                         <form onSubmit={handleJobSave}>
                             <div className="form-group">
-                                <label className="form-label">Position Role</label>
-                                <input className="form-input" value={currentJob.role} onChange={e => setCurrentJob({...currentJob, role: e.target.value})} required placeholder="e.g. Senior Software Engineer" />
+                                <label className="label-text">Position Role</label>
+                                <input className="portal-input" value={currentJob.role} onChange={e => setCurrentJob({...currentJob, role: e.target.value})} required />
                             </div>
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
                                 <div className="form-group">
-                                    <label className="form-label">Job Type</label>
-                                    <select className="form-input" value={currentJob.type} onChange={e => setCurrentJob({...currentJob, type: e.target.value})}>
+                                    <label className="label-text">Job Type</label>
+                                    <select className="portal-input" value={currentJob.type} onChange={e => setCurrentJob({...currentJob, type: e.target.value})}>
                                         <option>Full-time</option>
                                         <option>Part-time</option>
                                         <option>Contract</option>
@@ -670,21 +627,17 @@ const FounderDashboard = () => {
                                     </select>
                                 </div>
                                 <div className="form-group">
-                                    <label className="form-label">Location</label>
-                                    <input className="form-input" value={currentJob.location} onChange={e => setCurrentJob({...currentJob, location: e.target.value})} required placeholder="e.g. Remote or San Francisco" />
+                                    <label className="label-text">Location</label>
+                                    <input className="portal-input" value={currentJob.location} onChange={e => setCurrentJob({...currentJob, location: e.target.value})} required />
                                 </div>
                             </div>
                             <div className="form-group">
-                                <label className="form-label">Job Description</label>
-                                <textarea className="form-input" style={{ minHeight: '120px' }} value={currentJob.description} onChange={e => setCurrentJob({...currentJob, description: e.target.value})} required placeholder="Describe the role, responsibilities, and requirements..." />
+                                <label className="label-text">Description</label>
+                                <textarea className="portal-input" style={{ minHeight: '100px' }} value={currentJob.description} onChange={e => setCurrentJob({...currentJob, description: e.target.value})} required />
                             </div>
-                            <div className="form-group">
-                                <label className="form-label">Application Link / Email</label>
-                                <input className="form-input" value={currentJob.link} onChange={e => setCurrentJob({...currentJob, link: e.target.value})} placeholder="URL to apply or contact email" />
-                            </div>
-                            <div style={{ display: 'flex', gap: '1rem', marginTop: '2rem' }}>
-                                <button type="submit" disabled={saving} className="save-btn" style={{ flex: 1 }}>{saving ? 'Saving...' : 'Publish Job'}</button>
-                                <button type="button" className="save-btn" style={{ background: '#f5f5f2', color: '#111' }} onClick={() => setShowJobModal(false)}>Cancel</button>
+                            <div style={{ display: 'flex', gap: '1rem', marginTop: '1.5rem' }}>
+                                <button type="submit" disabled={saving} className="action-btn" style={{ flex: 1 }}>{saving ? 'Saving...' : 'Publish'}</button>
+                                <button type="button" className="action-btn" style={{ background: '#f5f5f2', color: '#111', borderColor: '#ddd' }} onClick={() => setShowJobModal(false)}>Cancel</button>
                             </div>
                         </form>
                     </div>

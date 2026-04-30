@@ -101,16 +101,44 @@ const Header = () => {
       <div className={`header-inner ${isScrolled ? 'scrolled' : ''}`}>
         <div className="header-left-empty" />
         <nav className="nav-links-centered">
-          <Link to="/what-happens" className="nav-item">About</Link>
-          <Link to="/directory" className="nav-item">Companies</Link>
+          <div className="nav-item has-dropdown">
+            <span>About <svg className="arrow-svg" width="10" height="6" viewBox="0 0 10 6" fill="none"><path d="M1 1L5 5L9 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg></span>
+            <div className="dropdown-menu">
+              <Link to="/what-happens" className="dropdown-item">What Happens at XF?</Link>
+              <Link to="/faq" className="dropdown-item">FAQ</Link>
+              <Link to="/people" className="dropdown-item">People</Link>
+              <Link to="/blog" className="dropdown-item">XF Blog</Link>
+            </div>
+          </div>
+          
+          <div className="nav-item has-dropdown">
+            <span>Companies <svg className="arrow-svg" width="10" height="6" viewBox="0 0 10 6" fill="none"><path d="M1 1L5 5L9 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg></span>
+            <div className="dropdown-menu">
+              <Link to="/directory" className="dropdown-item">Startup Directory</Link>
+              <a href="#" className="dropdown-item">Top Companies</a>
+              <a href="#" className="dropdown-item">Revenue</a>
+              <a href="#" className="dropdown-item">Valuation</a>
+            </div>
+          </div>
+          
           <Link to="/" className="nav-item">Library</Link>
           
           <Link to="/" className="logo-container" style={{ textDecoration: 'none' }}>
             <div className="yc-logo">X</div>
           </Link>
           
-          <Link to="/faq" className="nav-item">Resources</Link>
+          <div className="nav-item has-dropdown">
+            <span>Resources <svg className="arrow-svg" width="10" height="6" viewBox="0 0 10 6" fill="none"><path d="M1 1L5 5L9 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg></span>
+            <div className="dropdown-menu">
+              <a href="#" className="dropdown-item">Startup Library</a>
+              <a href="#" className="dropdown-item">Hacker News</a>
+              <a href="#" className="dropdown-item">Work at a Startup</a>
+              <a href="#" className="dropdown-item">Founder Matching</a>
+            </div>
+          </div>
+          
           <Link to="/blog" className="nav-item">Startup Jobs</Link>
+          
           {isApprovedFounder && (
             <Link to="/founderscompany/dashboard" className="nav-item" style={{ color: 'var(--yc-orange)', fontWeight: '600', textDecoration: 'none' }}>
               Founder Dashboard
