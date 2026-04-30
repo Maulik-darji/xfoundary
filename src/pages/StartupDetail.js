@@ -55,14 +55,14 @@ const StartupDetail = () => {
 
     if (loading) return (
         <div style={{ minHeight: '100vh', backgroundColor: '#f5f5ee', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <div style={{ fontSize: '18px', color: '#6300dd', fontWeight: 600 }}>Loading company data...</div>
+            <div style={{ fontSize: '18px', color: '#111', fontWeight: 600 }}>Loading company data...</div>
         </div>
     );
 
     if (!startup) return (
         <div style={{ minHeight: '100vh', backgroundColor: '#f5f5ee', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: '1rem' }}>
             <div style={{ fontSize: '24px', color: '#1a1a1a', fontWeight: 700 }}>Startup not found</div>
-            <Link to="/directory" style={{ color: '#6300dd', textDecoration: 'none', fontWeight: 600 }}>Return to Directory</Link>
+            <Link to="/directory" style={{ color: '#000', textDecoration: 'none', fontWeight: 600 }}>Return to Directory</Link>
         </div>
     );
 
@@ -79,7 +79,7 @@ const StartupDetail = () => {
                     color: #666;
                     margin-bottom: 2.5rem;
                 }
-                .breadcrumb a { color: #6300dd; text-decoration: none; }
+                .breadcrumb a { color: #000; text-decoration: none; }
                 
                 .header-section {
                     display: flex;
@@ -124,7 +124,7 @@ const StartupDetail = () => {
                     color: #555;
                     letter-spacing: 0.02em;
                 }
-                .tag-batch { background: #6300dd; color: #fff; }
+                .tag-batch { background: #000; color: #fff; }
                 .status-dot { width: 8px; height: 8px; border-radius: 50%; background: #22c55e; margin-right: 8px; }
 
                 .tabs {
@@ -144,7 +144,7 @@ const StartupDetail = () => {
                 }
                 .tab.active {
                     color: #1a1a1a;
-                    border-bottom-color: #6300dd;
+                    border-bottom-color: #000;
                 }
                 
                 .sidebar-card {
@@ -180,12 +180,12 @@ const StartupDetail = () => {
                     display: flex;
                     align-items: center;
                     justify-content: center;
-                    color: #6300dd;
+                    color: #000;
                     cursor: pointer;
                     background: #fff;
                     transition: all 0.2s;
                 }
-                .social-icon:hover { background: #6300dd; color: #fff; border-color: #6300dd; }
+                .social-icon:hover { background: #000; color: #fff; border-color: #000; }
                 
                 .founder-card {
                     background: #fff;
@@ -222,7 +222,7 @@ const StartupDetail = () => {
                                 <p>{startup.desc}</p>
                                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
                                     <span className="tag tag-batch">
-                                        <div style={{ width: '12px', height: '12px', background: '#fff', color: '#6300dd', fontSize: '9px', display: 'flex', alignItems: 'center', justifyContent: 'center', marginRight: '6px', borderRadius: '2px', fontWeight: 900 }}>X</div>
+                                        <div style={{ width: '12px', height: '12px', background: '#fff', color: '#000', fontSize: '9px', display: 'flex', alignItems: 'center', justifyContent: 'center', marginRight: '6px', borderRadius: '2px', fontWeight: 900 }}>X</div>
                                         {startup.batch}
                                     </span>
                                     <span className="tag" style={{ display: 'flex', alignItems: 'center' }}>
@@ -238,7 +238,7 @@ const StartupDetail = () => {
                             <div className="tab active">Company</div>
                             <div className="tab">Jobs <span style={{ background: '#f0f0ed', padding: '2px 8px', borderRadius: '12px', fontSize: '12px', marginLeft: '6px', fontWeight: 700 }}>0</span></div>
                             <div className="tab">News</div>
-                            <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '15px', color: '#6300dd', fontWeight: 600 }}>
+                            <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '15px', color: '#000', fontWeight: 600 }}>
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
                                 <a href={startup.url} target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', textDecoration: 'none' }}>{startup.url.replace(/^https?:\/\//, '')}</a>
                             </div>
@@ -259,7 +259,7 @@ const StartupDetail = () => {
                                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#666" strokeWidth="2.5"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
                                             <svg width="16" height="16" viewBox="0 0 24 24" fill="#0077b5"><path d="M19 0h-14c-2.761 0-5 2.239-5 5v14c0 2.761 2.239 5 5 5h14c2.762 0 5-2.239 5-5v-14c0-2.761-2.238-5-5-5zm-11 19h-3v-11h3v11zm-1.5-12.268c-.966 0-1.75-.79-1.75-1.764s.784-1.764 1.75-1.764 1.75.79 1.75 1.764-.783 1.764-1.75 1.764zm13.5 12.268h-3v-5.604c0-3.368-4-3.113-4 0v5.604h-3v-11h3v1.765c1.396-2.586 7-2.777 7 2.476v6.759z"/></svg>
                                         </div>
-                                        <div style={{ color: '#6300dd', fontSize: '15px', marginBottom: '14px', fontWeight: '600' }}>{founder.role}</div>
+                                        <div style={{ color: '#000', fontSize: '15px', marginBottom: '14px', fontWeight: '600' }}>{founder.role}</div>
                                         <div style={{ fontSize: '15px', color: '#555', lineHeight: '1.6' }}>{founder.bio}</div>
                                     </div>
                                 </div>
@@ -298,7 +298,7 @@ const StartupDetail = () => {
                             </div>
                             <div className="stat-row">
                                 <span className="stat-label">Primary Partner:</span>
-                                <span className="stat-value" style={{ color: '#6300dd' }}>{startup.partner}</span>
+                                <span className="stat-value" style={{ color: '#000' }}>{startup.partner}</span>
                             </div>
                             
                             <div className="social-icons">

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth, db } from '../firebase';
-import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, deleteField } from 'firebase/firestore';
 import { getBatch } from '../utils/batchUtils';
 
 const ApplyForm = () => {
@@ -11,11 +11,15 @@ const ApplyForm = () => {
   const [saving, setSaving] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [showToast, setShowToast] = useState(false);
+  const [toastConfig, setToastConfig] = useState({ message: '', type: 'success' });
   const [coFounderInvites, setCoFounderInvites] = useState([]);
   const [activeSection, setActiveSection] = useState('basics');
   const [isProfileComplete, setIsProfileComplete] = useState(false);
   const [isApplicationComplete, setIsApplicationComplete] = useState(false);
   const [showSubmitModal, setShowSubmitModal] = useState(false);
+  const [showResetModal, setShowResetModal] = useState(false);
+  const [isResetting, setIsResetting] = useState(false);
+  const [initialLoadComplete, setInitialLoadComplete] = useState(false);
   
   // Location Suggestion State
   const [showLocationDropdown, setShowLocationDropdown] = useState(false);
@@ -23,6 +27,41 @@ const ApplyForm = () => {
   const locationRef = useRef(null);
   
   const navigate = useNavigate();
+
+  const emptyFormData = {
+    batch: getBatch(),
+    basedIn: '',
+    foundersKnown: '',
+    technicalWork: '',
+    lookingForCofounder: '',
+    companyName: '',
+    companyDescription: '',
+    companyUrl: '',
+    demoUrl: '',
+    productUrl: '',
+    loginCredentials: '',
+    whatMaking: '',
+    liveNowLocation: '',
+    locationDecision: '',
+    howFar: '',
+    howLongWork: '',
+    techStack: '',
+    usersRadio: '',
+    revenueRadio: '',
+    pivotExplanation: '',
+    incubatorExplanation: '',
+    whyIdea: '',
+    competitors: '',
+    monetization: '',
+    category: '',
+    otherIdeas: '',
+    founderVideoUrl: '',
+    legalEntityRadio: '',
+    investmentRadio: '',
+    fundraisingRadio: '',
+    whyApply: '',
+    howHear: ''
+  };
 
   // Refs for scrolling to missing fields
   const fieldRefs = {
@@ -67,40 +106,7 @@ const ApplyForm = () => {
   ];
 
   // Form State
-  const [formData, setFormData] = useState({
-    batch: getBatch(),
-    basedIn: '',
-    foundersKnown: '',
-    technicalWork: '',
-    lookingForCofounder: '',
-    companyName: '',
-    companyDescription: '',
-    companyUrl: '',
-    demoUrl: '',
-    productUrl: '',
-    loginCredentials: '',
-    whatMaking: '',
-    liveNowLocation: '',
-    locationDecision: '',
-    howFar: '',
-    howLongWork: '',
-    techStack: '',
-    usersRadio: '',
-    revenueRadio: '',
-    pivotExplanation: '',
-    incubatorExplanation: '',
-    whyIdea: '',
-    competitors: '',
-    monetization: '',
-    category: '',
-    otherIdeas: '',
-    founderVideoUrl: '',
-    legalEntityRadio: '',
-    investmentRadio: '',
-    fundraisingRadio: '',
-    whyApply: '',
-    howHear: ''
-  });
+  const [formData, setFormData] = useState(emptyFormData);
 
   const checkProfileCompleteness = (profile) => {
     if (!profile) return false;
@@ -150,7 +156,13 @@ const ApplyForm = () => {
 
   useEffect(() => {
     setIsApplicationComplete(checkApplicationCompleteness(formData) && isProfileComplete);
-  }, [formData, isProfileComplete]);
+    
+    // Auto-save to localStorage on change for persistence across refresh
+    // ONLY save if the initial load from Firestore/local has completed
+    if (user && initialLoadComplete) {
+        localStorage.setItem(`xf_app_draft_${user.uid}`, JSON.stringify(formData));
+    }
+  }, [formData, isProfileComplete, user, initialLoadComplete]);
 
   useEffect(() => {
     document.title = "Apply to X Foundary";
@@ -181,11 +193,40 @@ const ApplyForm = () => {
                     }
                 }
 
-                setFormData(prev => ({ ...prev, ...appData, batch: appData.batch || getBatch() }));
+                // Check localStorage for a more recent draft
+                const localDraft = localStorage.getItem(`xf_app_draft_${currentUser.uid}`);
+                let initialData = appData;
+                
+                if (localDraft) {
+                    try {
+                        const parsedLocal = JSON.parse(localDraft);
+                        // Only use local draft if it's not empty and we're in draft mode
+                        if (appData.status !== 'pending') {
+                            initialData = { ...appData, ...parsedLocal };
+                        }
+                    } catch (e) {
+                        console.error("Error parsing local draft:", e);
+                    }
+                }
+
+                setFormData(prev => ({ ...prev, ...initialData, batch: initialData.batch || getBatch() }));
                 setIsProfileComplete(checkProfileCompleteness(data.profile));
+            } else {
+                // If no doc exists, we still mark load as complete so they can start typing
+                const localDraft = localStorage.getItem(`xf_app_draft_${currentUser.uid}`);
+                if (localDraft) {
+                    try {
+                        const parsedLocal = JSON.parse(localDraft);
+                        setFormData(prev => ({ ...prev, ...parsedLocal }));
+                    } catch (e) {
+                        console.error("Error parsing local draft:", e);
+                    }
+                }
             }
         } catch (error) {
             console.error("Error fetching application:", error);
+        } finally {
+            setInitialLoadComplete(true);
         }
       }
       setLoading(false);
@@ -256,13 +297,35 @@ const ApplyForm = () => {
             updatedAt: new Date().toISOString()
         }, { merge: true });
         
+        setToastConfig({ message: 'Changes saved', type: 'success' });
         setShowToast(true);
-        setTimeout(() => setShowToast(false), 2000);
+        setTimeout(() => setShowToast(false), 3000);
     } catch (error) {
         console.error("Error saving application:", error);
     } finally {
         setSaving(false);
     }
+  };
+
+  const handleReset = async () => {
+      if (!user) return;
+      setIsResetting(true);
+      try {
+          await updateDoc(doc(db, 'users', user.uid), {
+              application: deleteField()
+          });
+          localStorage.removeItem(`xf_app_draft_${user.uid}`);
+          setFormData(emptyFormData);
+          setShowResetModal(false);
+          setToastConfig({ message: 'Application has been reset', type: 'reset' });
+          setShowToast(true);
+          setTimeout(() => setShowToast(false), 3000);
+      } catch (error) {
+          console.error("Error resetting application:", error);
+          alert("Error resetting application. Please try again.");
+      } finally {
+          setIsResetting(false);
+      }
   };
 
   const handleSubmit = async () => {
@@ -301,29 +364,12 @@ const ApplyForm = () => {
             'application.submittedAt': new Date().toISOString()
         });
 
-        // Send confirmation email via Firebase Mail Extension
-        try {
-            await setDoc(doc(db, 'mail', `${user.uid}_submission_${Date.now()}`), {
-                to: user.email,
-                message: {
-                    subject: `XF ${formData.batch || 'Summer 2026'} Application Submitted`,
-                    html: `
-                        <div style="font-family: 'Inter', -apple-system, sans-serif; color: #111; line-height: 1.6; max-width: 600px;">
-                            <p>Hello ${user.displayName || user.email.split('@')[0]},</p>
-                            <p>Congratulations on applying to X Foundary!</p>
-                            <p>Your application to the ${formData.batch || 'Summer 2026'} batch for <strong>${formData.companyName || 'your startup'}</strong> has been submitted.</p>
-                            <p>You can still edit your application for the next 24 hours.</p>
-                            <p>To review or edit your application, visit <a href="${window.location.origin}/home" style="color: #6300dd; text-decoration: underline;">https://apply.xfoundary.com/</a>.</p>
-                            <p>Good luck!</p>
-                            <p><strong>XF</strong></p>
-                        </div>
-                    `
-                }
-            });
-        } catch (mailError) {
-            console.error("Error queueing confirmation email:", mailError);
-        }
+        // Confirmation email is now handled server-side via Cloud Functions
+        // to ensure reliability and bypass security rule restrictions
 
+        // Clear local draft upon submission
+        localStorage.removeItem(`xf_app_draft_${user.uid}`);
+        
         setShowSubmitModal(false);
         navigate('/home');
     } catch (error) {
@@ -774,6 +820,8 @@ const ApplyForm = () => {
             zIndex: 1000,
             borderTop: '1px solid #ddd'
         }}>
+          <button onClick={() => setShowResetModal(true)} disabled={saving || submitting} style={{ backgroundColor: 'transparent', color: '#ff4d4f', border: '1px solid #ff4d4f', padding: '11px 32px', borderRadius: '30px', fontWeight: '600', fontSize: '16px', cursor: (saving || submitting) ? 'not-allowed' : 'pointer', fontFamily: 'Newsreader, serif', fontStyle: 'italic', opacity: (saving || submitting) ? 0.7 : 1 }}>Reset</button>
+          
           <button onClick={handleSave} disabled={saving || submitting} style={{ backgroundColor: 'white', color: '#111', border: '1px solid #111', padding: '11px 32px', borderRadius: '30px', fontWeight: '600', fontSize: '16px', cursor: (saving || submitting) ? 'not-allowed' : 'pointer', fontFamily: 'Newsreader, serif', fontStyle: 'italic', opacity: (saving || submitting) ? 0.7 : 1 }}>{saving ? 'Saving...' : 'Save changes'}</button>
           
           <button 
@@ -796,6 +844,86 @@ const ApplyForm = () => {
           </button>
         </div>
         
+        {/* Reset Confirmation Modal */}
+        {showResetModal && (
+            <div style={{ 
+                position: 'fixed', 
+                top: 0, 
+                left: 0, 
+                right: 0, 
+                bottom: 0, 
+                backgroundColor: 'rgba(0,0,0,0.5)', 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'center', 
+                zIndex: 2000,
+                backdropFilter: 'blur(4px)'
+            }}>
+                <div style={{ 
+                    backgroundColor: '#fff', 
+                    padding: '2.5rem', 
+                    borderRadius: '16px', 
+                    maxWidth: '450px', 
+                    width: '90%', 
+                    boxShadow: '0 20px 60px rgba(0,0,0,0.12)',
+                    textAlign: 'center',
+                    border: '1px solid #eee',
+                    animation: 'modalShow 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)',
+                    position: 'relative',
+                    zIndex: 2001
+                }}>
+                    <div style={{ backgroundColor: '#fff1f0', width: '60px', height: '60px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1.5rem auto' }}>
+                        <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#ff4d4f" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>
+                    </div>
+                    <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold', marginBottom: '1rem', color: '#111' }}>Reset Application?</h2>
+                    <p style={{ color: '#666', fontSize: '15px', lineHeight: '1.6', marginBottom: '2rem' }}>
+                        This will remove all entered details and start a fresh application. This action cannot be undone.
+                    </p>
+                    <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center' }}>
+                        <button 
+                            onClick={() => setShowResetModal(false)}
+                            disabled={isResetting}
+                            style={{ 
+                                backgroundColor: '#fff', 
+                                color: '#000', 
+                                border: '1px solid #e5e5e0', 
+                                padding: '12px 24px', 
+                                borderRadius: '30px', 
+                                fontWeight: 'bold', 
+                                fontSize: '15px', 
+                                cursor: 'pointer',
+                                flex: 1,
+                                transition: 'all 0.2s',
+                                boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
+                                fontFamily: 'Inter, sans-serif'
+                            }}
+                            onMouseEnter={e => e.currentTarget.style.backgroundColor = '#f9f9f9'}
+                            onMouseLeave={e => e.currentTarget.style.backgroundColor = '#fff'}
+                        >Cancel</button>
+                        <button 
+                            onClick={handleReset}
+                            disabled={isResetting}
+                            style={{ 
+                                backgroundColor: '#ff4d4f', 
+                                color: 'white', 
+                                border: 'none', 
+                                padding: '12px 24px', 
+                                borderRadius: '30px', 
+                                fontWeight: 'bold', 
+                                fontSize: '15px', 
+                                cursor: isResetting ? 'not-allowed' : 'pointer',
+                                flex: 1,
+                                opacity: isResetting ? 0.7 : 1,
+                                transition: 'all 0.2s',
+                                fontFamily: 'Inter, sans-serif'
+                            }}>
+                            {isResetting ? 'Resetting...' : 'Yes, Reset'}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        )}
+
         {/* Submission Confirmation Modal */}
         {showSubmitModal && (
             <div style={{ 
@@ -812,19 +940,19 @@ const ApplyForm = () => {
                 backdropFilter: 'blur(4px)'
             }}>
                 <div style={{ 
-                    backgroundColor: 'rgba(255, 255, 255, 0.7)', 
-                    backdropFilter: 'blur(16px)',
-                    WebkitBackdropFilter: 'blur(16px)',
+                    backgroundColor: '#fff', 
                     padding: '2.5rem', 
-                    borderRadius: '12px', 
+                    borderRadius: '16px', 
                     maxWidth: '450px', 
                     width: '90%', 
-                    boxShadow: '0 20px 40px rgba(0,0,0,0.1)',
+                    boxShadow: '0 20px 60px rgba(0,0,0,0.12)',
                     textAlign: 'center',
-                    border: '1px solid rgba(255, 255, 255, 0.3)',
-                    animation: 'modalShow 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)'
+                    border: '1px solid #eee',
+                    animation: 'modalShow 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)',
+                    position: 'relative',
+                    zIndex: 2001
                 }}>
-                    <div style={{ backgroundColor: '#e6f7ff', width: '60px', height: '60px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1.5rem auto' }}>
+                    <div style={{ backgroundColor: '#f0f0ff', width: '60px', height: '60px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1.5rem auto' }}>
                         <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#6300dd" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
                     </div>
                     <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold', marginBottom: '1rem', color: '#111' }}>Submit Application?</h2>
@@ -836,9 +964,9 @@ const ApplyForm = () => {
                             onClick={() => setShowSubmitModal(false)}
                             disabled={submitting}
                             style={{ 
-                                backgroundColor: 'transparent', 
+                                backgroundColor: '#fff', 
                                 color: '#000', 
-                                border: '1px solid #fff', 
+                                border: '1px solid #e5e5e0', 
                                 padding: '12px 24px', 
                                 borderRadius: '30px', 
                                 fontWeight: 'bold', 
@@ -846,8 +974,12 @@ const ApplyForm = () => {
                                 cursor: 'pointer',
                                 flex: 1,
                                 transition: 'all 0.2s',
+                                boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
                                 fontFamily: 'Inter, sans-serif'
-                            }}>Cancel</button>
+                            }}
+                            onMouseEnter={e => e.currentTarget.style.backgroundColor = '#f9f9f9'}
+                            onMouseLeave={e => e.currentTarget.style.backgroundColor = '#fff'}
+                        >Cancel</button>
                         <button 
                             onClick={confirmSubmit}
                             disabled={submitting}
@@ -863,6 +995,7 @@ const ApplyForm = () => {
                                 flex: 1,
                                 opacity: submitting ? 0.7 : 1,
                                 transition: 'all 0.2s',
+                                boxShadow: '0 4px 12px rgba(99, 0, 221, 0.2)',
                                 fontFamily: 'Inter, sans-serif'
                             }}>
                             {submitting ? 'Submitting...' : 'Yes, Submit'}
@@ -876,22 +1009,45 @@ const ApplyForm = () => {
         {showToast && (
           <div style={{ 
             position: 'fixed', 
-            bottom: '110px', 
+            bottom: '40px', 
             right: '40px', 
             backgroundColor: '#fff', 
-            border: '1px solid #eee', 
-            padding: '12px 20px', 
-            borderRadius: '8px', 
-            boxShadow: '0 4px 15px rgba(0,0,0,0.1)',
+            padding: '16px 24px', 
+            borderRadius: '12px', 
+            boxShadow: '0 8px 30px rgba(0,0,0,0.08)',
             display: 'flex',
             alignItems: 'center',
             gap: '12px',
-            zIndex: 2000,
-            animation: 'slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1)'
+            zIndex: 4000,
+            animation: 'slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
+            borderLeft: toastConfig.type === 'reset' ? '6px solid #ff4d4f' : '6px solid #4caf50',
+            minWidth: '280px'
           }}>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4caf50" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
-            <span style={{ fontSize: '14px', fontWeight: 600 }}>Changes saved</span>
-            <span onClick={() => setShowToast(false)} style={{ marginLeft: '10px', color: '#ccc', cursor: 'pointer', fontSize: '20px', lineHeight: 0 }}>×</span>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                {toastConfig.type === 'reset' ? (
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#ff4d4f" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>
+                ) : (
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#4caf50" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="16 12 12 8 8 12"></polyline><line x1="12" y1="16" x2="12" y2="8"></line></svg>
+                )}
+            </div>
+            <span style={{ fontSize: '15px', fontWeight: 600, color: '#1a1a1a', flex: 1 }}>{toastConfig.message}</span>
+            <div 
+                onClick={() => setShowToast(false)} 
+                style={{ 
+                    cursor: 'pointer', 
+                    color: '#ccc', 
+                    fontSize: '18px', 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    padding: '4px',
+                    marginLeft: '8px',
+                    transition: 'color 0.2s'
+                }}
+                onMouseEnter={e => e.currentTarget.style.color = '#999'}
+                onMouseLeave={e => e.currentTarget.style.color = '#ccc'}
+            >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+            </div>
           </div>
         )}
         

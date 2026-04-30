@@ -21,9 +21,12 @@ const Admin = () => {
   const [error, setError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showProfilePopup, setShowProfilePopup] = useState(false);
+  const [showToast, setShowToast] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
   
   const [pinInput, setPinInput] = useState('');
   const [profile, setProfile] = useState({ name: 'Admin', pin: '000000' });
+  const [appFilter, setAppFilter] = useState('approved');
 
   const navigate = useNavigate();
   const MASTER_SECRET_CODE = "XF-ADMIN-ACCESS-2024";
@@ -137,7 +140,9 @@ const Admin = () => {
     try {
         const userRef = doc(db, 'users', uid);
         await updateDoc(userRef, { 'application.status': newStatus });
-        alert(`Application ${newStatus}!`);
+        setToastMessage(`Application ${newStatus}!`);
+        setShowToast(true);
+        setTimeout(() => setShowToast(false), 3000);
         fetchData();
     } catch (e) { alert(e.message); }
   };
@@ -185,13 +190,13 @@ const Admin = () => {
                         )}
                     </button>
                 </div>
-                <button type="submit" style={{ width: '100%', padding: '12px', backgroundColor: '#6300dd', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>
+                <button type="submit" style={{ width: '100%', padding: '12px', backgroundColor: '#000', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>
                     {authMode === 'login' ? 'Sign In' : 'Create Admin Account'}
                 </button>
             </form>
             <p style={{ textAlign: 'center', marginTop: '1.5rem', fontSize: '14px' }}>
                 {authMode === 'login' ? "Need an account?" : "Already have an account?"} 
-                <button onClick={() => setAuthMode(authMode === 'login' ? 'signup' : 'login')} style={{ background: 'none', border: 'none', color: '#6300dd', fontWeight: 'bold', cursor: 'pointer', marginLeft: '5px' }}>
+                <button onClick={() => setAuthMode(authMode === 'login' ? 'signup' : 'login')} style={{ background: 'none', border: 'none', color: '#000', fontWeight: 'bold', cursor: 'pointer', marginLeft: '5px' }}>
                     {authMode === 'login' ? 'Register' : 'Log In'}
                 </button>
             </p>
@@ -205,13 +210,13 @@ const Admin = () => {
             <h2 style={{ marginBottom: '1rem' }}>Welcome, {profile.name}</h2>
             <p style={{ color: '#666', fontSize: '14px', marginBottom: '2rem' }}>Enter master PIN to unlock system.</p>
             <input type="password" value={pinInput} onChange={(e) => setPinInput(e.target.value)} placeholder="••••••" maxLength={6} style={{ width: '100%', padding: '12px', textAlign: 'center', fontSize: '24px', letterSpacing: '8px', marginBottom: '1.5rem' }} />
-            <button type="submit" style={{ width: '100%', padding: '12px', backgroundColor: '#6300dd', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>Unlock Panel</button>
+            <button type="submit" style={{ width: '100%', padding: '12px', backgroundColor: '#000', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>Unlock Panel</button>
             <button onClick={() => auth.signOut()} style={{ marginTop: '1rem', background: 'none', border: 'none', color: '#888', cursor: 'pointer' }}>Sign Out</button>
         </form>
     </div>
   );
 
-  const TABS = ['Overview', 'Pending Apps', 'Approved Apps', 'Users', 'Admins', 'Members', 'Blog Approvals', 'Member Requests', 'Settings'];
+  const TABS = ['Overview', 'Pending Apps', 'Applications', 'Founders', 'Admins', 'Members', 'Blog Approvals', 'Member Requests', 'Settings'];
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh', backgroundColor: '#f0f2f5', fontFamily: 'Inter, sans-serif', overflow: 'hidden', position: 'relative' }}>
@@ -286,27 +291,35 @@ const Admin = () => {
         }
       `}</style>
 
-      <aside style={{ width: '280px', backgroundColor: 'rgba(223, 234, 234, 0.8)', backdropFilter: 'blur(30px)', color: '#000', borderRight: '1px solid rgba(201, 218, 218, 0.5)', padding: '1.5rem', height: '100vh', position: 'sticky', top: 0, display: 'flex', flexDirection: 'column', zIndex: 10 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '2.5rem' }}><div style={{ backgroundColor: '#6300dd', width: '36px', height: '36px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 'bold', borderRadius: '8px' }}>X</div><span style={{ fontWeight: 'bold', color: '#000' }}>X Foundary</span></div>
+      <aside style={{ width: '300px', backgroundColor: 'rgba(223, 234, 234, 0.8)', backdropFilter: 'blur(30px)', color: '#000', borderRight: '1px solid rgba(201, 218, 218, 0.5)', padding: '2rem 1.5rem', height: '100vh', position: 'sticky', top: 0, display: 'flex', flexDirection: 'column', zIndex: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '3rem' }}>
+          <div style={{ backgroundColor: '#000', width: '40px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: '900', borderRadius: '10px', fontSize: '20px' }}>X</div>
+          <span style={{ fontWeight: '800', color: '#000', fontSize: '20px', letterSpacing: '-0.02em' }}>X Foundary</span>
+        </div>
         <nav style={{ flex: 1, position: 'relative', overflowY: 'auto', paddingRight: '5px' }}>
           <div className="liquid-glass-active" style={{ 
-              transform: `translateY(${TABS.indexOf(activeTab) * 44}px)` 
+              transform: `translateY(${TABS.indexOf(activeTab) * 50}px)`,
+              height: '46px'
           }}></div>
           {TABS.map((tab) => (
               <div key={tab} onClick={() => setActiveTab(tab)} style={{ 
-                  position: 'relative',
-                  padding: '10px 12px', 
-                  cursor: 'pointer', 
-                  color: activeTab === tab ? '#6300dd' : '#556666', 
-                  borderRadius: '8px', 
+                  position: 'relative', 
+                  zIndex: 1, 
+                  padding: '12px 18px', 
                   marginBottom: '4px', 
-                  fontSize: '14px', 
-                  fontWeight: activeTab === tab ? '700' : '500', 
-                  transition: 'color 0.3s',
-                  zIndex: 1
-              }}>{tab}</div>
+                  cursor: 'pointer', 
+                  color: activeTab === tab ? '#000' : '#556666',
+                  fontSize: '16px', 
+                  fontWeight: '700',
+                  transition: 'color 0.4s ease',
+                  display: 'flex',
+                  alignItems: 'center',
+                  height: '46px'
+              }}>
+                {tab}
+              </div>
           ))}
-          <button onClick={() => fetchData()} style={{ position: 'relative', zIndex: 1, marginTop: '1rem', width: '100%', padding: '8px', backgroundColor: 'rgba(255,255,255,0.4)', border: '1px solid rgba(255,255,255,0.5)', borderRadius: '10px', cursor: 'pointer', fontSize: '12px', color: '#445555', backdropFilter: 'blur(10px)', fontWeight: '600' }}>Refresh Data</button>
+          <button onClick={() => fetchData()} style={{ position: 'relative', zIndex: 1, marginTop: '2rem', width: '100%', padding: '10px', backgroundColor: 'rgba(0,0,0,0.05)', border: '1px solid rgba(0,0,0,0.1)', borderRadius: '12px', cursor: 'pointer', fontSize: '13px', color: '#000', backdropFilter: 'blur(10px)', fontWeight: '700', transition: 'all 0.2s' }} onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.1)'} onMouseLeave={e => e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.05)'}>Refresh Data</button>
         </nav>
 
         <div style={{ position: 'relative', borderTop: '1px solid rgba(0,0,0,0.05)', paddingTop: '1.5rem', marginTop: 'auto' }}>
@@ -340,28 +353,58 @@ const Admin = () => {
         {activeTab === 'Overview' && (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '1.5rem' }}>
                 <div onClick={() => setActiveTab('Pending Apps')} className="glass-card" style={{ padding: '1.5rem', borderRadius: '20px', cursor: 'pointer' }}>
-                    <div style={{ color: '#faad14', fontSize: '13px', marginBottom: '10px', fontWeight: '600' }}>Pending Apps</div>
-                    <div style={{ fontSize: '2.5rem', fontWeight: '800', color: '#faad14' }}>{stats.pending}</div>
+                    <div style={{ color: '#1a1a1a', fontSize: '13px', marginBottom: '10px', fontWeight: '600' }}>Applications written</div>
+                    <div style={{ fontSize: '2.5rem', fontWeight: '800', color: '#1a1a1a' }}>{stats.pending}</div>
                 </div>
-                <div onClick={() => setActiveTab('Approved Apps')} className="glass-card" style={{ padding: '1.5rem', borderRadius: '20px', cursor: 'pointer' }}>
-                    <div style={{ color: '#52c41a', fontSize: '13px', marginBottom: '10px', fontWeight: '600' }}>Approved Apps</div>
-                    <div style={{ fontSize: '2.5rem', fontWeight: '800', color: '#52c41a' }}>{stats.approved}</div>
+                <div onClick={() => setActiveTab('Applications')} className="glass-card" style={{ padding: '1.5rem', borderRadius: '20px', cursor: 'pointer' }}>
+                    <div style={{ color: '#1a1a1a', fontSize: '13px', marginBottom: '10px', fontWeight: '600' }}>Applications</div>
+                    <div style={{ fontSize: '2.5rem', fontWeight: '800', color: '#1a1a1a' }}>{stats.pending + stats.approved + applications.filter(a => a.status === 'hold' || a.status === 'rejected').length}</div>
                 </div>
-                <div onClick={() => setActiveTab('Users')} className="glass-card" style={{ padding: '1.5rem', borderRadius: '20px', cursor: 'pointer' }}>
-                    <div style={{ color: '#667777', fontSize: '13px', marginBottom: '10px', fontWeight: '600' }}>Total Founders</div>
+                <div onClick={() => setActiveTab('Founders')} className="glass-card" style={{ padding: '1.5rem', borderRadius: '20px', cursor: 'pointer' }}>
+                    <div style={{ color: '#1a1a1a', fontSize: '13px', marginBottom: '10px', fontWeight: '600' }}>Total Founders</div>
                     <div style={{ fontSize: '2.5rem', fontWeight: '800', color: '#1a1a1a' }}>{stats.totalUsers}</div>
                 </div>
+                <div onClick={() => setActiveTab('Members')} className="glass-card" style={{ padding: '1.5rem', borderRadius: '20px', cursor: 'pointer' }}>
+                    <div style={{ color: '#1a1a1a', fontSize: '13px', marginBottom: '10px', fontWeight: '600' }}>Total Members</div>
+                    <div style={{ fontSize: '2.5rem', fontWeight: '800', color: '#1a1a1a' }}>{stats.totalMembers}</div>
+                </div>
+                <div onClick={() => setActiveTab('Admins')} className="glass-card" style={{ padding: '1.5rem', borderRadius: '20px', cursor: 'pointer' }}>
+                    <div style={{ color: '#1a1a1a', fontSize: '13px', marginBottom: '10px', fontWeight: '600' }}>Total Admins</div>
+                    <div style={{ fontSize: '2.5rem', fontWeight: '800', color: '#1a1a1a' }}>{stats.totalAdmins}</div>
+                </div>
                 <div onClick={() => setActiveTab('Member Requests')} className="glass-card" style={{ padding: '1.5rem', borderRadius: '20px', cursor: 'pointer' }}>
-                    <div style={{ color: '#6300dd', fontSize: '13px', marginBottom: '10px', fontWeight: '600' }}>Pending Members</div>
-                    <div style={{ fontSize: '2.5rem', fontWeight: '800', color: '#6300dd' }}>{stats.pendingMembers}</div>
+                    <div style={{ color: '#1a1a1a', fontSize: '13px', marginBottom: '10px', fontWeight: '600' }}>Pending Members</div>
+                    <div style={{ fontSize: '2.5rem', fontWeight: '800', color: '#1a1a1a' }}>{stats.pendingMembers}</div>
                 </div>
             </div>
         )}
 
-        {(activeTab === 'Pending Apps' || activeTab === 'Approved Apps') && (
+        {(activeTab === 'Pending Apps' || activeTab === 'Applications') && (
             <div className="glass-card" style={{ borderRadius: '20px', overflow: 'hidden', animation: 'fadeInUp 0.4s ease-out' }}>
                 <div style={{ padding: '1.5rem', borderBottom: '1px solid rgba(0,0,0,0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <h3 style={{ margin: 0, fontWeight: '800', fontSize: '1.25rem' }}>{activeTab}</h3>
+                    {activeTab === 'Applications' && (
+                        <div style={{ display: 'flex', gap: '8px', backgroundColor: 'rgba(0,0,0,0.03)', padding: '4px', borderRadius: '10px' }}>
+                            {['approved', 'hold', 'rejected'].map(f => (
+                                <button 
+                                    key={f}
+                                    onClick={() => setAppFilter(f)}
+                                    style={{ 
+                                        padding: '6px 14px', 
+                                        borderRadius: '8px', 
+                                        border: 'none', 
+                                        fontSize: '12px', 
+                                        fontWeight: '700', 
+                                        cursor: 'pointer',
+                                        backgroundColor: appFilter === f ? '#000' : 'transparent',
+                                        color: appFilter === f ? '#fff' : '#666',
+                                        transition: 'all 0.2s',
+                                        textTransform: 'capitalize'
+                                    }}
+                                >{f}</button>
+                            ))}
+                        </div>
+                    )}
                 </div>
                 <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
                     <thead style={{ backgroundColor: 'rgba(0,0,0,0.02)' }}>
@@ -373,7 +416,7 @@ const Admin = () => {
                         </tr>
                     </thead>
                     <tbody>
-                        {applications.filter(app => activeTab === 'Pending Apps' ? (app.status === 'pending' || !app.status) : app.status === 'approved').map(app => (
+                        {applications.filter(app => activeTab === 'Pending Apps' ? (app.status === 'pending' || !app.status) : app.status === appFilter).map(app => (
                             <tr key={app.id} style={{ borderBottom: '1px solid rgba(0,0,0,0.03)' }}>
                                 <td style={{ padding: '1.25rem' }}>
                                     <div style={{ fontWeight: '700' }}>{app.companyName}</div>
@@ -386,7 +429,59 @@ const Admin = () => {
                                 <td style={{ padding: '1.25rem', fontSize: '13px' }}>{app.batch}</td>
                                 <td style={{ padding: '1.25rem' }}>
                                     {activeTab === 'Pending Apps' ? (
-                                        <button onClick={() => handleAppStatus(app.id, 'approved')} style={{ padding: '6px 12px', backgroundColor: '#52c41a', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '12px', cursor: 'pointer' }}>Approve</button>
+                                        <div style={{ display: 'flex', gap: '12px' }}>
+                                            <button 
+                                                onClick={() => handleAppStatus(app.id, 'approved')} 
+                                                style={{ 
+                                                    padding: '8px 18px', 
+                                                    backgroundColor: 'rgba(0, 122, 255, 0.1)', 
+                                                    color: '#007aff', 
+                                                    border: '1px solid rgba(0, 122, 255, 0.2)', 
+                                                    borderRadius: '8px', 
+                                                    fontSize: '13px', 
+                                                    fontWeight: '700',
+                                                    cursor: 'pointer',
+                                                    transition: 'all 0.2s',
+                                                    fontFamily: 'Inter, sans-serif'
+                                                }}
+                                                onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'rgba(0, 122, 255, 0.2)'; e.currentTarget.style.transform = 'translateY(-1px)'; }}
+                                                onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'rgba(0, 122, 255, 0.1)'; e.currentTarget.style.transform = 'translateY(0)'; }}
+                                            >Approve</button>
+                                            <button 
+                                                onClick={() => handleAppStatus(app.id, 'hold')} 
+                                                style={{ 
+                                                    padding: '8px 18px', 
+                                                    backgroundColor: 'rgba(255, 159, 10, 0.1)', 
+                                                    color: '#ff9f0a', 
+                                                    border: '1px solid rgba(255, 159, 10, 0.2)', 
+                                                    borderRadius: '8px', 
+                                                    fontSize: '13px', 
+                                                    fontWeight: '700',
+                                                    cursor: 'pointer',
+                                                    transition: 'all 0.2s',
+                                                    fontFamily: 'Inter, sans-serif'
+                                                }}
+                                                onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'rgba(255, 159, 10, 0.2)'; e.currentTarget.style.transform = 'translateY(-1px)'; }}
+                                                onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'rgba(255, 159, 10, 0.1)'; e.currentTarget.style.transform = 'translateY(0)'; }}
+                                            >Hold</button>
+                                            <button 
+                                                onClick={() => handleAppStatus(app.id, 'rejected')} 
+                                                style={{ 
+                                                    padding: '8px 18px', 
+                                                    backgroundColor: 'rgba(255, 59, 48, 0.1)', 
+                                                    color: '#ff3b30', 
+                                                    border: '1px solid rgba(255, 59, 48, 0.2)', 
+                                                    borderRadius: '8px', 
+                                                    fontSize: '13px', 
+                                                    fontWeight: '700',
+                                                    cursor: 'pointer',
+                                                    transition: 'all 0.2s',
+                                                    fontFamily: 'Inter, sans-serif'
+                                                }}
+                                                onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'rgba(255, 59, 48, 0.2)'; e.currentTarget.style.transform = 'translateY(-1px)'; }}
+                                                onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'rgba(255, 59, 48, 0.1)'; e.currentTarget.style.transform = 'translateY(0)'; }}
+                                            >Reject</button>
+                                        </div>
                                     ) : (
                                         <button onClick={() => handleAppStatus(app.id, 'pending')} style={{ padding: '6px 12px', backgroundColor: '#faad14', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '12px', cursor: 'pointer' }}>Revert to Pending</button>
                                     )}
@@ -458,6 +553,44 @@ const Admin = () => {
                     </tbody>
                 </table>
             </div>
+        )}
+        {/* Toast Notification */}
+        {showToast && (
+          <div style={{ 
+            position: 'fixed', 
+            bottom: '40px', 
+            right: '40px', 
+            backgroundColor: '#fff', 
+            padding: '16px 24px', 
+            borderRadius: '12px', 
+            boxShadow: '0 8px 30px rgba(0,0,0,0.08)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '12px',
+            zIndex: 5000,
+            animation: 'slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
+            borderLeft: '6px solid #4caf50',
+            minWidth: '280px'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#4caf50" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="16 12 12 8 8 12"></polyline><line x1="12" y1="16" x2="12" y2="8"></line></svg>
+            </div>
+            <span style={{ fontSize: '15px', fontWeight: 600, color: '#1a1a1a', flex: 1 }}>{toastMessage}</span>
+            <div 
+                onClick={() => setShowToast(false)} 
+                style={{ 
+                    cursor: 'pointer', 
+                    color: '#ccc', 
+                    fontSize: '18px', 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    padding: '4px',
+                    marginLeft: '8px'
+                }}
+            >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+            </div>
+          </div>
         )}
       </main>
     </div>

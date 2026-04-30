@@ -11,6 +11,7 @@ const ApplicationHome = () => {
   const [hasApplication, setHasApplication] = useState(false);
   const [appName, setAppName] = useState('Untitled');
   const [appStatus, setAppStatus] = useState('draft');
+  const [submittedAt, setSubmittedAt] = useState(null);
   const [showWithdrawModal, setShowWithdrawModal] = useState(false);
   const [isWithdrawing, setIsWithdrawing] = useState(false);
   const navigate = useNavigate();
@@ -33,6 +34,7 @@ const ApplicationHome = () => {
                 setHasApplication(true);
                 setAppName(appData.companyName || 'Untitled');
                 setAppStatus(appData.status || 'draft');
+                setSubmittedAt(appData.submittedAt || null);
             }
         } catch (error) {
             console.error("Error checking application:", error);
@@ -91,6 +93,15 @@ const ApplicationHome = () => {
 
   const badge = getStatusBadge(appStatus);
 
+  // Calculate if the 24-hour edit window is still open
+  const isWithin24Hours = () => {
+    if (!submittedAt) return true;
+    const submittedTime = new Date(submittedAt).getTime();
+    const now = new Date().getTime();
+    const hoursSinceSubmission = (now - submittedTime) / (1000 * 60 * 60);
+    return hoursSinceSubmission <= 24;
+  };
+
   return (
     <div style={{ backgroundColor: '#f6f6ef', minHeight: '100vh', fontFamily: 'Inter, sans-serif', color: '#111' }}>
       {/* Top Navbar */}
@@ -112,7 +123,7 @@ const ApplicationHome = () => {
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 'bold' }}>
             <span>{user?.displayName || user?.email?.split('@')[0]}</span>
             <Link to="/settings" style={{ display: 'flex', alignItems: 'center', color: '#999' }}>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 home 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
             </Link>
           </div>
           <span style={{ color: '#ccc' }}>|</span>
@@ -136,7 +147,7 @@ const ApplicationHome = () => {
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.5rem' }}>
                     <h3 style={{ margin: 0, fontSize: '1.25rem', color: '#111', fontWeight: 'bold' }}>{appName}</h3>
-                    <span style={{ backgroundColor: '#eee', padding: '2px 8px', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold' }}>Summer 2026</span>
+                    <span style={{ backgroundColor: '#eee', padding: '2px 8px', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>Summer 2026</span>
                   </div>
                   <p style={{ margin: 0, fontSize: '14px' }}>
                     Founders: <span style={{ color: '#6300dd' }}>{user?.displayName || 'Maulik Darji'}</span>
@@ -160,7 +171,7 @@ const ApplicationHome = () => {
                       cursor: 'pointer',
                       fontFamily: 'Inter, sans-serif'
                     }}>Preview</button>
-                    {appStatus === 'draft' && (
+                    {(appStatus === 'draft' || (appStatus === 'pending' && isWithin24Hours())) && (
                         <button 
                           onClick={() => navigate('/apply-form')}
                           style={{ 
@@ -173,7 +184,7 @@ const ApplicationHome = () => {
                           fontWeight: 'bold',
                           cursor: 'pointer',
                           fontFamily: 'Inter, sans-serif'
-                        }}>Continue application</button>
+                        }}>{appStatus === 'pending' ? 'Edit application' : 'Continue application'}</button>
                     )}
                     <button 
                       onClick={() => setShowWithdrawModal(true)}
@@ -246,16 +257,14 @@ const ApplicationHome = () => {
             zIndex: 2000
         }}>
             <div style={{ 
-                backgroundColor: 'rgba(255, 255, 255, 0.7)', 
-                backdropFilter: 'blur(16px)',
-                WebkitBackdropFilter: 'blur(16px)',
+                backgroundColor: '#fff', 
                 padding: '2.5rem', 
-                borderRadius: '12px', 
+                borderRadius: '16px', 
                 maxWidth: '450px', 
                 width: '90%', 
-                boxShadow: '0 20px 40px rgba(0,0,0,0.1)',
+                boxShadow: '0 20px 60px rgba(0,0,0,0.12)',
                 textAlign: 'center',
-                border: '1px solid rgba(255, 255, 255, 0.3)',
+                border: '1px solid #eee',
                 animation: 'modalShow 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)'
             }}>
                 <div style={{ backgroundColor: '#fff1f0', width: '60px', height: '60px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1.5rem auto' }}>
@@ -263,16 +272,16 @@ const ApplicationHome = () => {
                 </div>
                 <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold', marginBottom: '1rem', color: '#111' }}>Withdraw Application?</h2>
                 <p style={{ color: '#666', fontSize: '15px', lineHeight: '1.6', marginBottom: '2rem' }}>
-                    Are you sure you want to withdraw this application? This action cannot be undone and all progress will be lost.
+                    Are you sure you want to withdraw? Your data will be <b>saved as a draft</b> so you can edit and resubmit later.
                 </p>
                 <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center' }}>
                     <button 
                         onClick={() => setShowWithdrawModal(false)}
                         disabled={isWithdrawing}
                         style={{ 
-                            backgroundColor: 'transparent', 
+                            backgroundColor: '#fff', 
                             color: '#000', 
-                            border: '1px solid #fff', 
+                            border: '1px solid #e5e5e0', 
                             padding: '12px 24px', 
                             borderRadius: '30px', 
                             fontWeight: 'bold', 
@@ -280,8 +289,12 @@ const ApplicationHome = () => {
                             cursor: 'pointer',
                             flex: 1,
                             transition: 'all 0.2s',
+                            boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
                             fontFamily: 'Inter, sans-serif'
-                        }}>Cancel</button>
+                        }}
+                        onMouseEnter={e => e.currentTarget.style.backgroundColor = '#f9f9f9'}
+                        onMouseLeave={e => e.currentTarget.style.backgroundColor = '#fff'}
+                    >Cancel</button>
                     <button 
                         onClick={handleWithdraw}
                         disabled={isWithdrawing}

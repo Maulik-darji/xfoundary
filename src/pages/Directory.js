@@ -242,51 +242,7 @@ const Directory = () => {
     return (
         <div style={{ minHeight: '100vh', backgroundColor: '#f5f5ee', fontFamily: '"Inter", sans-serif', paddingBottom: '4rem' }}>
             <style>{`
-                .directory-page { max-width: 1300px; margin: 0 auto; padding: 2rem; }
-                .hero-section {
-                    text-align: center;
-                    padding: 6rem 1rem 4rem;
-                    background-color: #f5f5ee;
-                }
-                .hero-title {
-                    font-size: 5rem;
-                    font-family: "Georgia", serif;
-                    font-style: italic;
-                    font-weight: 400;
-                    color: #1a1a1a;
-                    margin-bottom: 1.5rem;
-                    line-height: 1.1;
-                }
-                .hero-subtitle {
-                    font-size: 20px;
-                    color: #555;
-                    margin-bottom: 3rem;
-                    font-weight: 500;
-                }
-                .apply-btn {
-                    background-color: #6300dd;
-                    color: white;
-                    padding: 18px 36px;
-                    font-size: 16px;
-                    font-weight: 700;
-                    border: none;
-                    border-radius: 8px;
-                    cursor: pointer;
-                    transition: all 0.3s;
-                    text-decoration: none;
-                    display: inline-block;
-                }
-                .apply-btn:hover { background-color: #5200b8; transform: translateY(-2px); box-shadow: 0 10px 30px rgba(99, 0, 221, 0.2); }
-                
-                .quote-section {
-                    max-width: 900px;
-                    margin: 4rem auto;
-                    text-align: left;
-                    border-left: 2px solid #ddd;
-                    padding-left: 2.5rem;
-                }
-                .quote-author { font-size: 15px; color: #666; margin-bottom: 10px; font-weight: 500; }
-                .quote-text { font-size: 28px; font-weight: 700; color: #1a1a1a; line-height: 1.4; }
+                .directory-page { max-width: 1300px; margin: 0 auto; padding: 5rem 2rem 2rem; }
 
                 .sidebar { width: 300px; background: #fff; border: 1px solid #e5e5e0; border-radius: 16px; padding: 1.5rem; height: fit-content; box-shadow: 0 4px 20px rgba(0,0,0,0.02); }
                 .filter-section { margin-bottom: 2rem; border-bottom: 1px solid #f0f0ed; padding-bottom: 1.5rem; }
@@ -301,23 +257,30 @@ const Directory = () => {
                 .checkbox-custom.active { background: #6300dd; border-color: #6300dd; }
             `}</style>
 
-            <div className="hero-section">
-                <h1 className="hero-title">XF Helps founders<br/><i>feature their startup<br/>globally</i></h1>
-                <p className="hero-subtitle">Four times a year we invest in a large number of startups.</p>
-                <Link to="/apply" className="apply-btn">Apply for Summer 2026 by May 4</Link>
-            </div>
-
-            <div className="quote-section">
-                <div className="quote-author">Brian, Joe, and Nate did YC in W09.</div>
-                <div className="quote-text">Airbnb went public in 2020 at an over $100B valuation.</div>
-            </div>
-            
-            <div className="quote-section" style={{ marginTop: '2rem' }}>
-                <div className="quote-author">Sam was part of YC's inaugural batch in S05 and founded OpenAI as YC Research in 2015.</div>
-                <div className="quote-text">Sam built OpenAI into a $500B company.</div>
-            </div>
 
             <div className="directory-page">
+                <div style={{ textAlign: 'center', marginBottom: '5rem' }}>
+                    <h1 style={{ 
+                        fontFamily: '"Georgia", serif', 
+                        fontStyle: 'italic', 
+                        fontSize: '4.5rem', 
+                        fontWeight: 400, 
+                        color: '#1a1a1a', 
+                        marginBottom: '1rem',
+                        letterSpacing: '-0.02em'
+                    }}>Startup Directory</h1>
+                    <p style={{ 
+                        fontSize: '18px', 
+                        color: '#555', 
+                        maxWidth: '800px', 
+                        margin: '0 auto',
+                        lineHeight: '1.6',
+                        fontFamily: 'Inter, sans-serif'
+                    }}>
+                        Since 2005, we have invested in over 5,000 companies that have a combined valuation of over $1T. To find jobs at these startups, visit <span style={{ color: '#000', textDecoration: 'underline', cursor: 'pointer' }}>Work at a Startup</span>.
+                    </p>
+                </div>
+
                 <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '15px', marginBottom: '2.5rem' }}>
                     <span style={{ fontSize: '15px', color: '#1a1a1a', fontWeight: '600' }}>Sort by</span>
                     <SortDropdown selected={sortOption} setSelected={setSortOption} />
