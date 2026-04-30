@@ -1,22 +1,26 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { 
   signInWithEmailAndPassword, 
   sendPasswordResetEmail, 
   sendSignInLinkToEmail,
   isSignInWithEmailLink,
-  signInWithEmailLink
+  signInWithEmailLink,
+  signInWithCustomToken
 } from 'firebase/auth';
 import { doc, getDoc, collection, query, where, getDocs, addDoc } from 'firebase/firestore';
-import { auth, db } from '../firebase';
+import { httpsCallable } from 'firebase/functions';
+import { auth, db, functions } from '../firebase';
 import './Login.css';
 
 const getErrorMessage = (error) => {
   const code = error.code || error.message;
+  if (code.includes('invalid-credential') || code.includes('wrong-password')) return "Incorrect username or password. Please try again.";
   if (code.includes('user-not-found')) return "We couldn't find an account with that email.";
-  if (code.includes('wrong-password')) return "Incorrect password. Please try again.";
   if (code.includes('invalid-email')) return "Please enter a valid email address.";
   if (code.includes('too-many-requests')) return "Too many failed attempts. Please try again later.";
+  if (code.includes('permission-denied')) return "Permission denied. Please check your database rules.";
+  if (code.includes('not-found')) return "Account does not exist. Please create an account first.";
   return "Something went wrong. Please check your credentials.";
 };
 
@@ -31,6 +35,20 @@ const Login = () => {
   const [forgotEmail, setForgotEmail] = useState('');
   const [loginLinkSent, setLoginLinkSent] = useState(false);
   const [loginLinkEmail, setLoginLinkEmail] = useState('');
+  const [userOtp, setUserOtp] = useState('');
+  const [isVerifyingOtp, setIsVerifyingOtp] = useState(false);
+  const [isSendingLink, setIsSendingLink] = useState(false);
+  const [resendTimer, setResendTimer] = useState(0);
+
+  useEffect(() => {
+    let interval;
+    if (resendTimer > 0) {
+      interval = setInterval(() => {
+        setResendTimer((prev) => prev - 1);
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [resendTimer]);
   const [modalMessage, setModalMessage] = useState('');
   const [toast, setToast] = useState({ visible: false, message: '' });
   const navigate = useNavigate();
@@ -119,33 +137,59 @@ const Login = () => {
   
   const handleSendLoginLink = async (e) => {
     e.preventDefault();
+    if (isSendingLink || resendTimer > 0) return;
+    
     setError('');
-    const emailToUse = loginLinkEmail;
+    setIsSendingLink(true);
+    const emailToUse = loginLinkEmail.trim();
     
     try {
-      // 1. Check if account exists
-      const q = query(collection(db, 'usernames'), where('email', '==', emailToUse));
-      const querySnapshot = await getDocs(q);
+      // 1. Call the backend to generate OTP, save it, and send the COMBINED email
+      const sendOtpFn = httpsCallable(functions, 'requestLoginCode');
+      await sendOtpFn({ email: emailToUse });
       
-      if (querySnapshot.empty) {
-        setError("Account does not exist. Please create an account first.");
-        return;
-      }
-
-      // 2. Send the actual sign-in link
-      const actionCodeSettings = {
-        url: window.location.origin + '/login', // Redirect back here
-        handleCodeInApp: true,
-      };
-
-      await sendSignInLinkToEmail(auth, emailToUse, actionCodeSettings);
-      
-      // Save email locally for verification later
       window.localStorage.setItem('emailForSignIn', emailToUse);
       setLoginLinkSent(true);
+      setResendTimer(60); // Start 60s cooldown
       
     } catch (err) {
       setError(getErrorMessage(err));
+    } finally {
+      setIsSendingLink(false);
+    }
+  };
+
+  const handleVerifyOtp = async (e) => {
+    e.preventDefault();
+    if (userOtp.length !== 6) return;
+    
+    setError('');
+    setIsVerifyingOtp(true);
+
+    try {
+      // If state is lost on refresh, try to get email from localStorage
+      const emailToUse = (loginLinkEmail || window.localStorage.getItem('emailForSignIn') || '').trim();
+      
+      if (!emailToUse) {
+        throw new Error("Email session expired. Please request a new link.");
+      }
+
+      const verifyOtpFn = httpsCallable(functions, 'verifyLoginCode');
+      const result = await verifyOtpFn({ email: emailToUse, otp: userOtp });
+      
+      const { token } = result.data;
+      if (token) {
+        await signInWithCustomToken(auth, token);
+        window.localStorage.removeItem('emailForSignIn');
+        navigate('/');
+      } else {
+        throw new Error("Invalid response from server.");
+      }
+    } catch (err) {
+      console.error("Verification error:", err);
+      setError(getErrorMessage(err));
+    } finally {
+      setIsVerifyingOtp(false);
     }
   };
 
@@ -178,7 +222,7 @@ const Login = () => {
           });
       }
     }
-  }, [navigate]);
+  }, [navigate, auth]);
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -269,22 +313,22 @@ const Login = () => {
           </div>
         </div>
       ) : (
-        <div className="login-card" style={{ textAlign: 'center', padding: '3.5rem 2.5rem' }}>
-          <div style={{ backgroundColor: '#6300dd', width: '42px', height: '42px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 2rem', borderRadius: '2px', color: 'white', fontWeight: 'bold', fontSize: '1rem' }}>
+        <div className="login-card" style={{ textAlign: 'center', padding: '2.5rem 2.25rem', maxWidth: '400px', borderRadius: '12px', boxShadow: '0 8px 30px rgba(0,0,0,0.05)' }}>
+          <div style={{ backgroundColor: '#6300dd', width: '42px', height: '42px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1.5rem', borderRadius: '4px', color: 'white', fontWeight: '800', fontSize: '1rem' }}>
             XF
           </div>
-          <h1 style={{ fontSize: '1.8rem', fontWeight: '700', marginBottom: '2.5rem', color: '#111' }}>Log in with email</h1>
+          <h1 style={{ fontSize: '1.6rem', fontWeight: '700', marginBottom: '2rem', color: '#111', fontFamily: "'Inter', sans-serif" }}>Log in with email</h1>
           
           {!loginLinkSent ? (
             <>
-              <p className="login-with-email-desc" style={{ color: '#888', fontSize: '0.9rem', marginBottom: '1.5rem', textAlign: 'center' }}>
+              <p className="login-with-email-desc" style={{ color: '#888', fontSize: '0.9rem', marginBottom: '2rem', textAlign: 'center' }}>
                 Please provide your email address:
               </p>
               
               {error && <div className="error-message" style={{ marginBottom: '1.5rem' }}>{error}</div>}
 
               <form className="login-form" onSubmit={handleSendLoginLink} style={{ textAlign: 'left' }}>
-                <div className="form-group" style={{ marginBottom: '2rem' }}>
+                <div className="form-group" style={{ marginBottom: '2.5rem' }}>
                   <input 
                     type="email" 
                     value={loginLinkEmail}
@@ -295,10 +339,11 @@ const Login = () => {
                       border: 'none', 
                       borderBottom: '1px solid #ddd', 
                       borderRadius: '0', 
-                      padding: '0.5rem 0',
+                      padding: '0.75rem 0',
                       fontSize: '1rem',
                       width: '100%',
-                      outline: 'none'
+                      outline: 'none',
+                      transition: 'border-color 0.2s'
                     }}
                     onFocus={(e) => e.target.style.borderBottomColor = '#6300dd'}
                     onBlur={(e) => e.target.style.borderBottomColor = '#ddd'}
@@ -308,53 +353,110 @@ const Login = () => {
                 <button 
                   type="submit" 
                   className="btn-login-submit" 
+                  disabled={isSendingLink}
                   style={{ 
                     width: 'auto', 
-                    padding: '0.75rem 1.75rem', 
+                    padding: '0.8rem 1.8rem', 
                     borderRadius: '4px', 
                     fontSize: '0.95rem',
                     fontWeight: '700',
-                    backgroundColor: '#6300dd'
+                    backgroundColor: isSendingLink ? '#ccc' : '#6300dd',
+                    cursor: isSendingLink ? 'not-allowed' : 'pointer'
                   }}
                 >
-                  Send login link
+                  {isSendingLink ? "Sending..." : "Send login link"}
                 </button>
               </form>
             </>
           ) : (
-            <div style={{ textAlign: 'left' }}>
+            <div style={{ textAlign: 'center' }}>
               <div style={{ 
-                backgroundColor: '#e6faf1', 
-                border: '1px solid #00c853', 
-                color: '#00c853', 
-                padding: '0.85rem', 
-                borderRadius: '6px', 
+                backgroundColor: '#eafaf1', 
+                border: '1px solid #27ae60', 
+                color: '#27ae60', 
+                padding: '1rem', 
+                borderRadius: '8px', 
                 fontSize: '0.9rem',
                 textAlign: 'center',
-                marginBottom: '1.5rem'
+                marginBottom: '2rem',
+                fontWeight: '500'
               }}>
-                If an account exists, we've sent a link.
+                Check your email for the magic link or code.
               </div>
               
-              <p style={{ color: '#888', fontSize: '0.85rem', marginBottom: '0.5rem', textAlign: 'center' }}>
-                Or enter the code from your email:
+              <p style={{ color: '#888', fontSize: '0.85rem', marginBottom: '1rem', textAlign: 'center' }}>
+                Enter the code from your email:
               </p>
-              <div className="form-group" style={{ textAlign: 'center' }}>
+              <div className="form-group" style={{ textAlign: 'center', marginBottom: '2rem' }}>
                 <input 
                   type="text" 
-                  placeholder="000000" 
-                  style={{ textAlign: 'center', letterSpacing: '8px', fontSize: '1.2rem', color: '#ccc', border: 'none', borderBottom: '1px solid #ddd', borderRadius: 0, width: '100%', outline: 'none' }}
-                  disabled
+                  value={userOtp}
+                  onChange={(e) => setUserOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  placeholder="0 0 0 0 0 0" 
+                  style={{ 
+                    textAlign: 'center', 
+                    letterSpacing: '12px', 
+                    fontSize: '1.4rem', 
+                    color: '#111', 
+                    border: 'none', 
+                    borderBottom: '1px solid #ddd', 
+                    borderRadius: 0, 
+                    width: '100%', 
+                    outline: 'none',
+                    paddingBottom: '0.5rem'
+                  }}
+                  onFocus={(e) => e.target.style.borderBottomColor = '#6300dd'}
+                  onBlur={(e) => e.target.style.borderBottomColor = '#ddd'}
                 />
               </div>
-              <button type="button" className="btn-login-submit" style={{ width: '100%', opacity: 0.5, cursor: 'not-allowed', backgroundColor: '#6300dd', marginTop: '1rem' }}>
-                Verify Code
+              <button 
+                type="button" 
+                onClick={handleVerifyOtp}
+                className="btn-login-submit" 
+                style={{ 
+                  width: '100%', 
+                  backgroundColor: userOtp.length === 6 ? '#6300dd' : '#b199e6', 
+                  borderRadius: '6px',
+                  padding: '1rem',
+                  fontSize: '1rem',
+                  fontWeight: '700',
+                  cursor: userOtp.length === 6 ? 'pointer' : 'default',
+                  opacity: isVerifyingOtp ? 0.7 : 1,
+                  transition: 'all 0.2s',
+                  marginBottom: '1.5rem'
+                }}
+                disabled={userOtp.length !== 6 || isVerifyingOtp}
+              >
+                {isVerifyingOtp ? "Verifying..." : "Verify Code"}
               </button>
+
+              <div style={{ textAlign: 'center' }}>
+                {resendTimer > 0 ? (
+                  <p style={{ color: '#888', fontSize: '0.85rem' }}>
+                    Resend code in <span style={{ fontWeight: '700' }}>{resendTimer}s</span>
+                  </p>
+                ) : (
+                  <button 
+                    onClick={handleSendLoginLink}
+                    style={{ 
+                      background: 'none', 
+                      border: 'none', 
+                      color: '#6300dd', 
+                      fontWeight: '600', 
+                      fontSize: '0.85rem', 
+                      cursor: 'pointer',
+                      padding: '5px'
+                    }}
+                  >
+                    Resend code
+                  </button>
+                )}
+              </div>
             </div>
           )}
           
-          <p className="switch-login-type" style={{ marginTop: '2.5rem', textAlign: 'center', fontSize: '0.9rem', color: '#555' }}>
-            <a href="#" style={{ color: '#6300dd', textDecoration: 'none', fontWeight: '700' }} onClick={(e) => { e.preventDefault(); setView('login'); setLoginLinkSent(false); setError(''); }}>Sign in</a> with username and password instead.
+          <p className="switch-login-type" style={{ marginTop: '3rem', textAlign: 'center', fontSize: '0.9rem', color: '#555' }}>
+            <span style={{ fontWeight: '700', color: '#6300dd', cursor: 'pointer' }} onClick={() => { setView('login'); setLoginLinkSent(false); setError(''); }}>Sign in</span> with username and password instead.
           </p>
         </div>
       )}

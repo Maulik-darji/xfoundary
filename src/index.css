@@ -272,17 +272,19 @@ a {
 }
 
 .btn-apply {
-  background-color: var(--bg-main);
-  color: var(--text-main);
-  border: 1px solid var(--text-main);
-  padding: 0.4rem 1rem;
+  background-color: #111;
+  color: #fff;
+  border: 1px solid #111;
+  padding: 0.4rem 1.25rem;
   border-radius: 4px;
   transition: all 0.2s;
+  font-weight: 600;
 }
 
 .btn-apply:hover {
-  background-color: var(--text-main);
-  color: var(--bg-main);
+  background-color: #333;
+  border-color: #333;
+  color: #fff;
 }
 
 /* Hero Section */
