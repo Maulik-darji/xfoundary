@@ -182,6 +182,68 @@ a {
   box-shadow: 0 4px 15px rgba(99, 0, 221, 0.05);
 }
 
+/* User Profile Menu */
+.user-menu {
+  position: relative;
+  display: flex;
+  align-items: center;
+  margin-right: 0.75rem;
+  cursor: pointer;
+  height: 100%;
+}
+
+.user-avatar {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  border: 1.5px solid #111;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 500;
+  font-size: 1.1rem;
+  color: #111;
+  background-color: transparent;
+  transition: all 0.2s ease;
+}
+
+.user-menu:hover .user-avatar {
+  background-color: #111;
+  color: #fff;
+}
+
+.profile-dropdown {
+  right: -10px;
+  left: auto;
+  transform: none;
+  min-width: 180px;
+  padding: 0.5rem 0;
+}
+
+.profile-username {
+  padding: 0.5rem 1.25rem;
+  font-size: 0.8rem;
+  color: #888;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+  margin-bottom: 0.25rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.logout-btn {
+  width: calc(100% - 1rem);
+  text-align: left;
+  background: none;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  font-family: inherit;
+  font-size: 0.95rem;
+  color: #444;
+}
+
 .arrow-svg {
   margin-left: 0.4rem;
   opacity: 0.5;

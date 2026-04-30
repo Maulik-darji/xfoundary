@@ -1,21 +1,40 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
+import { onAuthStateChanged, signOut } from 'firebase/auth';
+import { auth } from './firebase';
 import './index.css';
 import Home from './pages/Home';
 import Login from './pages/Login';
 import SignUp from './pages/SignUp';
 import Apply from './pages/Apply';
+import ResetPassword from './pages/ResetPassword';
 
 const Header = () => {
-  const [isScrolled, setIsScrolled] = React.useState(false);
+  const [isScrolled, setIsScrolled] = useState(false);
+  const [user, setUser] = useState(null);
 
-  React.useEffect(() => {
+  useEffect(() => {
     const handleScroll = () => {
       setIsScrolled(window.scrollY > 50);
     };
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+    } catch (error) {
+      console.error("Error logging out: ", error);
+    }
+  };
 
   return (
     <header className="header-wrapper">
@@ -77,7 +96,26 @@ const Header = () => {
           </div>
         </nav>
         <div className="nav-actions">
-          <Link to="/login" className="btn-login">Log in</Link>
+          {user ? (
+            <div className="nav-item user-menu">
+              <div className="user-avatar">
+                {user.displayName ? user.displayName.charAt(0).toUpperCase() : (user.email ? user.email.charAt(0).toUpperCase() : 'U')}
+              </div>
+              <div className="dropdown-menu profile-dropdown">
+                <div className="profile-username">{user.displayName || (user.email && user.email.split('@')[0]) || 'User'}</div>
+                <button onClick={handleLogout} className="dropdown-item logout-btn">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '8px' }}>
+                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                    <polyline points="16 17 21 12 16 7"></polyline>
+                    <line x1="21" y1="12" x2="9" y2="12"></line>
+                  </svg>
+                  Log out
+                </button>
+              </div>
+            </div>
+          ) : (
+            <Link to="/login" className="btn-login">Log in</Link>
+          )}
           <Link to="/apply" className="btn-apply">Apply</Link>
         </div>
       </div>
@@ -119,9 +157,9 @@ const Footer = () => (
     <div className="footer-bottom">
       <div>© 2026 X foundary</div>
       <div className="social-links">
-        <a href="#">Twitter</a>
+        <a href="https://x.com/FoundaryX35172" target="_blank" rel="noopener noreferrer">Twitter</a>
         <a href="#">Facebook</a>
-        <a href="#">Instagram</a>
+        <a href="https://www.instagram.com/xfoundary/" target="_blank" rel="noopener noreferrer">Instagram</a>
         <a href="#">LinkedIn</a>
         <a href="#">YouTube</a>
       </div>
@@ -136,6 +174,7 @@ function App() {
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<SignUp />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="*" element={
             <>
               <Header />

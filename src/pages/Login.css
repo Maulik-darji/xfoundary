@@ -28,6 +28,12 @@
   font-weight: bold;
   font-size: 1.1rem;
   margin: 0 auto 2rem;
+  text-decoration: none;
+  border-radius: 2px;
+}
+
+.login-logo:hover {
+  opacity: 0.9;
 }
 
 .login-card h1 {
@@ -43,7 +49,7 @@
 }
 
 .form-group {
-  margin-bottom: 1.5rem;
+  margin-bottom: 2rem;
 }
 
 .form-group label {
@@ -61,10 +67,36 @@
   font-size: 1rem;
   outline: none;
   transition: border-color 0.2s;
+  background: transparent;
 }
 
 .form-group input:focus {
   border-bottom-color: #6300dd;
+}
+
+.password-input-wrapper {
+  position: relative;
+  width: 100%;
+}
+
+.password-toggle {
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  padding: 8px;
+  cursor: pointer;
+  color: #888;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.2s;
+}
+
+.password-toggle:hover {
+  color: #6300dd;
 }
 
 .forgot-links {
@@ -94,7 +126,7 @@
 }
 
 .btn-login-submit:hover {
-  background-color: #4b00a8;
+  background-color: #4a00a8;
 }
 
 .login-footer {
@@ -108,4 +140,199 @@
   color: #6300dd;
   text-decoration: none;
   font-weight: 500;
+}
+
+.error-message {
+  background-color: #fee2e2;
+  color: #b91c1c;
+  padding: 0.75rem 1rem;
+  border-radius: 6px;
+  margin-bottom: 1.5rem;
+  font-size: 0.9rem;
+  text-align: left;
+  border: 1px solid #fca5a5;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* Modal Styles */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal-card {
+  background: white;
+  padding: 2.5rem;
+  width: 90%;
+  max-width: 440px;
+  border-radius: 8px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+  text-align: center;
+}
+
+.modal-card h2 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin-bottom: 1rem;
+  color: #111;
+}
+
+.modal-desc {
+  font-size: 0.95rem;
+  color: #555;
+  margin-bottom: 1.5rem;
+  line-height: 1.5;
+}
+
+.modal-form-group {
+  text-align: left;
+  margin-bottom: 1.5rem;
+}
+
+.modal-form-group label {
+  display: block;
+  font-size: 0.8rem;
+  color: #888;
+  margin-bottom: 4px;
+}
+
+.modal-form-group input {
+  width: 100%;
+  border: none;
+  border-bottom: 1px solid #ddd;
+  padding: 8px 0;
+  font-size: 1rem;
+  outline: none;
+  background: transparent;
+}
+
+.modal-form-group input:focus {
+  border-bottom-color: #6300dd;
+}
+
+.modal-tip {
+  font-size: 0.8rem;
+  color: #888;
+  text-align: left;
+  margin-bottom: 1.5rem;
+  line-height: 1.4;
+}
+
+.modal-message {
+  font-size: 0.85rem;
+  color: #6300dd;
+  margin-bottom: 1.5rem;
+  font-weight: 500;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.btn-cancel {
+  background: none;
+  border: none;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #888;
+  cursor: pointer;
+}
+
+.btn-cancel:hover {
+  color: #555;
+}
+
+.btn-modal-submit {
+  background-color: #6300dd; /* Primary brand color */
+  color: white;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  border-radius: 4px;
+  cursor: pointer;
+  opacity: 0.8;
+}
+
+.btn-modal-submit:hover {
+  opacity: 1;
+}
+
+.btn-send-link {
+  background-color: #6300dd;
+}
+
+/* Login with Email View */
+.login-with-email-desc {
+  font-size: 0.9rem;
+  color: #666;
+  margin-bottom: 1.5rem;
+}
+
+.btn-send-login-link {
+  background-color: #6300dd;
+  width: auto;
+  padding: 0.75rem 1.25rem;
+  display: inline-block;
+  margin-bottom: 2rem;
+}
+
+.switch-login-type {
+  font-size: 0.85rem;
+  color: #666;
+}
+
+.switch-login-type a {
+  color: #6300dd;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.switch-login-type a:hover {
+  text-decoration: underline;
+}
+
+/* Toast Notification Styles */
+.toast-container {
+  position: fixed;
+  bottom: 30px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2000;
+  animation: slideUp 0.3s ease-out;
+}
+
+.toast-message {
+  background-color: #333;
+  color: white;
+  padding: 12px 24px;
+  border-radius: 4px;
+  font-size: 0.95rem;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  min-width: 300px;
+  text-align: center;
+}
+
+@keyframes slideUp {
+  from {
+    transform: translate(-50%, 20px);
+    opacity: 0;
+  }
+  to {
+    transform: translate(-50%, 0);
+    opacity: 1;
+  }
 }
