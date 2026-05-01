@@ -1,149 +1,10 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { adminAuth as auth, adminDb as db, adminStorage as storage } from '../firebase';
-import { onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, GoogleAuthProvider, signInWithPopup, setPersistence, inMemoryPersistence } from 'firebase/auth';
-import { collection, getDocs, doc, getDoc, updateDoc, setDoc, writeBatch, addDoc, deleteDoc, onSnapshot, increment } from 'firebase/firestore';
+import { onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
+import { collection, getDocs, doc, getDoc, updateDoc, setDoc, writeBatch, addDoc, deleteDoc, onSnapshot } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { initializeApp, getApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
 import Blog from './Blog';
-
-const MailEditor = ({ 
-    initialSubject, 
-    initialText, 
-    onDraftChange, 
-    onSend, 
-    onCancel, 
-    pendingImage, 
-    setPendingImage, 
-    isUploadingImage, 
-    handleImageUpload,
-    onSaveDraft
-}) => {
-    const [subject, setSubject] = useState(initialSubject || '');
-    const [text, setText] = useState(initialText || '');
-    const textareaRef = useRef(null);
-
-    useEffect(() => {
-        setSubject(initialSubject || '');
-        setText(initialText || '');
-    }, [initialSubject, initialText]);
-    
-    const handleSubjectChange = (e) => {
-        setSubject(e.target.value);
-        if (onDraftChange) onDraftChange(e.target.value, text);
-    };
-    
-    const handleTextChange = (e) => {
-        setText(e.target.value);
-        if (onDraftChange) onDraftChange(subject, e.target.value);
-    };
-
-    return (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', padding: '12px', marginTop: 'auto', backgroundColor: '#f5f5f7', borderRadius: '16px' }}>
-            <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-                <input 
-                    value={subject}
-                    onChange={handleSubjectChange}
-                    placeholder="Subject (Optional)"
-                    style={{ flex: 1, padding: '12px 16px', borderRadius: '12px', border: '1px solid rgba(0,0,0,0.1)', fontSize: '14px', fontWeight: '600', outline: 'none' }}
-                    onFocus={e => e.currentTarget.style.borderColor = '#000'}
-                    onBlur={e => e.currentTarget.style.borderColor = 'rgba(0,0,0,0.1)'}
-                />
-                <button 
-                    onClick={onCancel}
-                    title="Discard Message"
-                    style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'rgba(0,0,0,0.05)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                    onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,59,48,0.1)'}
-                    onMouseLeave={e => e.currentTarget.style.background = 'rgba(0,0,0,0.05)'}
-                >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ff3b30" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-                </button>
-            </div>
-            {pendingImage && (
-                <div style={{ position: 'relative', width: '64px', height: '64px', borderRadius: '8px', overflow: 'hidden', border: '1px solid rgba(0,0,0,0.1)', animation: 'scaleIn 0.3s' }}>
-                    <img src={pendingImage} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                    <button 
-                        onClick={() => setPendingImage(null)}
-                        style={{ position: 'absolute', top: '4px', right: '4px', width: '16px', height: '16px', borderRadius: '50%', backgroundColor: 'rgba(0,0,0,0.6)', color: '#fff', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: '10px' }}
-                    >✕</button>
-                </div>
-            )}
-            <div style={{ position: 'relative', display: 'flex', backgroundColor: '#fff', borderRadius: '16px', border: '1px solid rgba(0,0,0,0.1)', overflow: 'hidden' }}>
-                <textarea 
-                    ref={textareaRef}
-                    value={text}
-                    onChange={handleTextChange}
-                    placeholder="Type your message here... (HTML supported)"
-                    style={{ flex: 1, minHeight: '120px', padding: '14px 120px 14px 14px', border: 'none', fontSize: '14px', fontFamily: 'Inter, sans-serif', resize: 'vertical', outline: 'none', overflow: 'hidden' }}
-                    onFocus={e => e.currentTarget.parentElement.style.borderColor = '#000'}
-                    onBlur={e => e.currentTarget.parentElement.style.borderColor = 'rgba(0,0,0,0.1)'}
-                />
-                <div style={{ position: 'absolute', bottom: '10px', right: '10px', display: 'flex', gap: '8px', alignItems: 'center' }}>
-                    <input 
-                        type="file" 
-                        id={`image-upload-${Math.random()}`}
-                        hidden 
-                        accept="image/*" 
-                        onChange={handleImageUpload} 
-                    />
-                    <button 
-                        onClick={(e) => e.currentTarget.previousSibling.click()}
-                        disabled={isUploadingImage}
-                        title="Add Image"
-                        style={{ 
-                            width: '40px', height: '40px', borderRadius: '12px', 
-                            backgroundColor: 'rgba(0,0,0,0.05)', 
-                            color: '#000', border: 'none', display: 'flex', alignItems: 'center', 
-                            justifyContent: 'center', cursor: isUploadingImage ? 'not-allowed' : 'pointer',
-                            transition: 'all 0.2s',
-                            opacity: isUploadingImage ? 0.5 : 1
-                        }}
-                        onMouseEnter={e => { if(!isUploadingImage) e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.1)' }}
-                        onMouseLeave={e => { if(!isUploadingImage) e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.05)' }}
-                    >
-                        {isUploadingImage ? (
-                            <div style={{ width: '18px', height: '18px', border: '2px solid #ccc', borderTopColor: '#000', borderRadius: '50%', animation: 'spin 1s linear infinite' }}></div>
-                        ) : (
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
-                        )}
-                    </button>
-                    <button 
-                        onClick={() => onSaveDraft(subject, text)}
-                        style={{ 
-                            padding: '0 20px', height: '40px', borderRadius: '12px', 
-                            backgroundColor: 'rgba(0,0,0,0.05)', 
-                            color: '#666', border: 'none', display: 'flex', alignItems: 'center', 
-                            justifyContent: 'center', cursor: 'pointer',
-                            transition: 'all 0.2s', fontSize: '13px', fontWeight: '700'
-                        }}
-                        onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.1)'}
-                        onMouseLeave={e => e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.05)'}
-                    >
-                        Save as Draft
-                    </button>
-                    <button 
-                        onClick={() => onSend(subject, text)}
-                        disabled={!text.trim() && !pendingImage}
-                        title="Send Message"
-                        style={{ 
-                            width: '40px', height: '40px', borderRadius: '12px', 
-                            backgroundColor: (text.trim() || pendingImage) ? '#000' : '#ccc', 
-                            color: '#fff', border: 'none', display: 'flex', alignItems: 'center', 
-                            justifyContent: 'center', cursor: (text.trim() || pendingImage) ? 'pointer' : 'not-allowed',
-                            transition: 'all 0.2s',
-                            boxShadow: (text.trim() || pendingImage) ? '0 4px 12px rgba(0,0,0,0.1)' : 'none'
-                        }}
-                        onMouseEnter={e => { if(text.trim() || pendingImage) e.currentTarget.style.transform = 'scale(1.05)' }}
-                        onMouseLeave={e => { if(text.trim() || pendingImage) e.currentTarget.style.transform = 'scale(1)' }}
-                    >
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
-                    </button>
-                </div>
-            </div>
-        </div>
-    );
-};
 
 const Admin = () => {
   const sidebarRef = React.useRef(null);
@@ -174,28 +35,16 @@ const Admin = () => {
   const [coldEmailsText, setColdEmailsText] = useState('');
   const [sendToAll, setSendToAll] = useState(false);
   const [showDraftModal, setShowDraftModal] = useState(false);
-  const [syncProgress, setSyncProgress] = useState(0);
-  const [isSyncingAll, setIsSyncingAll] = useState(false);
-  const [syncCurrentEmail, setSyncCurrentEmail] = useState('');
-  const [syncToken, setSyncToken] = useState(sessionStorage.getItem('xf_gmail_sync_token') || null);
-  const [syncAccountEmail, setSyncAccountEmail] = useState(sessionStorage.getItem('xf_gmail_sync_email') || null);
-  const syncCardRef = React.useRef(null);
-  const dragInfo = React.useRef({ isDragging: false, startX: 0, startY: 0, cardX: 0, cardY: 0 });
-  const [syncEta, setSyncEta] = useState('');
-  const textareaRef = React.useRef(null);
-  const [pendingImage, setPendingImage] = useState(null);
-  const draftMemory = useRef({});
-  const previousFounder = useRef(null);
+  const [draftSubject, setDraftSubject] = useState('');
+  const [draftMessage, setDraftMessage] = useState('');
   const [externalFounders, setExternalFounders] = useState([]);
   const [selectedExternalFounder, setSelectedExternalFounder] = useState(null);
   const [founderMessages, setFounderMessages] = useState([]);
   const [selectedFounderIds, setSelectedFounderIds] = useState([]);
   const [founderSearch, setFounderSearch] = useState('');
+  const [individualMailSubject, setIndividualMailSubject] = useState('');
+  const [individualMailText, setIndividualMailText] = useState('');
   const [showConfirmModal, setShowConfirmModal] = useState(false);
-  const [showSyncMenu, setShowSyncMenu] = useState(false);
-  const [isWritingMail, setIsWritingMail] = useState(false);
-  const [showMailMenu, setShowMailMenu] = useState(false);
-  const messagesContainerRef = useRef(null);
   const [confirmConfig, setConfirmConfig] = useState({ title: '', onConfirm: null });
   const [skipConfirm, setSkipConfirm] = useState(false);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
@@ -206,29 +55,11 @@ const Admin = () => {
   const [isResizing, setIsResizing] = useState(false);
   const [gmailClientId, setGmailClientId] = useState('');
   const [gmailClientSecret, setGmailClientSecret] = useState('');
-  const [showGmailSecret, setShowGmailSecret] = useState(false);
-  const [settingsSaved, setSettingsSaved] = useState(false);
   const [isSavingSettings, setIsSavingSettings] = useState(false);
-  const [selectedApplication, setSelectedApplication] = useState(null);
-  const [showAppDetail, setShowAppDetail] = useState(false);
-  const [isSyncingIndividual, setIsSyncingIndividual] = useState(false);
 
   useEffect(() => {
     if (selectedExternalFounder) {
         localStorage.setItem('xf_admin_selected_founder_email', selectedExternalFounder.email);
-        
-        // Clear reply count when founder is selected
-        if (selectedExternalFounder.replyCount > 0) {
-            const docId = selectedExternalFounder.email.replace(/[.#$[\]]/g, '_');
-            updateDoc(doc(db, 'externalFounders', docId), {
-                replyCount: 0
-            }).catch(console.error);
-            
-            // Update local state so it reflects immediately
-            setExternalFounders(prev => prev.map(f => 
-                f.id === selectedExternalFounder.id ? { ...f, replyCount: 0 } : f
-            ));
-        }
     }
   }, [selectedExternalFounder]);
 
@@ -238,6 +69,7 @@ const Admin = () => {
         const found = externalFounders.find(f => f.email === savedEmail);
         if (found) {
             setSelectedExternalFounder(found);
+            fetchFounderMessages(savedEmail);
         }
     }
   }, [externalFounders]);
@@ -289,54 +121,13 @@ const Admin = () => {
       }
   };
 
-  const switchTime = useRef(0);
-  const lastMessageCount = useRef(0);
-  useEffect(() => {
-    switchTime.current = Date.now();
-    const newKey = selectedExternalFounder ? selectedExternalFounder.email : 'bulk';
-    previousFounder.current = newKey;
-    const draft = draftMemory.current[newKey] || { isWriting: false };
-    setIsWritingMail(draft.isWriting);
-  }, [selectedExternalFounder]);
-
-  const handleDraftChange = React.useCallback((subject, text) => {
-      const currentKey = selectedExternalFounder ? selectedExternalFounder.email : 'bulk';
-      draftMemory.current[currentKey] = {
-          subject,
-          text,
-          image: pendingImage,
-          isWriting: isWritingMail
-      };
-  }, [selectedExternalFounder, pendingImage, isWritingMail]);
-
-  useEffect(() => {
-    if (messagesContainerRef.current && selectedExternalFounder && founderMessages.length > 0) {
-      const timeSinceSwitch = Date.now() - switchTime.current;
-      
-      // STRICT FIX: Any update within 1.5s of switching is 'initial load' -> Instant Jump
-      if (timeSinceSwitch < 1500) {
-          messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
-      } else if (founderMessages.length > lastMessageCount.current) {
-          // Real-time new message -> Smooth
-          messagesContainerRef.current.scrollTo({
-            top: messagesContainerRef.current.scrollHeight,
-            behavior: 'smooth'
-          });
-      }
-      lastMessageCount.current = founderMessages.length;
-    }
-  }, [founderMessages, selectedExternalFounder]);
-
-  useEffect(() => {
-    if (isWritingMail && messagesContainerRef.current) {
-        setTimeout(() => {
-            messagesContainerRef.current.scrollTo({
-                top: messagesContainerRef.current.scrollHeight,
-                behavior: 'smooth'
-            });
-        }, 100);
-    }
-  }, [isWritingMail]);
+  const commonDomainTypos = {
+    'gamil.com': 'gmail.com',
+    'hotmial.com': 'hotmail.com',
+    'outlok.com': 'outlook.com',
+    'yaho.com': 'yahoo.com',
+    'gnail.com': 'gmail.com'
+  };
 
   const getEmailSuggestion = (text) => {
     const emails = text.split(/[,\n]/).map(e => e.trim());
@@ -344,13 +135,6 @@ const Admin = () => {
         if (!email.includes('@')) continue;
         const parts = email.split('@');
         const domain = parts[parts.length - 1];
-        const commonDomainTypos = {
-            'gamil.com': 'gmail.com',
-            'hotmial.com': 'hotmail.com',
-            'outlok.com': 'outlook.com',
-            'yaho.com': 'yahoo.com',
-            'gnail.com': 'gmail.com'
-        };
         if (commonDomainTypos[domain.toLowerCase()]) {
             return { original: domain, suggestion: commonDomainTypos[domain.toLowerCase()], fullEmail: email };
         }
@@ -428,11 +212,8 @@ const Admin = () => {
 
   useEffect(() => {
       if (selectedExternalFounder) {
-          setFounderMessages([]); // Clear messages immediately when founder changes
           const unsub = fetchFounderMessages(selectedExternalFounder.email);
           return () => unsub && unsub();
-      } else {
-          setFounderMessages([]);
       }
   }, [selectedExternalFounder]);
 
@@ -472,50 +253,37 @@ const Admin = () => {
       });
   }, [externalFounders, founderSearch, sidebarFilter]);
 
-  const handleSendIndividualMail = async (subject, text) => {
-      if (!selectedExternalFounder || !text) return;
+  const handleSendIndividualMail = async () => {
+      if (!selectedExternalFounder || !individualMailText) return;
       
       try {
           const docId = selectedExternalFounder.email.replace(/[.#$[\]]/g, '_');
           const msgData = {
-              text: text,
-              subject: subject || "Follow up from X Foundary",
+              text: individualMailText,
+              subject: individualMailSubject || "Follow up from X Foundary",
               sender: 'admin',
               timestamp: new Date().toISOString()
           };
-          
-          if (pendingImage) msgData.imageUrl = pendingImage;
           
           await addDoc(collection(db, 'externalFounders', docId, 'messages'), msgData);
           await addDoc(collection(db, 'mail'), {
               to: selectedExternalFounder.email,
               message: {
                   subject: msgData.subject,
-                  html: text.replace(/\n/g, '<br/>') + (pendingImage ? `<br/><img src="${pendingImage}" style="max-width:300px;"/>` : '')
+                  html: individualMailText.replace(/\n/g, '<br/>')
               }
           });
           
-          // Clear draft
-          draftMemory.current[selectedExternalFounder.email] = { subject: '', text: '', image: null, isWriting: false };
-          setPendingImage(null);
-          setIsWritingMail(false);
-          // Wait for a tiny bit to let scroll effect handle the new message properly
-          setTimeout(() => {
-              if (messagesContainerRef.current) {
-                  messagesContainerRef.current.scrollTo({
-                      top: messagesContainerRef.current.scrollHeight,
-                      behavior: 'smooth'
-                  });
-              }
-          }, 100);
-          
+          setIndividualMailText('');
+          setIndividualMailSubject('');
+          fetchFounderMessages(selectedExternalFounder.email);
           setToastMessage("Message sent!");
           setShowToast(true);
           setTimeout(() => setShowToast(false), 3000);
-      } catch (e) {
-          alert("Failed to send message: " + e.message);
-      }
+      } catch (e) { alert(e.message); }
   };
+
+
 
   const startResizing = (e) => {
       setIsResizing(true);
@@ -557,27 +325,40 @@ const Admin = () => {
   }, [isResizing]);
 
   const handleImageUpload = async (e) => {
-    let file;
-    if (e.target.files) file = e.target.files[0];
-    else if (e.dataTransfer?.files) file = e.dataTransfer.files[0];
-    if (!file) return;
-
+    const file = e.target.files[0];
+    if (!file || !selectedExternalFounder) return;
+    
+    setIsUploadingImage(true);
     try {
-      setIsUploadingImage(true);
-      const storageRef = ref(storage, `external_messages/${Date.now()}_${file.name}`);
-      await uploadBytes(storageRef, file);
-      const url = await getDownloadURL(storageRef);
-      
-      setPendingImage(url);
-      setToastMessage("Image attached.");
-      setShowToast(true);
-    } catch (e) {
-      console.error(e);
-      setToastMessage("Failed to upload image.");
-      setShowToast(true);
-    } finally {
-      setIsUploadingImage(false);
-    }
+        const docId = selectedExternalFounder.email.replace(/[.#$[\]]/g, '_');
+        const storageRef = ref(storage, `externalFounders/${docId}/${Date.now()}_${file.name}`);
+        await uploadBytes(storageRef, file);
+        const url = await getDownloadURL(storageRef);
+        
+        const msgData = {
+            text: `[Image Attachment]`,
+            imageUrl: url,
+            subject: individualMailSubject || "Image attachment from X Foundary",
+            sender: 'admin',
+            timestamp: new Date().toISOString()
+        };
+        
+        await addDoc(collection(db, 'externalFounders', docId, 'messages'), msgData);
+        await addDoc(collection(db, 'mail'), {
+            to: selectedExternalFounder.email,
+            message: {
+                subject: msgData.subject,
+                html: `Sent an image: <br/><img src="${url}" style="max-width: 400px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1);"/>`
+            }
+        });
+        
+        fetchFounderMessages(selectedExternalFounder.email);
+        setIndividualMailSubject('');
+        setToastMessage("Image sent!");
+        setShowToast(true);
+        setTimeout(() => setShowToast(false), 3000);
+    } catch (e) { alert(e.message); }
+    finally { setIsUploadingImage(false); }
   };
 
   const handleRemoveExternalFounder = async (email) => {
@@ -847,7 +628,7 @@ const Admin = () => {
         adminsList
       });
 
-      // Load Gmail Config (Just IDs for now, auth handled by Firebase)
+      // Load Gmail Config
       const gmailDoc = await getDoc(doc(db, 'adminSettings', 'gmailConfig'));
       if (gmailDoc.exists()) {
           const data = gmailDoc.data();
@@ -855,386 +636,6 @@ const Admin = () => {
           setGmailClientSecret(data.clientSecret || '');
       }
     } catch (e) { console.error(e); }
-  };
-
-  const handleSyncGmail = async () => {
-    try {
-      const currentEmail = selectedExternalFounder?.email;
-      if (!currentEmail) {
-        setToastMessage("Please select a founder to sync.");
-        return;
-      }
-      setIsSyncingIndividual(true);
-      await performGmailSync(currentEmail);
-      setIsSyncingIndividual(false);
-    } catch (error) {
-      console.error("Sync Error:", error);
-      setIsSyncingIndividual(false);
-      setToastMessage("Sync failed.");
-    }
-  };
-
-  const handleSyncAllGmail = async () => {
-    if (!window.confirm("This will sync the last 50 emails for ALL 371+ founders. This may take a minute. Proceed?")) return;
-    
-    try {
-      setIsSyncingAll(true);
-      setSyncProgress(0);
-      setSyncEta('Calculating...');
-
-      const token = await getGmailToken();
-      if (!token) {
-          setIsSyncingAll(false);
-          return;
-      }
-
-      let totalNew = 0;
-      const totalFounders = externalFounders.length;
-      const startTime = Date.now();
-
-      for (let i = 0; i < totalFounders; i++) {
-          const founder = externalFounders[i];
-          setSyncCurrentEmail(founder.email);
-          setSyncProgress(Math.round(((i + 1) / totalFounders) * 100));
-          
-          // Calculate ETA
-          const elapsed = Date.now() - startTime;
-          const avgTimePerFounder = elapsed / (i + 1);
-          const remainingFounders = totalFounders - (i + 1);
-          const etaMs = avgTimePerFounder * remainingFounders;
-          
-          if (i > 2) { // Give it 3 founders to get a stable average
-            const mins = Math.floor(etaMs / 60000);
-            const secs = Math.floor((etaMs % 60000) / 1000);
-            setSyncEta(mins > 0 ? `${mins}m ${secs}s` : `${secs}s`);
-          }
-
-          const count = await performGmailSync(founder.email, token);
-          totalNew += (count || 0);
-      }
-
-      setIsSyncingAll(false);
-      setToastMessage(`Full Sync complete! ${totalNew} messages added.`);
-      setShowToast(true);
-    } catch (e) {
-      console.error(e);
-      setIsSyncingAll(false);
-      setToastMessage("Full sync failed.");
-      setShowToast(true);
-    }
-  };
-
-  const getGmailToken = async () => {
-    // If we already have a token in state, try to use it
-    if (syncToken) return syncToken;
-
-    const firebaseConfig = {
-      apiKey: "AIzaSyC4GH9LfkNWXI1ElmHLPhOhtNLDZ9ZziWc",
-      authDomain: "xfoundaryapp.firebaseapp.com",
-      projectId: "xfoundaryapp",
-      storageBucket: "xfoundaryapp.firebasestorage.app",
-      messagingSenderId: "321695640646",
-      appId: "1:321695640646:web:3ff25d2e143bb1b364ee47"
-    };
-    let syncApp;
-    try { syncApp = getApp('syncApp'); } catch (e) { syncApp = initializeApp(firebaseConfig, 'syncApp'); }
-    const syncAuth = getAuth(syncApp);
-    await setPersistence(syncAuth, inMemoryPersistence);
-    const provider = new GoogleAuthProvider();
-    provider.addScope('https://www.googleapis.com/auth/gmail.modify');
-    
-    try {
-        const result = await signInWithPopup(syncAuth, provider);
-        const token = GoogleAuthProvider.credentialFromResult(result).accessToken;
-        await syncAuth.signOut();
-        
-        if (token) {
-            setSyncToken(token);
-            setSyncAccountEmail(result.user.email);
-            sessionStorage.setItem('xf_gmail_sync_token', token);
-            sessionStorage.setItem('xf_gmail_sync_email', result.user.email);
-        }
-        return token;
-    } catch (err) {
-        console.error("Login Error:", err);
-        return null;
-    }
-  };
-
-  const performGmailSync = async (email, existingToken = null) => {
-    try {
-      const token = existingToken || await getGmailToken();
-      if (!token) return 0;
-
-      const searchQuery = `(from:"${email}" OR to:"${email}")`;
-      const response = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${encodeURIComponent(searchQuery)}&maxResults=50`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-      });
-
-      // If token expired, clear it and retry once
-      if (response.status === 401) {
-          setSyncToken(null);
-          setSyncAccountEmail(null);
-          sessionStorage.removeItem('xf_gmail_sync_token');
-          sessionStorage.removeItem('xf_gmail_sync_email');
-          if (!existingToken) return performGmailSync(email); 
-          return 0;
-      }
-      const data = await response.json();
-      const messages = data.messages || [];
-      const docId = email.replace(/[.#$[\]]/g, '_');
-      
-      // Process messages in parallel for speed
-      const results = await Promise.all(messages.map(async (msg) => {
-          try {
-              const msgRef = doc(db, 'externalFounders', docId, 'messages', msg.id);
-              const msgSnap = await getDoc(msgRef);
-              if (msgSnap.exists()) return 0;
-
-              const detailRes = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${msg.id}`, {
-                  headers: { 'Authorization': `Bearer ${token}` }
-              });
-              const detail = await detailRes.json();
-              const headers = detail.payload.headers;
-              const from = headers.find(h => h.name.toLowerCase() === 'from')?.value || '';
-              const to = headers.find(h => h.name.toLowerCase() === 'to')?.value || '';
-              
-              if (!from.toLowerCase().includes(email.toLowerCase()) && !to.toLowerCase().includes(email.toLowerCase())) return 0;
-
-              const subject = headers.find(h => h.name.toLowerCase() === 'subject')?.value || '(No Subject)';
-              const date = headers.find(h => h.name.toLowerCase() === 'date')?.value || new Date().toISOString();
-              let snippet = (detail.snippet || '').replace(/&#39;/g, "'").replace(/&quot;/g, '"').replace(/&amp;/g, '&');
-
-              const isFounderMsg = from.toLowerCase().includes(email.toLowerCase());
-              await setDoc(msgRef, {
-                  text: snippet,
-                  subject: subject,
-                  sender: isFounderMsg ? 'founder' : 'admin',
-                  timestamp: new Date(date).toISOString(),
-                  gmailId: msg.id,
-                  isSynced: true
-              });
-              
-              if (isFounderMsg) {
-                  const founderRef = doc(db, 'externalFounders', docId);
-                  updateDoc(founderRef, {
-                      replyCount: increment(1),
-                      lastReplyAt: new Date().toISOString()
-                  }).catch(console.error);
-              }
-              return 1;
-          } catch (err) {
-              console.error("Error syncing message:", msg.id, err);
-              return 0;
-          }
-      }));
-
-      const newCount = results.reduce((a, b) => a + b, 0);
-      
-      if (!existingToken && newCount > 0) {
-          setToastMessage(`Sync complete! ${newCount} new messages added.`);
-      } else if (!existingToken) {
-          setToastMessage("Up to date.");
-      }
-      return newCount;
-    } catch (e) {
-      console.error(e);
-      return 0;
-    }
-  };
-
-  const handleDisconnectGmail = () => {
-    setSyncToken(null);
-    setSyncAccountEmail(null);
-    sessionStorage.removeItem('xf_gmail_sync_token');
-    sessionStorage.removeItem('xf_gmail_sync_email');
-    setToastMessage("Gmail account disconnected.");
-    setShowToast(true);
-  };
-
-  const handleClearMessages = async () => {
-    if (!selectedExternalFounder) return;
-    
-    const action = async () => {
-        try {
-            const docId = selectedExternalFounder.email.replace(/[.#$[\]]/g, '_');
-            const msgsRef = collection(db, 'externalFounders', docId, 'messages');
-            const msgsSnap = await getDocs(msgsRef);
-            const batch = writeBatch(db);
-            msgsSnap.docs.forEach(d => batch.delete(d.ref));
-            await batch.commit();
-            setToastMessage("Messages cleared.");
-            setShowToast(true);
-        } catch (e) {
-            console.error(e);
-            setToastMessage("Failed to clear messages.");
-        }
-    };
-
-    if (skipConfirm) {
-        action();
-    } else {
-        setConfirmConfig({ 
-            title: "Are you sure you want to clear all synced messages for this founder? (Does not delete from Gmail)", 
-            onConfirm: action 
-        });
-        setShowConfirmModal(true);
-    }
-  };
-
-  const handleSyncCardDragStart = (e) => {
-    dragInfo.current.isDragging = true;
-    dragInfo.current.startX = e.clientX - dragInfo.current.cardX;
-    dragInfo.current.startY = e.clientY - dragInfo.current.cardY;
-    if (syncCardRef.current) {
-        syncCardRef.current.style.transition = 'none';
-        syncCardRef.current.style.boxShadow = '0 30px 60px rgba(0,0,0,0.3)';
-    }
-  };
-
-  useEffect(() => {
-    const handleMouseMove = (e) => {
-        if (!dragInfo.current.isDragging) return;
-        
-        let newX = e.clientX - dragInfo.current.startX;
-        let newY = e.clientY - dragInfo.current.startY;
-        
-        if (syncCardRef.current) {
-            const rect = syncCardRef.current.getBoundingClientRect();
-            // We use the initial dimensions, ignoring the current transform for calculation bounds.
-            const cardWidth = rect.width;
-            const cardHeight = rect.height;
-            
-            const minX = Math.min(0, 64 + cardWidth - window.innerWidth);
-            const maxX = 0;
-            const minY = Math.min(0, 64 + cardHeight - window.innerHeight);
-            const maxY = 0;
-            
-            newX = Math.max(minX, Math.min(newX, maxX));
-            newY = Math.max(minY, Math.min(newY, maxY));
-            
-            dragInfo.current.cardX = newX;
-            dragInfo.current.cardY = newY;
-            
-            syncCardRef.current.style.transform = `translate(${newX}px, ${newY}px)`;
-        }
-    };
-    const handleMouseUp = () => {
-        if (dragInfo.current.isDragging) {
-            dragInfo.current.isDragging = false;
-            if (syncCardRef.current) {
-                const rect = syncCardRef.current.getBoundingClientRect();
-                const cardWidth = rect.width;
-                const cardHeight = rect.height;
-                
-                const minX = Math.min(0, 64 + cardWidth - window.innerWidth);
-                const maxX = 0;
-                const minY = Math.min(0, 64 + cardHeight - window.innerHeight);
-                const maxY = 0;
-                
-                const snapX = dragInfo.current.cardX > (minX + maxX) / 2 ? maxX : minX;
-                const snapY = dragInfo.current.cardY > (minY + maxY) / 2 ? maxY : minY;
-                
-                dragInfo.current.cardX = snapX;
-                dragInfo.current.cardY = snapY;
-                
-                syncCardRef.current.style.transition = 'transform 0.5s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.2s';
-                syncCardRef.current.style.transform = `translate(${snapX}px, ${snapY}px)`;
-                syncCardRef.current.style.boxShadow = '0 20px 40px rgba(0,0,0,0.15)';
-            }
-        }
-    };
-
-    window.addEventListener('mousemove', handleMouseMove);
-    window.addEventListener('mouseup', handleMouseUp);
-    return () => {
-        window.removeEventListener('mousemove', handleMouseMove);
-        window.removeEventListener('mouseup', handleMouseUp);
-    };
-  }, []);
-
-  const handleDeleteMessage = async (gmailId) => {
-    if (!gmailId || !selectedExternalFounder) return;
-    
-    const action = async () => {
-        try {
-            let token = await getGmailToken();
-            if (!token) return;
-
-            // 1. Trash in Gmail
-            let response = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${gmailId}/trash`, {
-                method: 'POST',
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-
-            // Auto-refresh token if expired
-            if (response.status === 401) {
-                sessionStorage.removeItem('xf_gmail_sync_token');
-                setSyncToken(null);
-                token = await getGmailToken();
-                if (!token) return;
-                response = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${gmailId}/trash`, {
-                    method: 'POST',
-                    headers: { 'Authorization': `Bearer ${token}` }
-                });
-            }
-
-            if (response.ok) {
-                // 2. Delete from Firestore
-                const docId = selectedExternalFounder.email.replace(/[.#$[\]]/g, '_');
-                await deleteDoc(doc(db, 'externalFounders', docId, 'messages', gmailId));
-                
-                setToastMessage("Email moved to Trash.");
-                setShowToast(true);
-            } else {
-                const errData = await response.json().catch(() => ({}));
-                console.error("Gmail Trash Error:", errData);
-                throw new Error("Failed to trash in Gmail");
-            }
-        } catch (e) {
-            console.error(e);
-            setToastMessage("Failed to delete email.");
-            setShowToast(true);
-        }
-    };
-
-    if (skipConfirm) {
-        action();
-    } else {
-        setConfirmConfig({ 
-            title: "Move this email to your Gmail Trash?", 
-            onConfirm: action 
-        });
-        setShowConfirmModal(true);
-    }
-  };
-
-  const handleLocalDeleteMessage = async (docId) => {
-    if (!docId || !selectedExternalFounder) return;
-
-    const action = async () => {
-        try {
-            const founderDocId = selectedExternalFounder.email.replace(/[.#$[\]]/g, '_');
-            await deleteDoc(doc(db, 'externalFounders', founderDocId, 'messages', docId));
-            
-            setToastMessage("Message deleted.");
-            setShowToast(true);
-        } catch (e) {
-            console.error(e);
-            setToastMessage("Failed to delete message.");
-            setShowToast(true);
-        }
-    };
-
-    if (skipConfirm) {
-        action();
-    } else {
-        setConfirmConfig({ 
-            title: "Delete this message from the dashboard?", 
-            onConfirm: action 
-        });
-        setShowConfirmModal(true);
-    }
   };
 
   const handleAppStatus = async (uid, newStatus) => {
@@ -1338,11 +739,7 @@ const Admin = () => {
         });
         setToastMessage("Settings saved successfully.");
         setShowToast(true);
-        setSettingsSaved(true);
-        setTimeout(() => {
-            setShowToast(false);
-            setSettingsSaved(false);
-        }, 3000);
+        setTimeout(() => setShowToast(false), 3000);
     } catch (e) {
         alert("Error saving settings: " + e.message);
     } finally {
@@ -1365,8 +762,8 @@ const Admin = () => {
       }
   };
 
-  const handleSendColdMail = async (subject, text) => {
-      if (!subject || !text) {
+  const handleSendColdMail = async () => {
+      if (!draftSubject || !draftMessage) {
           alert("Please fill in both subject and message.");
           return;
       }
@@ -1388,28 +785,26 @@ const Admin = () => {
 
       if (window.confirm(`Are you sure you want to send this email to ${recipients.length} recipients?`)) {
           try {
-              setIsWritingMail(false);
+              setShowDraftModal(false); // Close modal immediately to show progress
               for (let i = 0; i < recipients.length; i++) {
                   const email = recipients[i];
                   setSendingStatus({ current: email, count: i + 1, total: recipients.length });
                   
                   const docId = email.replace(/[.#$[\]]/g, '_');
                   const msgData = {
-                      text: text,
-                      subject: subject,
+                      text: draftMessage,
+                      subject: draftSubject,
                       sender: 'admin',
                       timestamp: new Date().toISOString()
                   };
-                  if (pendingImage) msgData.imageUrl = pendingImage;
-
                   
                   await addDoc(collection(db, 'externalFounders', docId, 'messages'), msgData);
 
                   await addDoc(collection(db, 'mail'), {
                       to: email,
                       message: {
-                          subject: subject,
-                          html: `<div style="font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; color: #111;">${text.replace(/\n/g, '<br/>')}</div>` + (pendingImage ? `<br/><img src="${pendingImage}" style="max-width:300px;"/>` : '')
+                          subject: draftSubject,
+                          html: `<div style="font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; color: #111;">${draftMessage.replace(/\n/g, '<br/>')}</div>`
                       }
                   });
                   
@@ -1418,11 +813,11 @@ const Admin = () => {
               }
               
               setSendingStatus(null);
-              setToastMessage("All emails sent successfully.");
+              setDraftSubject('');
+              setDraftMessage('');
+              setToastMessage(`Email successfully queued for ${recipients.length} recipients.`);
               setShowToast(true);
               setTimeout(() => setShowToast(false), 3000);
-              draftMemory.current['bulk'] = { subject: '', text: '', image: null, isWriting: false };
-              setPendingImage(null);
           } catch (e) { 
               setSendingStatus(null);
               alert("Error sending emails: " + e.message); 
@@ -1460,30 +855,6 @@ const Admin = () => {
                     {authMode === 'login' ? 'Sign In' : 'Create Admin Account'}
                 </button>
             </form>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', margin: '1.5rem 0' }}>
-                <div style={{ flex: 1, height: '1px', backgroundColor: '#eee' }}></div>
-                <span style={{ fontSize: '12px', color: '#999', fontWeight: 'bold' }}>OR</span>
-                <div style={{ flex: 1, height: '1px', backgroundColor: '#eee' }}></div>
-            </div>
-
-            <button 
-                onClick={async () => {
-                    try {
-                        const provider = new GoogleAuthProvider();
-                        const res = await signInWithPopup(auth, provider);
-                        const adminDoc = await getDoc(doc(db, 'admins', res.user.uid));
-                        if (!adminDoc.exists()) {
-                            await auth.signOut();
-                            setError("This Google account is not registered as an administrator.");
-                        }
-                    } catch (err) { setError(err.message); }
-                }}
-                style={{ width: '100%', padding: '12px', backgroundColor: '#fff', color: '#000', border: '1px solid #ddd', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}
-            >
-                <svg width="18" height="18" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
-                Continue with Google
-            </button>
-
             <p style={{ textAlign: 'center', marginTop: '1.5rem', fontSize: '14px' }}>
                 {authMode === 'login' ? "Need an account?" : "Already have an account?"} 
                 <button onClick={() => setAuthMode(authMode === 'login' ? 'signup' : 'login')} style={{ background: 'none', border: 'none', color: '#000', fontWeight: 'bold', cursor: 'pointer', marginLeft: '5px' }}>
@@ -1799,13 +1170,7 @@ const Admin = () => {
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                         {applications.slice(0, 4).map((app, i) => (
-                            <div 
-                                key={i} 
-                                onClick={() => { setSelectedApplication(app); setShowAppDetail(true); }}
-                                style={{ display: 'flex', alignItems: 'center', gap: '15px', padding: '12px', backgroundColor: 'rgba(0,0,0,0.02)', borderRadius: '14px', cursor: 'pointer', transition: 'all 0.2s' }}
-                                onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.05)'}
-                                onMouseLeave={e => e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.02)'}
-                            >
+                            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '15px', padding: '12px', backgroundColor: 'rgba(0,0,0,0.02)', borderRadius: '14px' }}>
                                 <div style={{ width: '40px', height: '40px', backgroundColor: '#fff', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '800', fontSize: '14px', border: '1px solid rgba(0,0,0,0.05)' }}>
                                     {app.companyName.charAt(0)}
                                 </div>
@@ -1825,7 +1190,7 @@ const Admin = () => {
     )}
 
         {(activeTab === 'Pending Apps' || activeTab === 'Applications') && (
-            <>
+            <div style={{ display: 'contents' }}>
                 {activeTab === 'Applications' && applicationLogs.length > 0 && (
                     <div className="glass-card" style={{ padding: '1.5rem', borderRadius: '20px', marginBottom: '1.5rem', animation: 'fadeInUp 0.4s ease-out' }}>
                         <h4 style={{ margin: '0 0 15px 0', fontSize: '13px', color: '#666', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: '800' }}>Recent Application Logs</h4>
@@ -1887,13 +1252,7 @@ const Admin = () => {
                         </thead>
                     <tbody>
                         {applications.filter(app => activeTab === 'Pending Apps' ? (app.status === 'pending' || !app.status) : app.status === appFilter).map(app => (
-                            <tr 
-                                key={app.id} 
-                                onClick={() => { setSelectedApplication(app); setShowAppDetail(true); }}
-                                style={{ borderBottom: '1px solid rgba(0,0,0,0.03)', cursor: 'pointer', transition: 'background 0.2s' }}
-                                onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.01)'}
-                                onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
-                            >
+                            <tr key={app.id} style={{ borderBottom: '1px solid rgba(0,0,0,0.03)' }}>
                                 <td style={{ padding: '1.25rem' }}>
                                     <div style={{ fontWeight: '700' }}>{app.companyName}</div>
                                     <div style={{ fontSize: '12px', color: '#666' }}>{app.category}</div>
@@ -1989,8 +1348,8 @@ const Admin = () => {
                         ))}
                     </tbody>
                 </table>
-                </div>
-            </>
+            </div>
+        </div>
         )}
 
         {(activeTab === 'Founders' || activeTab === 'Admins' || activeTab === 'Members') && (
@@ -2006,7 +1365,6 @@ const Admin = () => {
                             {activeTab === 'Founders' && <th style={{ padding: '1.25rem', color: '#667777', fontSize: '12px', textTransform: 'uppercase' }}>STARTUP</th>}
                             {activeTab === 'Founders' && <th style={{ padding: '1.25rem', color: '#667777', fontSize: '12px', textTransform: 'uppercase' }}>SUBMITTED DATE</th>}
                             <th style={{ padding: '1.25rem', color: '#667777', fontSize: '12px', textTransform: 'uppercase' }}>{activeTab === 'Founders' ? 'SOCIAL LINKS' : 'STATUS'}</th>
-                            {activeTab === 'Founders' && <th style={{ padding: '1.25rem', color: '#667777', fontSize: '12px', textTransform: 'uppercase', textAlign: 'right' }}>ACTIONS</th>}
                         </tr>
                     </thead>
                     <tbody>
@@ -2404,19 +1762,17 @@ const Admin = () => {
                     <div 
                         onMouseDown={startResizing}
                         style={{ 
-                            position: 'absolute', right: '-2px', top: 0, bottom: 0, width: '6px', 
-                            cursor: 'col-resize', 
-                            backgroundColor: isResizing ? '#007aff' : 'transparent', 
-                            transition: 'all 0.2s', zIndex: 100,
-                            borderRight: isResizing ? 'none' : '2px solid rgba(0,0,0,0.1)'
+                            position: 'absolute', right: 0, top: 0, bottom: 0, width: '10px', 
+                            cursor: 'col-resize', backgroundColor: isResizing ? 'rgba(0,122,255,0.4)' : 'transparent', 
+                            transition: 'background-color 0.2s', zIndex: 100 
                         }}
-                        onMouseEnter={e => { if(!isResizing) { e.currentTarget.style.backgroundColor = 'rgba(0,122,255,0.1)'; e.currentTarget.style.width = '10px'; } }}
-                        onMouseLeave={e => { if(!isResizing) { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.width = '6px'; } }}
+                        onMouseEnter={e => { if(!isResizing) e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.02)' }}
+                        onMouseLeave={e => { if(!isResizing) e.currentTarget.style.backgroundColor = 'transparent' }}
                     />
                     {isResizing && (
                         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 99, cursor: 'col-resize' }} />
                     )}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '1.25rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
                         <div>
                             <h4 style={{ margin: 0, fontWeight: '900', fontSize: '1.1rem', letterSpacing: '-0.02em' }}>External Founders ({externalFounders.length})</h4>
                             <div style={{ fontSize: '10px', color: '#888', fontWeight: '700', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '4px' }}>
@@ -2424,42 +1780,25 @@ const Admin = () => {
                                 CLOUD REGISTRY ACTIVE
                             </div>
                         </div>
-                        <div style={{ display: 'flex', gap: '10px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                             <button 
-                                onClick={handleSyncAllGmail}
-                                disabled={isSyncingAll}
-                                style={{ 
-                                    width: '135px', height: '36px', borderRadius: '12px', border: '1px solid #000', 
-                                    background: '#000', color: '#fff', fontSize: '11px', fontWeight: '900', 
-                                    cursor: isSyncingAll ? 'not-allowed' : 'pointer', display: 'flex', 
-                                    alignItems: 'center', justifyContent: 'center', gap: '8px', 
-                                    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)', opacity: isSyncingAll ? 0.7 : 1, 
-                                    boxShadow: isSyncingAll ? 'none' : '0 4px 12px rgba(0,0,0,0.1)',
-                                    flexShrink: 0
+                                onClick={() => {
+                                    setConfirmConfig({
+                                        title: "Sync with your Gmail Sent folder? This will import your external communication history into these threads. (Requires Gmail API Setup)",
+                                        onConfirm: () => {
+                                            setToastMessage("Architectural Setup Required: Gmail API Client ID must be configured in Settings to enable sync.");
+                                            setShowToast(true);
+                                            setTimeout(() => setShowToast(false), 4000);
+                                        }
+                                    });
+                                    setShowConfirmModal(true);
                                 }}
-                                onMouseEnter={e => { if(!isSyncingAll) { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 6px 20px rgba(0,0,0,0.15)'; } }}
-                                onMouseLeave={e => { if(!isSyncingAll) { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)'; } }}
+                                style={{ padding: '7px 12px', borderRadius: '10px', border: '1px solid #ea4335', background: 'rgba(234, 67, 53, 0.05)', color: '#ea4335', fontSize: '10px', fontWeight: '900', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', transition: 'all 0.2s' }}
+                                onMouseEnter={e => { e.currentTarget.style.background = 'rgba(234, 67, 53, 0.1)'; e.currentTarget.style.transform = 'translateY(-1px)'; }}
+                                onMouseLeave={e => { e.currentTarget.style.background = 'rgba(234, 67, 53, 0.05)'; e.currentTarget.style.transform = 'translateY(0)'; }}
                             >
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ animation: isSyncingAll ? 'spin 1s linear infinite' : 'none', flexShrink: 0 }}><path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
-                                <span style={{ whiteSpace: 'nowrap' }}>{isSyncingAll ? 'SYNCING...' : 'SYNC ALL'}</span>
-                            </button>
-                            <button 
-                                onClick={handleSyncGmail}
-                                disabled={isSyncingIndividual}
-                                style={{ 
-                                    width: '135px', height: '36px', borderRadius: '12px', border: '1px solid #ea4335', 
-                                    background: isSyncingIndividual ? '#ea4335' : 'rgba(234, 67, 53, 0.05)', 
-                                    color: isSyncingIndividual ? '#fff' : '#ea4335', fontSize: '11px', 
-                                    fontWeight: '900', cursor: isSyncingIndividual ? 'not-allowed' : 'pointer', 
-                                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', 
-                                    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                                    flexShrink: 0
-                                }}
-                                onMouseEnter={e => { if(!isSyncingIndividual) { e.currentTarget.style.background = 'rgba(234, 67, 53, 0.1)'; e.currentTarget.style.transform = 'translateY(-2px)'; } }}
-                                onMouseLeave={e => { if(!isSyncingIndividual) { e.currentTarget.style.background = 'rgba(234, 67, 53, 0.05)'; e.currentTarget.style.transform = 'translateY(0)'; } }}
-                            >
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ animation: isSyncingIndividual ? 'spin 1s linear infinite' : 'none', flexShrink: 0 }}><path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
-                                <span style={{ whiteSpace: 'nowrap' }}>{isSyncingIndividual ? 'SYNCING...' : 'SYNC'}</span>
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
+                                SYNC GMAIL
                             </button>
                         </div>
                     </div>
@@ -2497,6 +1836,14 @@ const Admin = () => {
 
                             {externalFounders.length > 0 && (
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                    {selectedFounderIds.length > 0 && (
+                                        <button 
+                                            onClick={handleRemoveSelectedFounders}
+                                            style={{ background: '#ff3b30', border: 'none', color: '#fff', fontSize: '10px', fontWeight: '800', cursor: 'pointer', padding: '6px 10px', borderRadius: '8px', animation: 'fadeInRight 0.3s' }}
+                                        >
+                                            Delete ({selectedFounderIds.length})
+                                        </button>
+                                    )}
                                     <div 
                                         onClick={toggleSelectAll}
                                         style={{ 
@@ -2510,14 +1857,6 @@ const Admin = () => {
                                     >
                                         {selectedFounderIds.length > 0 && selectedFounderIds.length === externalFounders.filter(f => f.email.toLowerCase().includes(founderSearch.toLowerCase()) || (f.name && f.name.toLowerCase().includes(founderSearch.toLowerCase()))).length && <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>}
                                     </div>
-                                    {selectedFounderIds.length > 0 && (
-                                        <button 
-                                            onClick={handleRemoveSelectedFounders}
-                                            style={{ background: '#ff3b30', border: 'none', color: '#fff', fontSize: '10px', fontWeight: '800', cursor: 'pointer', padding: '6px 10px', borderRadius: '8px', animation: 'fadeInRight 0.3s' }}
-                                        >
-                                            Delete ({selectedFounderIds.length})
-                                        </button>
-                                    )}
                                 </div>
                             )}
                         </div>
@@ -2627,7 +1966,7 @@ const Admin = () => {
                         {filteredFounders.slice(0, visibleExternalCount).map((u, i) => (
                             <div 
                                 key={u.id} 
-                                onClick={() => setSelectedExternalFounder(u)}
+                                onClick={() => { setSelectedExternalFounder(u); fetchFounderMessages(u.email); }}
                                 style={{ 
                                     display: 'flex', alignItems: 'flex-start', gap: '12px', padding: '16px 12px', 
                                     border: '1px solid rgba(0,0,0,0.05)', cursor: 'pointer',
@@ -2653,6 +1992,20 @@ const Admin = () => {
                                     >
                                         {selectedFounderIds.includes(u.id) && <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>}
                                     </div>
+                                    {u.replyCount > 0 && (
+                                        <div style={{ 
+                                            position: 'absolute', top: '-8px', left: '-8px', 
+                                            backgroundColor: '#ff3b30', color: '#fff', 
+                                            fontSize: '9px', fontWeight: '900', 
+                                            minWidth: '16px', height: '16px', borderRadius: '8px', 
+                                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                            padding: '0 4px', boxShadow: '0 2px 5px rgba(255,59,48,0.4)',
+                                            zIndex: 2,
+                                            border: '2px solid #fff'
+                                        }}>
+                                            {u.replyCount}
+                                        </div>
+                                    )}
                                 </div>
                                 <div style={{ fontSize: '11px', fontWeight: '800', color: '#888', width: '22px', flexShrink: 0, marginTop: '4px' }}>
                                     {i + 1}.
@@ -2668,31 +2021,14 @@ const Admin = () => {
                                         <div style={{ fontSize: '11px', color: '#ff9500', fontWeight: '600', backgroundColor: 'rgba(255,149,0,0.05)', padding: '2px 6px', borderRadius: '4px' }}>
                                             External
                                         </div>
-                                        <div style={{ position: 'relative' }}>
-                                            <button 
-                                                onClick={(e) => { e.stopPropagation(); handleRemoveExternalFounder(u.email); }}
-                                                style={{ background: 'none', border: 'none', color: '#ff3b30', fontSize: '10px', fontWeight: '700', cursor: 'pointer', opacity: 0.6 }}
-                                                onMouseEnter={e => e.currentTarget.style.opacity = 1}
-                                                onMouseLeave={e => e.currentTarget.style.opacity = 0.6}
-                                            >
-                                                Remove
-                                            </button>
-                                            {u.replyCount > 0 && (
-                                                <div style={{ 
-                                                    position: 'absolute', top: '-18px', right: '20px', 
-                                                    backgroundColor: '#ff3b30', color: '#fff', 
-                                                    fontSize: '9px', fontWeight: '900', 
-                                                    minWidth: '16px', height: '16px', borderRadius: '8px', 
-                                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                                    padding: '0 4px', boxShadow: '0 2px 5px rgba(255,59,48,0.4)',
-                                                    zIndex: 2,
-                                                    border: '2px solid #fff',
-                                                    pointerEvents: 'none'
-                                                }}>
-                                                    {u.replyCount}
-                                                </div>
-                                            )}
-                                        </div>
+                                        <button 
+                                            onClick={(e) => { e.stopPropagation(); handleRemoveExternalFounder(u.email); }}
+                                            style={{ background: 'none', border: 'none', color: '#ff3b30', fontSize: '10px', fontWeight: '700', cursor: 'pointer', opacity: 0.6 }}
+                                            onMouseEnter={e => e.currentTarget.style.opacity = 1}
+                                            onMouseLeave={e => e.currentTarget.style.opacity = 0.6}
+                                        >
+                                            Remove
+                                        </button>
                                     </div>
                                 </div>
                             </div>
@@ -2701,8 +2037,8 @@ const Admin = () => {
                 </div>
                 {selectedExternalFounder ? (
                     /* Individual Chat Interface */
-                    <div className="glass-card" style={{ flex: 1, padding: '1.25rem 2.5rem 1rem 2.5rem', borderRadius: '0', height: 'calc(100vh - 20px)', display: 'flex', flexDirection: 'column', position: 'relative' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '0.75rem' }}>
+                    <div className="glass-card" style={{ flex: 1, padding: '2.5rem', borderRadius: '0', height: 'calc(100vh - 20px)', display: 'flex', flexDirection: 'column', position: 'relative' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '2rem' }}>
                             <button 
                                 onClick={() => {
                                     setSelectedExternalFounder(null);
@@ -2712,23 +2048,14 @@ const Admin = () => {
                             >
                                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
                             </button>
-                            <div style={{ flex: 1 }}>
+                            <div>
                                 <h3 style={{ margin: 0, fontWeight: '800', fontSize: '1.25rem' }}>{selectedExternalFounder.name}</h3>
                                 <div style={{ fontSize: '13px', color: '#666' }}>{selectedExternalFounder.email}</div>
                             </div>
-                            <button 
-                                onClick={handleClearMessages}
-                                style={{ background: 'transparent', border: '1px solid #ddd', color: '#666', fontSize: '10px', padding: '6px 12px', borderRadius: '8px', cursor: 'pointer', fontWeight: '800' }}
-                            >
-                                CLEAR SYNC
-                            </button>
                         </div>
 
                         {/* Messages Thread */}
-                        <div 
-                            ref={messagesContainerRef}
-                            style={{ flex: 1, overflowY: 'auto', padding: '1rem', backgroundColor: 'rgba(0,0,0,0.02)', borderRadius: '16px', marginBottom: '0.5rem', display: 'flex', flexDirection: 'column', gap: '12px' }}
-                        >
+                        <div style={{ flex: 1, overflowY: 'auto', padding: '1rem', backgroundColor: 'rgba(0,0,0,0.02)', borderRadius: '16px', marginBottom: '1.5rem', display: 'flex', flexDirection: 'column', gap: '12px' }}>
                             {founderMessages.length === 0 && (
                                 <div style={{ textAlign: 'center', padding: '3rem 1rem' }}>
                                     <div style={{ fontSize: '40px', marginBottom: '1rem' }}>✉️</div>
@@ -2737,238 +2064,100 @@ const Admin = () => {
                                 </div>
                             )}
                             {founderMessages.map((m, idx) => (
-                                <div key={idx} 
-                                    className="message-bubble-container"
-                                    style={{ 
-                                        alignSelf: m.sender === 'admin' ? 'flex-end' : 'flex-start',
-                                        maxWidth: '80%', 
-                                        padding: '16px', 
-                                        borderRadius: '24px', 
-                                        backgroundColor: m.sender === 'admin' ? 'rgba(99, 0, 221, 0.08)' : '#f5f5f7', 
-                                        backdropFilter: m.sender === 'admin' ? 'blur(10px)' : 'none',
-                                        color: '#000',
-                                        border: m.sender === 'admin' ? '1px solid rgba(99, 0, 221, 0.15)' : '1px solid rgba(0,0,0,0.05)',
-                                        boxShadow: m.sender === 'admin' ? '0 4px 12px rgba(99, 0, 221, 0.05)' : '0 2px 8px rgba(0,0,0,0.05)',
-                                        position: 'relative'
-                                    }}
-                                    onMouseEnter={e => {
-                                        const btn = e.currentTarget.querySelector('.msg-menu-btn');
-                                        if (btn) btn.style.opacity = '1';
-                                    }}
-                                    onMouseLeave={e => {
-                                        const btn = e.currentTarget.querySelector('.msg-menu-btn');
-                                        const menu = e.currentTarget.querySelector('.msg-dropdown-menu');
-                                        if (btn) btn.style.opacity = '0';
-                                        if (menu) menu.style.display = 'none';
-                                    }}
-                                >
-                                    <div 
-                                        className="msg-menu-btn"
-                                        style={{ position: 'absolute', top: '-10px', left: '-10px', opacity: '0', transition: 'opacity 0.2s', zIndex: 10 }}
-                                    >
-                                        <div 
-                                            style={{ position: 'relative' }}
-                                            onMouseEnter={e => {
-                                                const menu = e.currentTarget.querySelector('.msg-dropdown-menu');
-                                                if (menu) menu.style.display = 'block';
-                                            }}
-                                            onMouseLeave={e => {
-                                                const menu = e.currentTarget.querySelector('.msg-dropdown-menu');
-                                                if (menu) menu.style.display = 'none';
-                                            }}
-                                        >
-                                            <button 
-                                                style={{ background: '#fff', border: '1px solid rgba(0,0,0,0.1)', borderRadius: '50%', width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', boxShadow: '0 2px 5px rgba(0,0,0,0.1)', color: '#000' }}
-                                            >
-                                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="1"></circle><circle cx="12" cy="5" r="1"></circle><circle cx="12" cy="19" r="1"></circle></svg>
-                                            </button>
-                                            <div 
-                                                className="msg-dropdown-menu"
-                                                style={{ display: 'none', position: 'absolute', top: '100%', left: '0', paddingTop: '10px', background: 'transparent', zIndex: 100 }}
-                                            >
-                                                <div style={{ background: '#fff', borderRadius: '12px', boxShadow: '0 10px 30px rgba(0,0,0,0.2)', overflow: 'hidden', minWidth: '160px', border: '1px solid rgba(0,0,0,0.05)' }}>
-                                                    {m.gmailId ? (
-                                                        <button 
-                                                            onClick={(e) => { e.stopPropagation(); handleDeleteMessage(m.gmailId); }}
-                                                            style={{ display: 'block', width: '100%', padding: '12px 16px', background: 'transparent', border: 'none', color: '#ff3b30', fontSize: '12px', fontWeight: '800', cursor: 'pointer', textAlign: 'left', whiteSpace: 'nowrap', transition: 'background 0.2s' }}
-                                                            onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgba(255,59,48,0.08)'}
-                                                            onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
-                                                        >
-                                                            Delete from Gmail
-                                                        </button>
-                                                    ) : (
-                                                        <button 
-                                                            onClick={(e) => { e.stopPropagation(); handleLocalDeleteMessage(m.id); }}
-                                                            style={{ display: 'block', width: '100%', padding: '12px 16px', background: 'transparent', border: 'none', color: '#ff3b30', fontSize: '12px', fontWeight: '800', cursor: 'pointer', textAlign: 'left', whiteSpace: 'nowrap', transition: 'background 0.2s' }}
-                                                            onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgba(255,59,48,0.08)'}
-                                                            onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
-                                                        >
-                                                            Delete Message
-                                                        </button>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-
+                                <div key={idx} style={{ 
+                                    alignSelf: m.sender === 'admin' ? 'flex-end' : 'flex-start',
+                                    maxWidth: '80%',
+                                    padding: '12px 16px',
+                                    borderRadius: m.sender === 'admin' ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
+                                    backgroundColor: m.sender === 'admin' ? '#000' : '#fff',
+                                    color: m.sender === 'admin' ? '#fff' : '#000',
+                                    boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
+                                    position: 'relative'
+                                }}>
                                     {m.subject && <div style={{ fontSize: '11px', fontWeight: '800', marginBottom: '4px', textTransform: 'uppercase', opacity: 0.7 }}>{m.subject}</div>}
                                     {m.imageUrl && (
                                         <img 
                                             src={m.imageUrl} 
                                             alt="attachment" 
-                                            style={{ maxWidth: '240px', maxHeight: '240px', objectFit: 'cover', borderRadius: '12px', marginTop: '4px', cursor: 'pointer', border: '1px solid rgba(0,0,0,0.1)' }} 
+                                            style={{ maxWidth: '100%', borderRadius: '12px', marginTop: '4px', cursor: 'pointer', border: '1px solid rgba(255,255,255,0.1)' }} 
                                             onClick={() => window.open(m.imageUrl, '_blank')}
                                         />
                                     )}
-                                    <div style={{ fontSize: '14px', fontWeight: '500', lineHeight: '1.5', wordBreak: 'break-word' }}>
-                                        {m.text.split(/(https?:\/\/[^\s]+)/g).map((part, i) => {
-                                            if (part.match(/https?:\/\/[^\s]+/)) {
-                                                return <a key={i} href={part} target="_blank" rel="noopener noreferrer" style={{ color: m.sender === 'admin' ? '#6300dd' : '#007aff', textDecoration: 'underline', fontWeight: '700' }}>{part}</a>;
-                                            }
-                                            return part;
-                                        })}
-                                    </div>
-                                    <div style={{ fontSize: '10px', color: m.sender === 'admin' ? 'rgba(99,0,221,0.6)' : '#999', marginTop: '6px', textAlign: 'right' }}>
-                                        <span>{new Date(m.timestamp).toLocaleString([], { hour: '2-digit', minute: '2-digit', month: 'short', day: 'numeric' })}</span>
+                                    <div style={{ fontSize: '14px', fontWeight: '500', lineHeight: '1.5' }}>{m.text}</div>
+                                    <div style={{ fontSize: '10px', color: m.sender === 'admin' ? 'rgba(255,255,255,0.6)' : '#999', marginTop: '6px', textAlign: 'right' }}>
+                                        {new Date(m.timestamp).toLocaleString([], { hour: '2-digit', minute: '2-digit', month: 'short', day: 'numeric' })}
                                     </div>
                                 </div>
                             ))}
                         </div>
 
-                        {!isWritingMail ? (
-                            <div 
-                                style={{ position: 'absolute', bottom: '20px', right: '24px', zIndex: 50 }}
-                                onMouseEnter={() => setShowMailMenu(true)}
-                                onMouseLeave={() => setShowMailMenu(false)}
-                            >
-                                {/* Options Menu — styled like landing page nav dropdown */}
-                                <div style={{ 
-                                    position: 'absolute', bottom: '66px', right: '0',
-                                    opacity: showMailMenu ? '1' : '0', 
-                                    transform: showMailMenu ? 'translateY(0)' : 'translateY(10px)', 
-                                    pointerEvents: showMailMenu ? 'auto' : 'none',
-                                    transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-                                    /* Landing page dropdown styles */
-                                    background: 'rgba(255, 255, 255, 0.72)',
-                                    minWidth: '220px',
-                                    boxShadow: '0 10px 40px rgba(0,0,0,0.12)',
-                                    padding: '0.75rem 0',
-                                    borderRadius: '12px',
-                                    border: '1px solid rgba(255, 255, 255, 0.4)',
-                                    backdropFilter: 'blur(32px) saturate(200%)',
-                                    WebkitBackdropFilter: 'blur(32px) saturate(200%)',
-                                }}>
-                                    {/* Compose Email */}
-                                    <button 
-                                        onClick={() => { setIsWritingMail(true); setShowMailMenu(false); }}
-                                        style={{ 
-                                            display: 'flex', alignItems: 'center', gap: '10px',
-                                            width: '100%', background: 'transparent', border: 'none',
-                                            padding: '0.65rem 1.25rem',
-                                            margin: '0.2rem 0',
-                                            cursor: 'pointer', fontSize: '0.95rem', fontWeight: '500', 
-                                            color: '#444', whiteSpace: 'nowrap',
-                                            borderRadius: '8px',
-                                            transition: 'all 0.2s ease',
-                                            textAlign: 'left',
-                                        }}
-                                        onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'rgba(99, 0, 221, 0.08)'; e.currentTarget.style.color = '#ff6600'; e.currentTarget.style.boxShadow = '0 4px 15px rgba(99, 0, 221, 0.05)'; }}
-                                        onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = '#444'; e.currentTarget.style.boxShadow = 'none'; }}
-                                    >
-                                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
-                                        Compose Email
-                                    </button>
-
-                                    {/* Divider */}
-                                    <div style={{ height: '1px', background: 'rgba(0,0,0,0.06)', margin: '0.25rem 0.75rem' }} />
-
-                                    {/* Saved Draft */}
-                                    <button 
-                                        onClick={() => { setIsWritingMail(true); setShowMailMenu(false); }}
-                                        style={{ 
-                                            display: 'flex', alignItems: 'center', gap: '10px',
-                                            width: '100%', background: 'transparent', border: 'none',
-                                            padding: '0.65rem 1.25rem',
-                                            margin: '0.2rem 0',
-                                            cursor: 'pointer', fontSize: '0.95rem', fontWeight: '500', 
-                                            color: '#444', whiteSpace: 'nowrap',
-                                            borderRadius: '8px',
-                                            transition: 'all 0.2s ease',
-                                            textAlign: 'left',
-                                        }}
-                                        onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'rgba(99, 0, 221, 0.08)'; e.currentTarget.style.color = '#ff6600'; e.currentTarget.style.boxShadow = '0 4px 15px rgba(99, 0, 221, 0.05)'; }}
-                                        onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = '#444'; e.currentTarget.style.boxShadow = 'none'; }}
-                                    >
-                                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v14a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
-                                        Saved Draft
-                                        {draftMemory.current[selectedExternalFounder?.email]?.text && (
-                                            <span style={{ 
-                                                background: '#6300dd', color: '#fff', 
-                                                borderRadius: '50%', width: '18px', height: '18px', 
-                                                fontSize: '10px', fontWeight: '900', 
-                                                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                                marginLeft: 'auto', flexShrink: 0
-                                            }}>1</span>
-                                        )}
-                                    </button>
-                                </div>
-
-                                {/* Transparent bridge covers gap between menu and FAB so hover doesn't drop */}
-                                <div style={{ 
-                                    position: 'absolute', bottom: '56px', right: '0', 
-                                    width: '200px', height: '16px', 
-                                    background: 'transparent' 
-                                }} />
-
-                                {/* FAB Button */}
+                        {/* Input Area */}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', padding: '4px' }}>
+                            <input 
+                                value={individualMailSubject}
+                                onChange={e => setIndividualMailSubject(e.target.value)}
+                                placeholder="Subject (Optional)"
+                                style={{ width: '100%', padding: '12px 16px', borderRadius: '12px', border: '1px solid rgba(0,0,0,0.1)', fontSize: '14px', fontWeight: '600', outline: 'none' }}
+                                onFocus={e => e.currentTarget.style.borderColor = '#000'}
+                                onBlur={e => e.currentTarget.style.borderColor = 'rgba(0,0,0,0.1)'}
+                            />
+                            <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-end' }}>
+                                <textarea 
+                                    value={individualMailText}
+                                    onChange={e => setIndividualMailText(e.target.value)}
+                                    placeholder="Type your message here..."
+                                    style={{ flex: 1, minHeight: '100px', padding: '14px', borderRadius: '16px', border: '1px solid rgba(0,0,0,0.1)', fontSize: '14px', fontFamily: 'Inter, sans-serif', resize: 'none', outline: 'none' }}
+                                    onFocus={e => e.currentTarget.style.borderColor = '#000'}
+                                    onBlur={e => e.currentTarget.style.borderColor = 'rgba(0,0,0,0.1)'}
+                                />
+                                <input 
+                                    type="file" 
+                                    id="image-upload-input" 
+                                    hidden 
+                                    accept="image/*" 
+                                    onChange={handleImageUpload} 
+                                />
                                 <button 
-                                    onClick={() => setShowMailMenu(prev => !prev)}
+                                    onClick={() => document.getElementById('image-upload-input').click()}
+                                    disabled={isUploadingImage}
                                     style={{ 
-                                        width: '56px', height: '56px', borderRadius: '50%', 
-                                        background: showMailMenu ? '#000' : 'rgba(255,255,255,0.9)', 
-                                        backdropFilter: 'blur(16px)',
-                                        color: showMailMenu ? '#fff' : '#000', 
-                                        border: '1px solid rgba(0,0,0,0.08)', 
-                                        boxShadow: '0 8px 30px rgba(0,0,0,0.15)', 
-                                        cursor: 'pointer', display: 'flex', alignItems: 'center', 
-                                        justifyContent: 'center', 
-                                        transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                                        transform: showMailMenu ? 'rotate(45deg)' : 'rotate(0deg)'
+                                        width: '56px', height: '56px', borderRadius: '28px', 
+                                        backgroundColor: 'rgba(0,0,0,0.05)', 
+                                        color: '#000', border: 'none', display: 'flex', alignItems: 'center', 
+                                        justifyContent: 'center', cursor: isUploadingImage ? 'not-allowed' : 'pointer',
+                                        transition: 'all 0.2s',
+                                        opacity: isUploadingImage ? 0.5 : 1
                                     }}
                                 >
-                                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                                    {isUploadingImage ? (
+                                        <div style={{ width: '20px', height: '20px', border: '2px solid #ccc', borderTopColor: '#000', borderRadius: '50%', animation: 'spin 1s linear infinite' }}></div>
+                                    ) : (
+                                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
+                                    )}
+                                </button>
+                                <button 
+                                    onClick={handleSendIndividualMail}
+                                    disabled={!individualMailText.trim()}
+                                    style={{ 
+                                        width: '56px', height: '56px', borderRadius: '28px', 
+                                        backgroundColor: individualMailText.trim() ? '#000' : '#ccc', 
+                                        color: '#fff', border: 'none', display: 'flex', alignItems: 'center', 
+                                        justifyContent: 'center', cursor: individualMailText.trim() ? 'pointer' : 'not-allowed',
+                                        transition: 'all 0.2s',
+                                        boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+                                    }}
+                                    onMouseEnter={e => { if(individualMailText.trim()) e.currentTarget.style.transform = 'scale(1.05)' }}
+                                    onMouseLeave={e => { if(individualMailText.trim()) e.currentTarget.style.transform = 'scale(1)' }}
+                                >
+                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
                                 </button>
                             </div>
-                        ) : (
-                            <MailEditor 
-                                key={`individual-${selectedExternalFounder.email}`}
-                                initialSubject={draftMemory.current[selectedExternalFounder.email]?.subject}
-                                initialText={draftMemory.current[selectedExternalFounder.email]?.text}
-                                onDraftChange={handleDraftChange}
-                                onSend={handleSendIndividualMail}
-                                onCancel={() => {
-                                    draftMemory.current[selectedExternalFounder.email] = { subject: '', text: '', image: null, isWriting: false };
-                                    setPendingImage(null);
-                                    setIsWritingMail(false);
-                                    setToastMessage("Draft discarded");
-                                    setShowToast(true);
-                                    setTimeout(() => setShowToast(false), 2000);
-                                }}
-                                onSaveDraft={() => {
-                                    setIsWritingMail(false);
-                                    setToastMessage("Draft saved");
-                                    setShowToast(true);
-                                    setTimeout(() => setShowToast(false), 2000);
-                                }}
-                                pendingImage={pendingImage}
-                                setPendingImage={setPendingImage}
-                                isUploadingImage={isUploadingImage}
-                                handleImageUpload={handleImageUpload}
-                            />
-                        )}
+                        </div>
                     </div>
                 ) : (
                     <div className="glass-card" style={{ flex: 1, padding: '2rem', borderRadius: '0', position: 'relative', height: 'calc(100vh - 20px)', overflowY: 'auto' }}>
+                        <h3 style={{ margin: '0 0 1.5rem 0', fontWeight: '800', fontSize: '1.5rem' }}>Cold Mail</h3>
+                        
                         <div style={{ marginBottom: '2rem' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '1.5rem', backgroundColor: 'rgba(0,0,0,0.02)', padding: '12px 16px', borderRadius: '12px', width: 'fit-content' }}>
                                 <label style={{ fontSize: '14px', fontWeight: '700', cursor: 'pointer' }} onClick={() => setSendToAll(!sendToAll)}>Send to all External Founders</label>
@@ -3054,69 +2243,76 @@ const Admin = () => {
                             </div>
                         </div>
 
-                        {/* Bulk Action Editor instead of FAB */}
-                        {!isWritingMail ? (
-                            <button 
-                                onClick={() => setIsWritingMail(true)}
-                                style={{ 
-                                    position: 'absolute', 
-                                    bottom: '2rem', 
-                                    right: '2rem', 
-                                    width: '60px', 
-                                    height: '60px', 
-                                    borderRadius: '30px', 
-                                    backgroundColor: '#000', 
-                                    color: '#fff', 
-                                    border: 'none', 
-                                    display: 'flex', 
-                                    alignItems: 'center', 
-                                    justifyContent: 'center', 
-                                    cursor: 'pointer', 
-                                    boxShadow: '0 8px 24px rgba(0,0,0,0.2)',
-                                    transition: 'transform 0.2s',
-                                    zIndex: 100
-                                }}
-                                onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.05)'}
-                                onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
-                                title="Write Mail to All"
-                            >
-                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-                            </button>
-                        ) : (
-                            <MailEditor 
-                                key={`bulk-editor`}
-                                initialSubject={draftMemory.current['bulk']?.subject}
-                                initialText={draftMemory.current['bulk']?.text}
-                                onDraftChange={handleDraftChange}
-                                onSend={handleSendColdMail}
-                                onCancel={() => {
-                                    draftMemory.current['bulk'] = { subject: '', text: '', image: null, isWriting: false };
-                                    setPendingImage(null);
-                                    setIsWritingMail(false);
-                                    setToastMessage("Draft discarded");
-                                    setShowToast(true);
-                                    setTimeout(() => setShowToast(false), 2000);
-                                }}
-                                onSaveDraft={() => {
-                                    setIsWritingMail(false);
-                                    setToastMessage("Draft saved");
-                                    setShowToast(true);
-                                    setTimeout(() => setShowToast(false), 2000);
-                                }}
-                                pendingImage={pendingImage}
-                                setPendingImage={setPendingImage}
-                                isUploadingImage={isUploadingImage}
-                                handleImageUpload={handleImageUpload}
-                            />
-                        )}
+                        {/* FAB */}
+                        <button 
+                            onClick={() => setShowDraftModal(true)}
+                            style={{ 
+                                position: 'absolute', 
+                                bottom: '2rem', 
+                                right: '2rem', 
+                                width: '60px', 
+                                height: '60px', 
+                                borderRadius: '30px', 
+                                backgroundColor: '#000', 
+                                color: '#fff', 
+                                border: 'none', 
+                                display: 'flex', 
+                                alignItems: 'center', 
+                                justifyContent: 'center', 
+                                cursor: 'pointer', 
+                                boxShadow: '0 8px 24px rgba(0,0,0,0.2)',
+                                transition: 'transform 0.2s',
+                                zIndex: 100
+                            }}
+                            onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.05)'}
+                            onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
+                            title="Draft Mail"
+                        >
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                        </button>
                     </div>
                 )}
             </div>
+
+                {/* Draft Modal */}
+                {showDraftModal && (
+                    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, animation: 'fadeInUp 0.2s ease-out' }}>
+                        <div className="glass-card" style={{ width: '600px', maxWidth: '90%', padding: '2.5rem', borderRadius: '24px', backgroundColor: '#fff', boxShadow: '0 20px 60px rgba(0,0,0,0.15)', position: 'relative' }}>
+                            <button onClick={() => setShowDraftModal(false)} style={{ position: 'absolute', top: '1.5rem', right: '1.5rem', background: 'rgba(0,0,0,0.05)', border: 'none', cursor: 'pointer', color: '#666', width: '32px', height: '32px', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'background 0.2s' }} onMouseEnter={e => e.currentTarget.style.background = 'rgba(0,0,0,0.1)'} onMouseLeave={e => e.currentTarget.style.background = 'rgba(0,0,0,0.05)'}>
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                            </button>
+                            <h3 style={{ margin: '0 0 1.5rem 0', fontSize: '1.5rem', fontWeight: '800' }}>Draft Email</h3>
+                            
+                            <input 
+                                value={draftSubject}
+                                onChange={e => setDraftSubject(e.target.value)}
+                                placeholder="Subject" 
+                                style={{ width: '100%', padding: '14px 16px', borderRadius: '12px', border: '1px solid rgba(0,0,0,0.1)', marginBottom: '1rem', fontSize: '15px', fontWeight: '600', outline: 'none', transition: 'border-color 0.2s' }}
+                                onFocus={e => e.currentTarget.style.borderColor = '#000'}
+                                onBlur={e => e.currentTarget.style.borderColor = 'rgba(0,0,0,0.1)'}
+                            />
+                            
+                            <textarea 
+                                value={draftMessage}
+                                onChange={e => setDraftMessage(e.target.value)}
+                                placeholder="Write your message here... (HTML supported)" 
+                                style={{ width: '100%', height: '250px', padding: '16px', borderRadius: '12px', border: '1px solid rgba(0,0,0,0.1)', marginBottom: '1.5rem', fontSize: '14px', resize: 'vertical', fontFamily: 'Inter, sans-serif', outline: 'none', transition: 'border-color 0.2s' }}
+                                onFocus={e => e.currentTarget.style.borderColor = '#000'}
+                                onBlur={e => e.currentTarget.style.borderColor = 'rgba(0,0,0,0.1)'}
+                            />
+                            
+                            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+                                <button onClick={() => setShowDraftModal(false)} style={{ padding: '12px 24px', borderRadius: '10px', border: '1px solid rgba(0,0,0,0.1)', background: '#fff', fontWeight: '700', cursor: 'pointer', transition: 'background 0.2s' }} onMouseEnter={e => e.currentTarget.style.background = 'rgba(0,0,0,0.02)'} onMouseLeave={e => e.currentTarget.style.background = '#fff'}>Cancel</button>
+                                <button onClick={handleSendColdMail} style={{ padding: '12px 28px', borderRadius: '10px', border: 'none', background: '#000', color: '#fff', fontWeight: '700', cursor: 'pointer', transition: 'transform 0.2s', display: 'flex', alignItems: 'center', gap: '8px' }} onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.02)'} onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}>
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+                                    Send Mail
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
             </>
         )}
-        
-        {/* The sync card has been moved outside <main> for layout safety */}
-
         {/* Toast Notification */}
         {showToast && (
           <div style={{ 
@@ -3215,26 +2411,6 @@ const Admin = () => {
                         </div>
                     </div>
 
-                    {syncAccountEmail && (
-                        <div style={{ marginBottom: '2rem', padding: '1.25rem', backgroundColor: 'rgba(52,199,89,0.05)', borderRadius: '16px', border: '1px solid rgba(52,199,89,0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', animation: 'fadeInDown 0.3s' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                <div style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: '#34c759', animation: 'pulse 1.5s infinite' }}></div>
-                                <div>
-                                    <div style={{ fontSize: '10px', fontWeight: '800', color: '#34c759', letterSpacing: '0.05em' }}>AUTHORIZED GMAIL ACCOUNT</div>
-                                    <div style={{ fontSize: '15px', fontWeight: '700', color: '#000' }}>{syncAccountEmail}</div>
-                                </div>
-                            </div>
-                            <button 
-                                onClick={handleDisconnectGmail}
-                                style={{ padding: '8px 16px', background: '#fff', border: '1px solid #ff3b30', color: '#ff3b30', borderRadius: '10px', fontSize: '12px', fontWeight: '800', cursor: 'pointer', transition: 'all 0.2s' }}
-                                onMouseEnter={e => { e.currentTarget.style.background = '#ff3b30'; e.currentTarget.style.color = '#fff'; }}
-                                onMouseLeave={e => { e.currentTarget.style.background = '#fff'; e.currentTarget.style.color = '#ff3b30'; }}
-                            >
-                                DISCONNECT
-                            </button>
-                        </div>
-                    )}
-
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
                         <div>
                             <label style={{ display: 'block', marginBottom: '8px', fontSize: '13px', fontWeight: '800', color: '#1a1a1a', letterSpacing: '0.02em' }}>GMAIL CLIENT ID</label>
@@ -3250,28 +2426,15 @@ const Admin = () => {
 
                         <div>
                             <label style={{ display: 'block', marginBottom: '8px', fontSize: '13px', fontWeight: '800', color: '#1a1a1a', letterSpacing: '0.02em' }}>GMAIL CLIENT SECRET</label>
-                            <div style={{ position: 'relative' }}>
-                                <input 
-                                    type={showGmailSecret ? "text" : "password"}
-                                    value={gmailClientSecret}
-                                    onChange={e => setGmailClientSecret(e.target.value)}
-                                    placeholder="••••••••••••••••••••••••"
-                                    style={{ width: '100%', padding: '14px 50px 14px 18px', borderRadius: '14px', border: '1px solid rgba(0,0,0,0.1)', fontSize: '14px', fontWeight: '600', outline: 'none', transition: 'all 0.2s', backgroundColor: 'rgba(0,0,0,0.02)' }}
-                                    onFocus={e => { e.currentTarget.style.borderColor = '#000'; e.currentTarget.style.backgroundColor = '#fff'; }}
-                                    onBlur={e => { e.currentTarget.style.borderColor = 'rgba(0,0,0,0.1)'; e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.02)'; }}
-                                />
-                                <button 
-                                    type="button"
-                                    onClick={() => setShowGmailSecret(!showGmailSecret)}
-                                    style={{ position: 'absolute', right: '14px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#666', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '4px' }}
-                                >
-                                    {showGmailSecret ? (
-                                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>
-                                    ) : (
-                                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
-                                    )}
-                                </button>
-                            </div>
+                            <input 
+                                type="password"
+                                value={gmailClientSecret}
+                                onChange={e => setGmailClientSecret(e.target.value)}
+                                placeholder="••••••••••••••••••••••••"
+                                style={{ width: '100%', padding: '14px 18px', borderRadius: '14px', border: '1px solid rgba(0,0,0,0.1)', fontSize: '14px', fontWeight: '600', outline: 'none', transition: 'all 0.2s', backgroundColor: 'rgba(0,0,0,0.02)' }}
+                                onFocus={e => { e.currentTarget.style.borderColor = '#000'; e.currentTarget.style.backgroundColor = '#fff'; }}
+                                onBlur={e => { e.currentTarget.style.borderColor = 'rgba(0,0,0,0.1)'; e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.02)'; }}
+                            />
                         </div>
 
                         <div style={{ marginTop: '1rem', padding: '1.25rem', backgroundColor: 'rgba(0,122,255,0.05)', borderRadius: '16px', border: '1px solid rgba(0,122,255,0.1)' }}>
@@ -3288,26 +2451,21 @@ const Admin = () => {
                     <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '2.5rem' }}>
                         <button 
                             onClick={handleSaveSettings}
-                            disabled={isSavingSettings || settingsSaved}
+                            disabled={isSavingSettings}
                             style={{ 
-                                padding: '14px 32px', borderRadius: '16px', border: 'none', 
-                                background: settingsSaved ? '#8e8e93' : '#000', 
-                                color: '#fff', 
-                                fontWeight: '800', fontSize: '14px', cursor: (isSavingSettings || settingsSaved) ? 'not-allowed' : 'pointer', 
-                                transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)', 
-                                display: 'flex', alignItems: 'center', gap: '10px', boxShadow: settingsSaved ? '0 10px 25px rgba(0,0,0,0.05)' : '0 10px 25px rgba(0,0,0,0.1)' 
+                                padding: '14px 32px', borderRadius: '16px', border: 'none', background: '#000', color: '#fff', 
+                                fontWeight: '800', fontSize: '14px', cursor: 'pointer', transition: 'all 0.2s', 
+                                display: 'flex', alignItems: 'center', gap: '10px', boxShadow: '0 10px 25px rgba(0,0,0,0.1)' 
                             }}
-                            onMouseEnter={e => { if(!isSavingSettings && !settingsSaved) e.currentTarget.style.transform = 'translateY(-2px)' }}
-                            onMouseLeave={e => { if(!isSavingSettings && !settingsSaved) e.currentTarget.style.transform = 'translateY(0)' }}
+                            onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-2px)'}
+                            onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}
                         >
                             {isSavingSettings ? (
                                 <div style={{ width: '18px', height: '18px', border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin 1s linear infinite' }}></div>
-                            ) : settingsSaved ? (
-                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
                             ) : (
                                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
                             )}
-                            {isSavingSettings ? 'SAVING...' : settingsSaved ? 'SAVED' : 'SAVE CONFIGURATION'}
+                            {isSavingSettings ? 'SAVING...' : 'SAVE CONFIGURATION'}
                         </button>
                     </div>
                 </div>
@@ -3324,63 +2482,6 @@ const Admin = () => {
             </div>
         )}
       </main>
-
-        {/* Sync All Progress Overlay (Moved outside main to prevent stacking/clipping issues) */}
-        {isSyncingAll && (
-            <div 
-                ref={syncCardRef}
-                style={{ 
-                    position: 'fixed', 
-                    bottom: '2rem', 
-                    right: '2rem', 
-                    width: '350px', 
-                    backgroundColor: '#fff', 
-                    borderRadius: '16px', 
-                    padding: '1.5rem', 
-                    boxShadow: '0 20px 40px rgba(0,0,0,0.15)', 
-                    border: '1px solid rgba(0,0,0,0.05)', 
-                    zIndex: 9999, 
-                    animation: 'slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
-                    transform: `translate(${dragInfo.current?.cardX || 0}px, ${dragInfo.current?.cardY || 0}px)`,
-                    transition: 'transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s',
-                    userSelect: 'none'
-                }}>
-                <button 
-                    onClick={() => setIsSyncingAll(false)}
-                    style={{ 
-                        position: 'absolute', top: '12px', right: '12px', 
-                        width: '28px', height: '28px', borderRadius: '50%', 
-                        background: 'rgba(0,0,0,0.04)', border: 'none', 
-                        display: 'flex', alignItems: 'center', justifyContent: 'center', 
-                        cursor: 'pointer', transition: 'all 0.2s', zIndex: 1000
-                    }}
-                    onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,59,48,0.1)'}
-                    onMouseLeave={e => e.currentTarget.style.background = 'rgba(0,0,0,0.04)'}
-                >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ff3b30" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-                </button>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', marginTop: '12px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#000" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
-                        <span style={{ fontSize: '14px', fontWeight: '800', color: '#000' }}>Cloud Syncing</span>
-                    </div>
-                    <span style={{ fontSize: '14px', fontWeight: '900', color: '#000' }}>{syncProgress}%</span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                    <span style={{ fontSize: '11px', color: '#888', fontWeight: '700' }}>{syncEta ? `Est. time remaining: ${syncEta}` : 'Calculating...'}</span>
-                </div>
-                <div style={{ width: '100%', height: '6px', backgroundColor: '#f0f0f0', borderRadius: '3px', overflow: 'hidden', marginBottom: '12px' }}>
-                    <div style={{ width: `${syncProgress}%`, height: '100%', backgroundColor: '#000', borderRadius: '3px', transition: 'width 0.3s ease' }}></div>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#34c759', animation: 'pulse 1.5s infinite' }}></div>
-                    <span style={{ fontSize: '11px', color: '#666', fontWeight: '600', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        Fetching: {syncCurrentEmail}
-                    </span>
-                </div>
-            </div>
-        )}
-
         {/* Confirmation Modal */}
         {showConfirmModal && (
             <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000, animation: 'fadeIn 0.2s ease-out' }}>
@@ -3416,107 +2517,6 @@ const Admin = () => {
                             onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}
                         >Confirm</button>
                     </div>
-                </div>
-            </div>
-        )}
-
-        {/* Application Detail Page (Full Scale) */}
-        {showAppDetail && selectedApplication && (
-            <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: '#f5f5f7', zIndex: 5000, display: 'flex', flexDirection: 'column', animation: 'fadeIn 0.3s ease-out' }}>
-                <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', position: 'relative', animation: 'fadeInUp 0.4s cubic-bezier(0.16, 1, 0.3, 1)' }}>
-
-                    
-                    {/* Header */}
-                    <div style={{ padding: '1.5rem 4rem', borderBottom: '1px solid rgba(0,0,0,0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#fff', boxShadow: '0 2px 10px rgba(0,0,0,0.02)' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '2rem' }}>
-                            <button 
-                                onClick={() => setShowAppDetail(false)}
-                                style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'none', border: 'none', color: '#007aff', fontWeight: '700', fontSize: '15px', cursor: 'pointer', padding: '8px 12px', borderRadius: '12px', transition: 'all 0.2s' }}
-                                onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgba(0,122,255,0.05)'}
-                                onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
-                            >
-                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
-                                Back to Dashboard
-                            </button>
-                            <div style={{ width: '1px', height: '24px', backgroundColor: '#eee' }}></div>
-                            <div>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                    <h2 style={{ margin: 0, fontWeight: '900', fontSize: '1.5rem', color: '#000', letterSpacing: '-0.02em' }}>{selectedApplication.companyName}</h2>
-                                    <span style={{ 
-                                        padding: '4px 12px', borderRadius: '8px', fontSize: '11px', fontWeight: '800', 
-                                        backgroundColor: selectedApplication.status === 'approved' ? 'rgba(52,199,89,0.1)' : selectedApplication.status === 'hold' ? 'rgba(255,159,10,0.1)' : 'rgba(0,0,0,0.05)',
-                                        color: selectedApplication.status === 'approved' ? '#34c759' : selectedApplication.status === 'hold' ? '#ff9f0a' : '#000',
-                                        textTransform: 'uppercase'
-                                    }}>
-                                        {selectedApplication.status || 'PENDING'}
-                                    </span>
-                                </div>
-                            </div>
-                        </div>
-                        <div style={{ textAlign: 'right' }}>
-                            <p style={{ margin: 0, opacity: 0.5, fontSize: '13px', fontWeight: '600' }}>Submitted by {selectedApplication.userName}</p>
-                            <p style={{ margin: 0, opacity: 0.4, fontSize: '12px', fontWeight: '500' }}>{selectedApplication.userEmail}</p>
-                        </div>
-                    </div>
-
-                    {/* Content */}
-                    <div style={{ flex: 1, overflowY: 'auto', padding: '4rem', maxWidth: '1200px', margin: '0 auto', width: '100%' }}>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '3rem' }}>
-                        
-                        {/* Iterate through application fields */}
-                        {Object.entries(selectedApplication).map(([key, value]) => {
-                            // Skip metadata and internal fields
-                            if (['id', 'status', 'userId', 'submittedAt', 'updatedAt', 'userName', 'userEmail'].includes(key)) return null;
-                            if (typeof value === 'object' && value !== null) return null; // Skip nested objects for now
-
-                            // Format the label
-                            const label = key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase());
-
-                            return (
-                                <div key={key} style={{ animation: 'fadeInUp 0.4s ease-out' }}>
-                                    <h4 style={{ margin: '0 0 8px 0', fontSize: '11px', fontWeight: '900', color: '#667777', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</h4>
-                                    <div style={{ fontSize: '15px', fontWeight: '600', color: '#111', lineHeight: '1.6', backgroundColor: 'rgba(0,0,0,0.02)', padding: '12px 16px', borderRadius: '12px', border: '1px solid rgba(0,0,0,0.02)' }}>
-                                        {value || 'N/A'}
-                                    </div>
-                                </div>
-                            );
-                        })}
-
-                        {/* Special case for longer text fields if they weren't caught in the grid */}
-                        {selectedApplication.description && (
-                            <div style={{ gridColumn: 'span 2', marginTop: '1rem' }}>
-                                <h4 style={{ margin: '0 0 8px 0', fontSize: '11px', fontWeight: '900', color: '#667777', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Full Description</h4>
-                                <div style={{ fontSize: '15px', fontWeight: '500', color: '#333', lineHeight: '1.8', backgroundColor: 'rgba(0,0,0,0.02)', padding: '20px', borderRadius: '16px', border: '1px solid rgba(0,0,0,0.02)', whiteSpace: 'pre-wrap' }}>
-                                    {selectedApplication.description}
-                                </div>
-                            </div>
-                        )}
-                    </div>
-                    </div>
-
-                    {/* Footer Actions */}
-                    {(selectedApplication.status === 'pending' || !selectedApplication.status) && (
-                        <div style={{ padding: '2.5rem 4rem', borderTop: '1px solid rgba(0,0,0,0.05)', display: 'flex', justifyContent: 'center', gap: '1.5rem', background: '#fff' }}>
-                            <button 
-                                onClick={() => { handleAppStatus(selectedApplication.id, 'approved'); setShowAppDetail(false); }}
-                                style={{ padding: '16px 48px', borderRadius: '16px', background: '#007aff', color: '#fff', border: 'none', fontWeight: '800', fontSize: '15px', cursor: 'pointer', transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)', boxShadow: '0 8px 25px rgba(0, 122, 255, 0.2)' }}
-                                onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-3px)'; e.currentTarget.style.boxShadow = '0 12px 30px rgba(0, 122, 255, 0.3)'; }}
-                                onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 8px 25px rgba(0, 122, 255, 0.2)'; }}
-                            >Approve Application</button>
-                            <button 
-                                onClick={() => { handleAppStatus(selectedApplication.id, 'hold'); setShowAppDetail(false); }}
-                                style={{ padding: '16px 32px', borderRadius: '16px', background: 'rgba(255,159,10,0.1)', color: '#ff9f0a', border: '1px solid rgba(255,159,10,0.2)', fontWeight: '800', fontSize: '15px', cursor: 'pointer', transition: 'all 0.2s' }}
-                                onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgba(255,159,10,0.2)'}
-                                onMouseLeave={e => e.currentTarget.style.backgroundColor = 'rgba(255,159,10,0.1)'}
-                            >Hold</button>
-                            <button 
-                                onClick={() => { handleAppStatus(selectedApplication.id, 'rejected'); setShowAppDetail(false); }}
-                                style={{ padding: '16px 32px', borderRadius: '16px', background: 'rgba(255,59,48,0.1)', color: '#ff3b30', border: '1px solid rgba(255,59,48,0.2)', fontWeight: '800', fontSize: '15px', cursor: 'pointer', transition: 'all 0.2s' }}
-                                onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgba(255,59,48,0.2)'}
-                                onMouseLeave={e => e.currentTarget.style.backgroundColor = 'rgba(255,59,48,0.1)'}
-                            >Reject</button>
-                        </div>
-                    )}
                 </div>
             </div>
         )}

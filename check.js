@@ -1,0 +1,10 @@
+const fs = require('fs');
+const code = fs.readFileSync(process.argv[2], 'utf8');
+const lines = code.split('\n');
+let start = lines.findIndex(l => l.includes('<main '));
+let end = lines.findIndex((l, i) => i > start && l.includes('</main>'));
+let block = lines.slice(start, end+1).join('\n');
+block = block.replace(/\{\/\*[\s\S]*?\*\/\}/g, '');
+const openDivs = (block.match(/<div/g) || []).length;
+const closeDivs = (block.match(/<\/[ ]*div>/g) || []).length;
+console.log('Open:', openDivs, 'Close:', closeDivs);
