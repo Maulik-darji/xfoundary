@@ -53,6 +53,9 @@ const Admin = () => {
   const [visibleExternalCount, setVisibleExternalCount] = useState(30);
   const [sidebarWidth, setSidebarWidth] = useState(480);
   const [isResizing, setIsResizing] = useState(false);
+  const [gmailClientId, setGmailClientId] = useState('');
+  const [gmailClientSecret, setGmailClientSecret] = useState('');
+  const [isSavingSettings, setIsSavingSettings] = useState(false);
 
   useEffect(() => {
     if (selectedExternalFounder) {
@@ -624,6 +627,14 @@ const Admin = () => {
         totalMembers: mList.length,
         adminsList
       });
+
+      // Load Gmail Config
+      const gmailDoc = await getDoc(doc(db, 'adminSettings', 'gmailConfig'));
+      if (gmailDoc.exists()) {
+          const data = gmailDoc.data();
+          setGmailClientId(data.clientId || '');
+          setGmailClientSecret(data.clientSecret || '');
+      }
     } catch (e) { console.error(e); }
   };
 
@@ -717,6 +728,25 @@ const Admin = () => {
     } catch (e) { alert(e.message); }
   };
 
+  const handleSaveSettings = async () => {
+    setIsSavingSettings(true);
+    try {
+        await setDoc(doc(db, 'adminSettings', 'gmailConfig'), {
+            clientId: gmailClientId,
+            clientSecret: gmailClientSecret,
+            updatedAt: new Date().toISOString(),
+            updatedBy: profile.name || 'Admin'
+        });
+        setToastMessage("Settings saved successfully.");
+        setShowToast(true);
+        setTimeout(() => setShowToast(false), 3000);
+    } catch (e) {
+        alert("Error saving settings: " + e.message);
+    } finally {
+        setIsSavingSettings(false);
+    }
+  };
+
   const handleRemoveMember = async (uid) => {
       if (window.confirm("Are you sure you want to remove this user from the team?")) {
           try {
@@ -760,6 +790,16 @@ const Admin = () => {
                   const email = recipients[i];
                   setSendingStatus({ current: email, count: i + 1, total: recipients.length });
                   
+                  const docId = email.replace(/[.#$[\]]/g, '_');
+                  const msgData = {
+                      text: draftMessage,
+                      subject: draftSubject,
+                      sender: 'admin',
+                      timestamp: new Date().toISOString()
+                  };
+                  
+                  await addDoc(collection(db, 'externalFounders', docId, 'messages'), msgData);
+
                   await addDoc(collection(db, 'mail'), {
                       to: email,
                       message: {
@@ -1732,9 +1772,37 @@ const Admin = () => {
                     {isResizing && (
                         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 99, cursor: 'col-resize' }} />
                     )}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                        <h4 style={{ margin: 0, fontWeight: '800', fontSize: '1.1rem' }}>External Founders ({externalFounders.length})</h4>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+                        <div>
+                            <h4 style={{ margin: 0, fontWeight: '900', fontSize: '1.1rem', letterSpacing: '-0.02em' }}>External Founders ({externalFounders.length})</h4>
+                            <div style={{ fontSize: '10px', color: '#888', fontWeight: '700', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                <div style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#34c759' }}></div>
+                                CLOUD REGISTRY ACTIVE
+                            </div>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <button 
+                                onClick={() => {
+                                    setConfirmConfig({
+                                        title: "Sync with your Gmail Sent folder? This will import your external communication history into these threads. (Requires Gmail API Setup)",
+                                        onConfirm: () => {
+                                            setToastMessage("Architectural Setup Required: Gmail API Client ID must be configured in Settings to enable sync.");
+                                            setShowToast(true);
+                                            setTimeout(() => setShowToast(false), 4000);
+                                        }
+                                    });
+                                    setShowConfirmModal(true);
+                                }}
+                                style={{ padding: '7px 12px', borderRadius: '10px', border: '1px solid #ea4335', background: 'rgba(234, 67, 53, 0.05)', color: '#ea4335', fontSize: '10px', fontWeight: '900', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', transition: 'all 0.2s' }}
+                                onMouseEnter={e => { e.currentTarget.style.background = 'rgba(234, 67, 53, 0.1)'; e.currentTarget.style.transform = 'translateY(-1px)'; }}
+                                onMouseLeave={e => { e.currentTarget.style.background = 'rgba(234, 67, 53, 0.05)'; e.currentTarget.style.transform = 'translateY(0)'; }}
+                            >
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
+                                SYNC GMAIL
+                            </button>
+                        </div>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '1rem' }}>
                             {/* Backup/Restore Controls */}
                             <div style={{ display: 'flex', gap: '4px', marginRight: '4px' }}>
                                 <button 
@@ -1792,7 +1860,6 @@ const Admin = () => {
                                 </div>
                             )}
                         </div>
-                    </div>
 
                     {/* Filter Menu Bar */}
                     <div style={{ display: 'flex', gap: '6px', marginBottom: '1.25rem', overflowX: 'auto', paddingBottom: '4px', scrollbarWidth: 'none' }}>
@@ -1901,12 +1968,12 @@ const Admin = () => {
                                 key={u.id} 
                                 onClick={() => { setSelectedExternalFounder(u); fetchFounderMessages(u.email); }}
                                 style={{ 
-                                    display: 'flex', alignItems: 'flex-start', gap: '12px', padding: '12px 10px', 
-                                    borderBottom: '1px solid rgba(0,0,0,0.05)', cursor: 'pointer',
+                                    display: 'flex', alignItems: 'flex-start', gap: '12px', padding: '16px 12px', 
+                                    border: '1px solid rgba(0,0,0,0.05)', cursor: 'pointer',
                                     borderRadius: '0',
-                                    backgroundColor: selectedExternalFounder?.id === u.id ? 'rgba(0,0,0,0.05)' : 'transparent',
+                                    backgroundColor: selectedExternalFounder?.id === u.id ? 'rgba(0,0,0,0.06)' : 'rgba(0,0,0,0.015)',
                                     transition: 'all 0.2s',
-                                    marginBottom: '4px',
+                                    marginBottom: '8px',
                                     position: 'relative'
                                 }}
                                 onMouseEnter={e => { if(selectedExternalFounder?.id !== u.id) e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.02)' }}
@@ -2323,6 +2390,94 @@ const Admin = () => {
                         <div style={{ fontSize: '10px', fontWeight: '800', opacity: 0.5, marginBottom: '2px' }}>CURRENT RECIPIENT</div>
                         <div style={{ fontSize: '13px', fontWeight: '600', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{sendingStatus.current}</div>
                     </div>
+                </div>
+            </div>
+        )}
+        {activeTab === 'Settings' && (
+            <div style={{ animation: 'fadeInUp 0.4s ease-out', maxWidth: '800px', margin: '0 auto' }}>
+                <div style={{ marginBottom: '2.5rem' }}>
+                    <h2 style={{ margin: 0, fontWeight: '900', fontSize: '2rem', letterSpacing: '-0.02em' }}>Settings</h2>
+                    <p style={{ margin: '8px 0 0 0', color: '#667777', fontSize: '15px', fontWeight: '500' }}>Configure platform parameters and external integrations</p>
+                </div>
+
+                <div className="glass-card" style={{ padding: '2.5rem', borderRadius: '32px', marginBottom: '2rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '2rem' }}>
+                        <div style={{ width: '40px', height: '40px', backgroundColor: 'rgba(234, 67, 53, 0.1)', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ea4335' }}>
+                            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
+                        </div>
+                        <div>
+                            <h3 style={{ margin: 0, fontWeight: '800', fontSize: '1.25rem' }}>Gmail API Integration</h3>
+                            <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#667777', fontWeight: '600' }}>Required for synchronizing external email history</p>
+                        </div>
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                        <div>
+                            <label style={{ display: 'block', marginBottom: '8px', fontSize: '13px', fontWeight: '800', color: '#1a1a1a', letterSpacing: '0.02em' }}>GMAIL CLIENT ID</label>
+                            <input 
+                                value={gmailClientId}
+                                onChange={e => setGmailClientId(e.target.value)}
+                                placeholder="Enter your Google Cloud Project Client ID..."
+                                style={{ width: '100%', padding: '14px 18px', borderRadius: '14px', border: '1px solid rgba(0,0,0,0.1)', fontSize: '14px', fontWeight: '600', outline: 'none', transition: 'all 0.2s', backgroundColor: 'rgba(0,0,0,0.02)' }}
+                                onFocus={e => { e.currentTarget.style.borderColor = '#000'; e.currentTarget.style.backgroundColor = '#fff'; }}
+                                onBlur={e => { e.currentTarget.style.borderColor = 'rgba(0,0,0,0.1)'; e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.02)'; }}
+                            />
+                        </div>
+
+                        <div>
+                            <label style={{ display: 'block', marginBottom: '8px', fontSize: '13px', fontWeight: '800', color: '#1a1a1a', letterSpacing: '0.02em' }}>GMAIL CLIENT SECRET</label>
+                            <input 
+                                type="password"
+                                value={gmailClientSecret}
+                                onChange={e => setGmailClientSecret(e.target.value)}
+                                placeholder="••••••••••••••••••••••••"
+                                style={{ width: '100%', padding: '14px 18px', borderRadius: '14px', border: '1px solid rgba(0,0,0,0.1)', fontSize: '14px', fontWeight: '600', outline: 'none', transition: 'all 0.2s', backgroundColor: 'rgba(0,0,0,0.02)' }}
+                                onFocus={e => { e.currentTarget.style.borderColor = '#000'; e.currentTarget.style.backgroundColor = '#fff'; }}
+                                onBlur={e => { e.currentTarget.style.borderColor = 'rgba(0,0,0,0.1)'; e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.02)'; }}
+                            />
+                        </div>
+
+                        <div style={{ marginTop: '1rem', padding: '1.25rem', backgroundColor: 'rgba(0,122,255,0.05)', borderRadius: '16px', border: '1px solid rgba(0,122,255,0.1)' }}>
+                            <div style={{ display: 'flex', gap: '12px' }}>
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#007aff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+                                <div>
+                                    <h4 style={{ margin: 0, fontSize: '13px', fontWeight: '800', color: '#007aff' }}>Developer Note</h4>
+                                    <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: '#007aff', opacity: 0.8, lineHeight: '1.5' }}>Ensure that the redirect URI in your Google Cloud Console is set to your production domain and that the Gmail API is enabled for your project.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '2.5rem' }}>
+                        <button 
+                            onClick={handleSaveSettings}
+                            disabled={isSavingSettings}
+                            style={{ 
+                                padding: '14px 32px', borderRadius: '16px', border: 'none', background: '#000', color: '#fff', 
+                                fontWeight: '800', fontSize: '14px', cursor: 'pointer', transition: 'all 0.2s', 
+                                display: 'flex', alignItems: 'center', gap: '10px', boxShadow: '0 10px 25px rgba(0,0,0,0.1)' 
+                            }}
+                            onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-2px)'}
+                            onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}
+                        >
+                            {isSavingSettings ? (
+                                <div style={{ width: '18px', height: '18px', border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin 1s linear infinite' }}></div>
+                            ) : (
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
+                            )}
+                            {isSavingSettings ? 'SAVING...' : 'SAVE CONFIGURATION'}
+                        </button>
+                    </div>
+                </div>
+
+                <div className="glass-card" style={{ padding: '2.5rem', borderRadius: '32px', opacity: 0.6 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '1.5rem' }}>
+                        <div style={{ width: '40px', height: '40px', backgroundColor: 'rgba(0,0,0,0.05)', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+                        </div>
+                        <h3 style={{ margin: 0, fontWeight: '800', fontSize: '1.1rem' }}>General Configuration</h3>
+                    </div>
+                    <p style={{ margin: 0, fontSize: '13px', color: '#666' }}>Advanced system parameters are currently managed via the master CLI. UI controls for feature flags and maintenance mode coming in v2.4.</p>
                 </div>
             </div>
         )}
