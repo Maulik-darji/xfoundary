@@ -148,6 +148,7 @@ const MailEditor = ({
 const Admin = () => {
   const sidebarRef = React.useRef(null);
   const [activeTab, setActiveTab] = useState(localStorage.getItem('xf_admin_active_tab') || 'Overview');
+  const [backupSearch, setBackupSearch] = useState('');
   const [applications, setApplications] = useState([]);
   const [users, setUsers] = useState([]);
   const [members, setMembers] = useState([]);
@@ -361,6 +362,41 @@ const Admin = () => {
   const applyEmailSuggestion = (suggestionObj) => {
     const corrected = coldEmailsText.replace(suggestionObj.original, suggestionObj.suggestion);
     setColdEmailsText(corrected);
+  };
+
+  const getFuzzyBackupSuggestion = () => {
+    if (!backupSearch || backupSearch.length < 2) return null;
+    const q = backupSearch.toLowerCase();
+    const emails = externalFounders.map(f => f.email);
+    
+    // If we have direct matches, no need for fuzzy suggestion
+    if (emails.some(e => e.toLowerCase().includes(q))) return null;
+
+    let bestMatch = null;
+    let highestScore = 0;
+
+    emails.forEach(email => {
+        const target = email.toLowerCase();
+        let matches = 0;
+        let lastIdx = -1;
+        
+        // Check for sequential character matches (not necessarily contiguous)
+        for (let i = 0; i < q.length; i++) {
+            const idx = target.indexOf(q[i], lastIdx + 1);
+            if (idx !== -1) {
+                matches++;
+                lastIdx = idx;
+            }
+        }
+
+        const score = matches / q.length;
+        if (score > 0.8 && score >= highestScore) {
+            highestScore = score;
+            bestMatch = email;
+        }
+    });
+
+    return bestMatch;
   };
 
   const getFuzzySearchSuggestion = () => {
@@ -2320,7 +2356,7 @@ const Admin = () => {
             </div>
         )}
         {activeTab === 'Backup' && (
-            <div className="glass-card" style={{ flex: 1, padding: '2.5rem', borderRadius: '32px', height: 'calc(100vh - 20px)', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+            <div className="glass-card" style={{ flex: 1, padding: '2.5rem', borderRadius: '0', height: 'calc(100vh - 20px)', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
                     <div>
                         <h3 style={{ margin: 0, fontWeight: '900', fontSize: '1.8rem', letterSpacing: '-0.02em' }}>Cloud Backups</h3>
@@ -2362,18 +2398,73 @@ const Admin = () => {
                         </div>
 
                         <div style={{ backgroundColor: '#fff', borderRadius: '16px', padding: '1.5rem', border: '1px solid rgba(0,0,0,0.05)' }}>
-                            <h4 style={{ margin: '0 0 1rem 0', fontSize: '11px', fontWeight: '900', letterSpacing: '0.1em', opacity: 0.4 }}>BACKUP CONTENT ({externalFounders.length} EMAILS)</h4>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+                                <h4 style={{ margin: 0, fontSize: '11px', fontWeight: '900', letterSpacing: '0.1em', opacity: 0.4, textTransform: 'uppercase' }}>BACKUP CONTENT ({externalFounders.length} EMAILS)</h4>
+                                <div style={{ position: 'relative', width: '350px' }}>
+                                    <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                                        <input 
+                                            type="text" 
+                                            placeholder="Search backup emails..."
+                                            value={backupSearch}
+                                            onChange={(e) => setBackupSearch(e.target.value)}
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter') {
+                                                    setBackupSearch('');
+                                                }
+                                            }}
+                                            style={{ 
+                                                width: '100%', padding: '12px 45px 12px 16px', borderRadius: '14px', 
+                                                backgroundColor: 'rgba(0,0,0,0.04)', border: '1px solid rgba(0,0,0,0.05)',
+                                                fontSize: '14px', fontWeight: '700', outline: 'none', transition: 'all 0.2s'
+                                            }}
+                                            onFocus={e => e.currentTarget.style.backgroundColor = '#fff'}
+                                            onBlur={e => e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.04)'}
+                                        />
+                                        <svg style={{ position: 'absolute', right: '14px', color: '#000' }} width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                                    </div>
+                                    {/* Combined Suggestion Logic */}
+                                    {(() => {
+                                        const domainSuggestion = getEmailSuggestion(backupSearch);
+                                        const fuzzyMatch = getFuzzyBackupSuggestion();
+                                        const suggestion = domainSuggestion || (fuzzyMatch ? { original: backupSearch, suggestion: fuzzyMatch } : null);
+                                        
+                                        if (!suggestion) return null;
+                                        
+                                        return (
+                                            <div 
+                                                onClick={() => setBackupSearch(suggestion.suggestion)}
+                                                style={{ 
+                                                    position: 'absolute', top: '100%', left: 0, right: 0, 
+                                                    backgroundColor: '#fff', border: '1px solid rgba(0,0,0,0.1)', 
+                                                    borderRadius: '12px', padding: '10px 14px', marginTop: '8px', 
+                                                    fontSize: '12px', fontWeight: '800', cursor: 'pointer', zIndex: 100,
+                                                    boxShadow: '0 10px 25px rgba(0,0,0,0.1)', animation: 'fadeInDown 0.2s ease-out',
+                                                    display: 'flex', alignItems: 'center', gap: '8px'
+                                                }}
+                                            >
+                                                <div style={{ color: '#007aff', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+                                                    Did you mean
+                                                </div>
+                                                <span style={{ color: '#000', textDecoration: 'underline' }}>{suggestion.suggestion}</span>
+                                            </div>
+                                        );
+                                    })()}
+                                </div>
+                            </div>
+                            
                             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '12px', maxHeight: '400px', overflowY: 'auto', paddingRight: '10px' }}>
-                                {externalFounders.map((f, i) => (
+                                {externalFounders.filter(f => f.email.toLowerCase().includes(backupSearch.toLowerCase())).map((f, i) => (
                                     <div key={i} style={{ padding: '12px 16px', backgroundColor: 'rgba(0,0,0,0.02)', borderRadius: '12px', fontSize: '13px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '12px', border: '1px solid rgba(0,0,0,0.02)' }}>
                                         <span style={{ opacity: 0.3, fontSize: '11px', fontWeight: '800', width: '20px' }}>{i + 1}.</span>
                                         <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: '#000' }}>{f.email}</span>
                                     </div>
                                 ))}
-                                {externalFounders.length === 0 && (
-                                    <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: '4rem', opacity: 0.5, fontWeight: 700 }}>
-                                        <div style={{ fontSize: '40px', marginBottom: '1rem' }}>☁️</div>
-                                        <div>No emails found in the current cloud registry.</div>
+                                {externalFounders.filter(f => f.email.toLowerCase().includes(backupSearch.toLowerCase())).length === 0 && (
+                                    <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: '6rem 2rem', opacity: 0.6, fontWeight: 700 }}>
+                                        <div style={{ fontSize: '64px', marginBottom: '1.5rem', filter: 'grayscale(1)' }}>🔍</div>
+                                        <div style={{ fontSize: '1.1rem', color: '#000' }}>No matching emails found in backup</div>
+                                        <div style={{ fontSize: '13px', color: '#666', marginTop: '8px', fontWeight: '500' }}>Try a different search term or check for typos</div>
                                     </div>
                                 )}
                             </div>
@@ -2417,12 +2508,35 @@ const Admin = () => {
                         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 99, cursor: 'col-resize' }} />
                     )}
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '1.25rem' }}>
-                        <div>
-                            <h4 style={{ margin: 0, fontWeight: '900', fontSize: '1.1rem', letterSpacing: '-0.02em' }}>External Founders ({externalFounders.length})</h4>
-                            <div style={{ fontSize: '10px', color: '#888', fontWeight: '700', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                <div style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#34c759' }}></div>
-                                CLOUD REGISTRY ACTIVE
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                            <div>
+                                <h4 style={{ margin: 0, fontWeight: '900', fontSize: '1.1rem', letterSpacing: '-0.02em' }}>External Founders ({externalFounders.length})</h4>
+                                <div style={{ fontSize: '10px', color: '#888', fontWeight: '700', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                    <div style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#34c759' }}></div>
+                                    CLOUD REGISTRY ACTIVE
+                                </div>
                             </div>
+                            <a 
+                                href={syncAccountEmail ? `https://mail.google.com/mail/?authuser=${syncAccountEmail}` : "https://mail.google.com"} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                style={{ 
+                                    padding: '8px', 
+                                    borderRadius: '10px', 
+                                    backgroundColor: 'rgba(0,0,0,0.03)', 
+                                    color: '#666', 
+                                    display: 'flex', 
+                                    alignItems: 'center', 
+                                    justifyContent: 'center', 
+                                    transition: 'all 0.2s',
+                                    textDecoration: 'none'
+                                }}
+                                onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.08)'; e.currentTarget.style.color = '#000'; }}
+                                onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.03)'; e.currentTarget.style.color = '#666'; }}
+                                title="Open Gmail"
+                            >
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+                            </a>
                         </div>
                         <div style={{ display: 'flex', gap: '10px' }}>
                             <button 

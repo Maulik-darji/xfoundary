@@ -106,10 +106,10 @@ const StartupDetail = () => {
         <div style={{ minHeight: '100vh', backgroundColor: '#fdfdfc', fontFamily: '"Inter", sans-serif', paddingBottom: '10rem' }}>
             <div style={{ maxWidth: '1000px', margin: '0 auto', padding: '4rem 2rem' }}>
                 {/* Breadcrumbs */}
-                <nav style={{ fontSize: '14px', color: '#0073b1', marginBottom: '2rem', fontWeight: '500' }}>
-                    <Link to="/jobs" style={{ color: '#0073b1', textDecoration: 'none' }}>Companies</Link>
-                    <span style={{ margin: '0 8px', color: '#999' }}>/</span>
-                    <span style={{ color: '#333' }}>{startup.name} ({startup.batch})</span>
+                <nav style={{ fontSize: '14px', color: '#666', marginBottom: '2rem', fontWeight: '500' }}>
+                    <Link to="/jobs" style={{ color: '#666', textDecoration: 'none', transition: 'color 0.2s' }} onMouseEnter={e => e.currentTarget.style.color = '#000'} onMouseLeave={e => e.currentTarget.style.color = '#666'}>Companies</Link>
+                    <span style={{ margin: '0 8px', color: '#ccc' }}>/</span>
+                    <span style={{ color: '#000', fontWeight: '700' }}>{startup.name} ({startup.batch})</span>
                 </nav>
 
                 {/* Two-Column YC Layout */}
@@ -119,15 +119,15 @@ const StartupDetail = () => {
                     <div>
                         <div style={{ display: 'flex', gap: '1.5rem', marginBottom: '2.5rem' }}>
                             <div style={{ width: '100px', height: '100px', flexShrink: 0, borderRadius: '16px', border: '1px solid #eee', overflow: 'hidden', boxShadow: '0 4px 12px rgba(0,0,0,0.05)', backgroundColor: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                <img src={startup.logo} alt="" style={{ maxWidth: '80%', maxHeight: '80%', objectFit: 'contain' }} />
+                                <img src={startup.logo} alt="" style={{ maxWidth: '80%', maxHeight: '80%', objectFit: 'contain' }} onError={(e) => e.target.src = `https://api.dicebear.com/7.x/initials/svg?seed=${startup.name}&backgroundColor=6300dd&textColor=ffffff`} />
                             </div>
                             <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
                                 <h1 style={{ fontSize: '32px', fontWeight: '800', margin: '0 0 8px 0', color: '#111' }}>{startup.name}</h1>
                                 <p style={{ fontSize: '18px', color: '#333', margin: '0 0 16px 0', fontWeight: '400', lineHeight: '1.4' }}>{startup.tagline}</p>
                                 
                                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                                    <span style={{ backgroundColor: '#fff0e5', padding: '4px 8px', borderRadius: '4px', fontSize: '11px', color: '#cc5200', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '6px', border: '1px solid #ffe0cc' }}>
-                                        <span style={{ backgroundColor: '#ff6600', color: '#fff', padding: '2px 4px', borderRadius: '2px', fontSize: '10px' }}>Y</span>
+                                    <span style={{ backgroundColor: 'rgba(99, 0, 221, 0.05)', padding: '4px 8px', borderRadius: '4px', fontSize: '11px', color: '#6300dd', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '6px', border: '1px solid rgba(99, 0, 221, 0.1)' }}>
+                                        <span style={{ backgroundColor: '#6300dd', color: '#fff', padding: '2px 5px', borderRadius: '2px', fontSize: '10px', lineHeight: 1 }}>X</span>
                                         {startup.batch.toUpperCase()}
                                     </span>
                                     <span style={{ backgroundColor: '#f0f9f0', padding: '4px 8px', borderRadius: '4px', fontSize: '11px', color: '#1b8032', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '6px', border: '1px solid #e0f2e0' }}>
@@ -160,7 +160,7 @@ const StartupDetail = () => {
                                 </div>
                             </div>
                             {startup.url && (
-                                <a href={startup.url} target="_blank" rel="noopener noreferrer" style={{ paddingBottom: '16px', color: '#0073b1', textDecoration: 'none', fontSize: '14px', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <a href={startup.url} target="_blank" rel="noopener noreferrer" style={{ paddingBottom: '16px', color: '#6300dd', textDecoration: 'none', fontSize: '14px', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '6px' }}>
                                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
                                     {startup.url.replace(/^https?:\/\//, '')}
                                 </a>
@@ -199,8 +199,8 @@ const StartupDetail = () => {
                     <div>
                         <div style={{ backgroundColor: '#fff', border: '1px solid #e0e0e0', borderRadius: '8px', padding: '2rem', boxShadow: '0 4px 12px rgba(0,0,0,0.03)' }}>
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '16px', marginBottom: '2.5rem' }}>
-                                <img src={startup.logo} alt="" style={{ width: '40px', height: '40px', objectFit: 'contain' }} />
-                                <h2 style={{ fontSize: '24px', fontWeight: '800', margin: 0, color: '#ff385c' }}>{startup.name}</h2>
+                                <img src={startup.logo} alt="" style={{ width: '40px', height: '40px', objectFit: 'contain' }} onError={(e) => e.target.src = `https://api.dicebear.com/7.x/initials/svg?seed=${startup.name}&backgroundColor=6300dd&textColor=ffffff`} />
+                                <h2 style={{ fontSize: '24px', fontWeight: '800', margin: 0, color: '#000' }}>{startup.name}</h2>
                             </div>
                             
                             <h3 style={{ fontSize: '18px', fontWeight: '800', color: '#111', margin: '0 0 1.5rem 0' }}>{startup.name}</h3>
@@ -283,14 +283,14 @@ const StartupDetail = () => {
                                             <span>{job.type}</span>
                                         </div>
                                     </div>
-                                    <button style={{ backgroundColor: '#ff6600', color: '#fff', border: 'none', padding: '10px 24px', borderRadius: '6px', fontWeight: '700', fontSize: '14px' }}>Apply</button>
+                                    <button style={{ backgroundColor: '#6300dd', color: '#fff', border: 'none', padding: '10px 24px', borderRadius: '6px', fontWeight: '700', fontSize: '14px', cursor: 'pointer' }}>Apply</button>
                                 </div>
                             ))}
                         </div>
                     ) : (
                         <div style={{ padding: '2rem', backgroundColor: '#fff', border: '1px solid #eee', borderRadius: '4px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <span style={{ color: '#666', fontSize: '16px' }}>No specific jobs listed. You can still apply and we'll let the founders know.</span>
-                            <button onClick={() => navigate('/apply')} style={{ backgroundColor: '#ff6600', color: '#fff', border: 'none', padding: '10px 24px', borderRadius: '6px', fontWeight: '700', fontSize: '14px', cursor: 'pointer' }}>Apply</button>
+                            <button onClick={() => navigate('/apply')} style={{ backgroundColor: '#6300dd', color: '#fff', border: 'none', padding: '10px 24px', borderRadius: '6px', fontWeight: '700', fontSize: '14px', cursor: 'pointer' }}>Apply</button>
                         </div>
                     )}
                 </div>
@@ -301,7 +301,7 @@ const StartupDetail = () => {
                 <div style={{ maxWidth: '1100px', margin: '0 auto', display: 'grid', gridTemplateColumns: '80px 1.2fr 1.2fr 1.5fr 1.2fr', gap: '2rem' }}>
                     {/* Brand Logo */}
                     <div>
-                        <div style={{ backgroundColor: '#ff6600', width: '50px', height: '50px', borderRadius: '4px', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '28px', fontWeight: '900' }}>X</div>
+                        <div style={{ backgroundColor: '#6300dd', width: '50px', height: '50px', borderRadius: '4px', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '28px', fontWeight: '900' }}>X</div>
                     </div>
 
                     {/* Column 1 */}
