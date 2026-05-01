@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { adminAuth as auth, adminDb as db } from '../firebase';
+import { adminAuth as auth, adminDb as db, adminStorage as storage } from '../firebase';
 import { onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
-import { collection, getDocs, doc, getDoc, updateDoc, setDoc, writeBatch, addDoc, deleteDoc } from 'firebase/firestore';
+import { collection, getDocs, doc, getDoc, updateDoc, setDoc, writeBatch, addDoc, deleteDoc, onSnapshot } from 'firebase/firestore';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import Blog from './Blog';
 
 const Admin = () => {
@@ -30,6 +31,305 @@ const Admin = () => {
   const [profile, setProfile] = useState({ name: 'Admin', pin: '000000' });
   const [appFilter, setAppFilter] = useState('approved');
   const [founderLimit, setFounderLimit] = useState(30);
+  const [coldEmailsText, setColdEmailsText] = useState('');
+  const [sendToAll, setSendToAll] = useState(false);
+  const [showDraftModal, setShowDraftModal] = useState(false);
+  const [draftSubject, setDraftSubject] = useState('');
+  const [draftMessage, setDraftMessage] = useState('');
+  const [externalFounders, setExternalFounders] = useState([]);
+  const [selectedExternalFounder, setSelectedExternalFounder] = useState(null);
+  const [founderMessages, setFounderMessages] = useState([]);
+  const [selectedFounderIds, setSelectedFounderIds] = useState([]);
+  const [founderSearch, setFounderSearch] = useState('');
+  const [individualMailSubject, setIndividualMailSubject] = useState('');
+  const [individualMailText, setIndividualMailText] = useState('');
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [confirmConfig, setConfirmConfig] = useState({ title: '', onConfirm: null });
+  const [skipConfirm, setSkipConfirm] = useState(false);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+
+  useEffect(() => {
+    if (selectedExternalFounder) {
+        localStorage.setItem('xf_admin_selected_founder_email', selectedExternalFounder.email);
+    }
+  }, [selectedExternalFounder]);
+
+  useEffect(() => {
+    const savedEmail = localStorage.getItem('xf_admin_selected_founder_email');
+    if (savedEmail && externalFounders.length > 0 && !selectedExternalFounder) {
+        const found = externalFounders.find(f => f.email === savedEmail);
+        if (found) {
+            setSelectedExternalFounder(found);
+            fetchFounderMessages(savedEmail);
+        }
+    }
+  }, [externalFounders]);
+
+  const toggleFounderSelection = (id) => {
+      setSelectedFounderIds(prev => 
+          prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+      );
+  };
+
+  const toggleSelectAll = () => {
+      const filteredIds = externalFounders
+          .filter(f => f.email.toLowerCase().includes(founderSearch.toLowerCase()) || (f.name && f.name.toLowerCase().includes(founderSearch.toLowerCase())))
+          .map(f => f.id);
+          
+      if (selectedFounderIds.length === filteredIds.length) {
+          setSelectedFounderIds([]);
+      } else {
+          setSelectedFounderIds(filteredIds);
+      }
+  };
+
+  const handleRemoveSelectedFounders = async () => {
+      const action = async () => {
+          try {
+              const batch = writeBatch(db);
+              selectedFounderIds.forEach(id => {
+                  batch.delete(doc(db, 'externalFounders', id));
+              });
+              await batch.commit();
+              setSelectedFounderIds([]);
+              setSelectedExternalFounder(null);
+              localStorage.removeItem('xf_admin_selected_founder_email');
+              fetchData();
+              setToastMessage(`Removed ${selectedFounderIds.length} founders from registry.`);
+              setShowToast(true);
+              setTimeout(() => setShowToast(false), 3000);
+          } catch (e) { alert(e.message); }
+      };
+
+      if (skipConfirm) {
+          action();
+      } else {
+          setConfirmConfig({ 
+              title: `Are you sure you want to remove the ${selectedFounderIds.length} selected founders?`, 
+              onConfirm: action 
+          });
+          setShowConfirmModal(true);
+      }
+  };
+
+  const commonDomainTypos = {
+    'gamil.com': 'gmail.com',
+    'hotmial.com': 'hotmail.com',
+    'outlok.com': 'outlook.com',
+    'yaho.com': 'yahoo.com',
+    'gnail.com': 'gmail.com'
+  };
+
+  const getEmailSuggestion = (text) => {
+    const emails = text.split(/[,\n]/).map(e => e.trim());
+    for (let email of emails) {
+        if (!email.includes('@')) continue;
+        const parts = email.split('@');
+        const domain = parts[parts.length - 1];
+        if (commonDomainTypos[domain.toLowerCase()]) {
+            return { original: domain, suggestion: commonDomainTypos[domain.toLowerCase()], fullEmail: email };
+        }
+    }
+    return null;
+  };
+
+  const applyEmailSuggestion = (suggestionObj) => {
+    const corrected = coldEmailsText.replace(suggestionObj.original, suggestionObj.suggestion);
+    setColdEmailsText(corrected);
+  };
+
+  const getFuzzySearchSuggestion = () => {
+      if (!founderSearch || founderSearch.length < 2) return null;
+      const q = founderSearch.toLowerCase();
+      
+      const currentResults = externalFounders.filter(f => 
+          f.email.toLowerCase().includes(q) || 
+          (f.name && f.name.toLowerCase().includes(q))
+      );
+      if (currentResults.length > 0) return null;
+
+      const matches = externalFounders.map(f => {
+          const email = f.email.toLowerCase();
+          const name = (f.name || '').toLowerCase();
+          let score = 0;
+          for (let char of q) {
+              if (email.includes(char)) score++;
+              if (name.includes(char)) score++;
+          }
+          return { founder: f, score: score / (q.length * 1.5) };
+      });
+      matches.sort((a, b) => b.score - a.score);
+      if (matches[0] && matches[0].score > 0.5) return matches[0].founder;
+      return null;
+  };
+
+  const handleAddExternalFounders = async () => {
+      const parsed = coldEmailsText.split(/[,\n]/).map(e => e.trim()).filter(e => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e));
+      if (parsed.length === 0) {
+          alert("No valid emails found to add.");
+          return;
+      }
+      
+      try {
+          const batch = writeBatch(db);
+          parsed.forEach(email => {
+              const docId = email.replace(/[.#$[\]]/g, '_');
+              batch.set(doc(db, 'externalFounders', docId), { 
+                  email, 
+                  name: email.split('@')[0],
+                  createdAt: new Date().toISOString() 
+              });
+          });
+          await batch.commit();
+          setColdEmailsText('');
+          fetchData();
+          setToastMessage(`Added ${parsed.length} external founders to the list.`);
+          setShowToast(true);
+          setTimeout(() => setShowToast(false), 3000);
+      } catch (e) { alert(e.message); }
+  };
+
+  const fetchFounderMessages = (email) => {
+      try {
+          const docId = email.replace(/[.#$[\]]/g, '_');
+          return onSnapshot(collection(db, 'externalFounders', docId, 'messages'), (snap) => {
+              const mList = [];
+              snap.forEach(d => mList.push({ id: d.id, ...d.data() }));
+              mList.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+              setFounderMessages(mList);
+          });
+      } catch (e) { console.error(e); }
+  };
+
+  useEffect(() => {
+      if (selectedExternalFounder) {
+          const unsub = fetchFounderMessages(selectedExternalFounder.email);
+          return () => unsub && unsub();
+      }
+  }, [selectedExternalFounder]);
+
+  const handleSendIndividualMail = async () => {
+      if (!selectedExternalFounder || !individualMailText) return;
+      
+      try {
+          const docId = selectedExternalFounder.email.replace(/[.#$[\]]/g, '_');
+          const msgData = {
+              text: individualMailText,
+              subject: individualMailSubject || "Follow up from X Foundary",
+              sender: 'admin',
+              timestamp: new Date().toISOString()
+          };
+          
+          await addDoc(collection(db, 'externalFounders', docId, 'messages'), msgData);
+          await addDoc(collection(db, 'mail'), {
+              to: selectedExternalFounder.email,
+              message: {
+                  subject: msgData.subject,
+                  html: individualMailText.replace(/\n/g, '<br/>')
+              }
+          });
+          
+          setIndividualMailText('');
+          setIndividualMailSubject('');
+          fetchFounderMessages(selectedExternalFounder.email);
+          setToastMessage("Message sent!");
+          setShowToast(true);
+          setTimeout(() => setShowToast(false), 3000);
+      } catch (e) { alert(e.message); }
+  };
+
+
+  const handleImageUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file || !selectedExternalFounder) return;
+    
+    setIsUploadingImage(true);
+    try {
+        const docId = selectedExternalFounder.email.replace(/[.#$[\]]/g, '_');
+        const storageRef = ref(storage, `externalFounders/${docId}/${Date.now()}_${file.name}`);
+        await uploadBytes(storageRef, file);
+        const url = await getDownloadURL(storageRef);
+        
+        const msgData = {
+            text: `[Image Attachment]`,
+            imageUrl: url,
+            subject: individualMailSubject || "Image attachment from X Foundary",
+            sender: 'admin',
+            timestamp: new Date().toISOString()
+        };
+        
+        await addDoc(collection(db, 'externalFounders', docId, 'messages'), msgData);
+        await addDoc(collection(db, 'mail'), {
+            to: selectedExternalFounder.email,
+            message: {
+                subject: msgData.subject,
+                html: `Sent an image: <br/><img src="${url}" style="max-width: 400px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1);"/>`
+            }
+        });
+        
+        fetchFounderMessages(selectedExternalFounder.email);
+        setIndividualMailSubject('');
+        setToastMessage("Image sent!");
+        setShowToast(true);
+        setTimeout(() => setShowToast(false), 3000);
+    } catch (e) { alert(e.message); }
+    finally { setIsUploadingImage(false); }
+  };
+
+  const handleRemoveExternalFounder = async (email) => {
+      const action = async () => {
+          try {
+              const docId = email.replace(/[.#$[\]]/g, '_');
+              await deleteDoc(doc(db, 'externalFounders', docId));
+              if (selectedExternalFounder?.email === email) {
+                  setSelectedExternalFounder(null);
+                  localStorage.removeItem('xf_admin_selected_founder_email');
+              }
+              fetchData();
+              setToastMessage("Founder removed from registry.");
+              setShowToast(true);
+              setTimeout(() => setShowToast(false), 3000);
+          } catch (e) { alert(e.message); }
+      };
+
+      if (skipConfirm) {
+          action();
+      } else {
+          setConfirmConfig({ 
+              title: `Remove ${email} from registry?`, 
+              onConfirm: action 
+          });
+          setShowConfirmModal(true);
+      }
+  };
+
+  const handleRemoveAllExternalFounders = async () => {
+      const action = async () => {
+          try {
+              const batch = writeBatch(db);
+              externalFounders.forEach(f => {
+                  batch.delete(doc(db, 'externalFounders', f.id));
+              });
+              await batch.commit();
+              setSelectedExternalFounder(null);
+              localStorage.removeItem('xf_admin_selected_founder_email');
+              fetchData();
+              setToastMessage("Entire registry cleared successfully.");
+              setShowToast(true);
+              setTimeout(() => setShowToast(false), 3000);
+          } catch (e) { alert(e.message); }
+      };
+
+      if (skipConfirm) {
+          action();
+      } else {
+          setConfirmConfig({ 
+              title: "ARE YOU SURE? This will delete the ENTIRE external founder registry.", 
+              onConfirm: action 
+          });
+          setShowConfirmModal(true);
+      }
+  };
 
   const navigate = useNavigate();
   const MASTER_SECRET_CODE = "XF-ADMIN-ACCESS-2024";
@@ -129,10 +429,17 @@ const Admin = () => {
       const adminsList = [];
       adminsSnap.forEach(d => adminsList.push({ id: d.id, ...d.data() }));
 
+      const extSnap = await getDocs(collection(db, 'externalFounders'));
+      const extList = [];
+      extSnap.forEach(d => extList.push({ id: d.id, ...d.data() }));
+      extList.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
       const logsSnap = await getDocs(collection(db, 'applicationLogs'));
       const logsList = [];
       logsSnap.forEach(d => logsList.push({ id: d.id, ...d.data() }));
       logsList.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+      setExternalFounders(extList);
 
       setUsers(uList); setMembers(mList); setApplications(aList); setBlogs(bList); setMemberApps(maList); setApplicationLogs(logsList);
       setStats({ 
@@ -255,6 +562,50 @@ const Admin = () => {
       }
   };
 
+  const handleSendColdMail = async () => {
+      if (!draftSubject || !draftMessage) {
+          alert("Please fill in both subject and message.");
+          return;
+      }
+
+      let recipients = [];
+      if (sendToAll) {
+          const manualRecipients = coldEmailsText.split(/[,\n]/).map(e => e.trim()).filter(e => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e));
+          const registryRecipients = externalFounders.map(f => f.email);
+          const combined = new Set([...manualRecipients, ...registryRecipients]);
+          recipients = Array.from(combined);
+      } else {
+          recipients = coldEmailsText.split(/[,\n]/).map(e => e.trim()).filter(e => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e));
+      }
+
+      if (recipients.length === 0) {
+          alert("No valid recipients found.");
+          return;
+      }
+
+      if (window.confirm(`Are you sure you want to send this email to ${recipients.length} recipients?`)) {
+          try {
+              for (const email of recipients) {
+                  await addDoc(collection(db, 'mail'), {
+                      to: email,
+                      message: {
+                          subject: draftSubject,
+                          html: draftMessage
+                      }
+                  });
+              }
+              setToastMessage(`Email successfully queued for ${recipients.length} recipients.`);
+              setShowToast(true);
+              setTimeout(() => setShowToast(false), 3000);
+              setShowDraftModal(false);
+              setDraftSubject('');
+              setDraftMessage('');
+          } catch (e) {
+              alert("Error sending emails: " + e.message);
+          }
+      }
+  };
+
   if (loading) return <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>Loading Admin Portal...</div>;
 
   if (!isAdminAuth) return (
@@ -307,7 +658,7 @@ const Admin = () => {
     </div>
   );
 
-  const TABS = ['Overview', 'Pending Apps', 'Applications', 'Founders', 'Admins', 'Members', 'Blog Approvals', 'Manage Blog', 'XF Blog', 'Member Requests', 'Withdrawn Apps', 'Settings'];
+  const TABS = ['Overview', 'Pending Apps', 'Applications', 'Founders', 'Admins', 'Members', 'Blog Approvals', 'Manage Blog', 'XF Blog', 'Member Requests', 'Withdrawn Apps', 'Cold Mail', 'Settings'];
 
   return (
     <div style={{ display: 'flex', height: '100vh', backgroundColor: '#f0f2f5', fontFamily: 'Inter, sans-serif', overflow: 'hidden', position: 'relative' }}>
@@ -1024,7 +1375,7 @@ const Admin = () => {
                                     <div style={{ fontSize: '12px', color: '#667777' }}>{app.email}</div>
                                 </td>
                                 <td style={{ padding: '1.25rem' }}>{app.reason}</td>
-<td style={{ padding: '1.25rem' }}>
+                                <td style={{ padding: '1.25rem' }}>
                                     {app.status === 'pending' ? (
                                         <div style={{ display: 'flex', gap: '10px' }}>
                                             <button 
@@ -1090,6 +1441,421 @@ const Admin = () => {
                 </table>
             </div>
         )}
+        {activeTab === 'Cold Mail' && (
+            <div style={{ display: 'flex', gap: '0.75rem', animation: 'fadeInUp 0.4s ease-out', minHeight: 'calc(100vh - 100px)' }}>
+                {selectedExternalFounder ? (
+                    /* Individual Chat Interface */
+                    <div className="glass-card" style={{ flex: 1, padding: '2rem', borderRadius: '24px', display: 'flex', flexDirection: 'column', position: 'relative' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '2rem' }}>
+                            <button 
+                                onClick={() => {
+                                    setSelectedExternalFounder(null);
+                                    localStorage.removeItem('xf_admin_selected_founder_email');
+                                }} 
+                                style={{ background: 'rgba(0,0,0,0.05)', border: 'none', borderRadius: '50%', width: '36px', height: '36px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                            >
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+                            </button>
+                            <div>
+                                <h3 style={{ margin: 0, fontWeight: '800', fontSize: '1.25rem' }}>{selectedExternalFounder.name}</h3>
+                                <div style={{ fontSize: '13px', color: '#666' }}>{selectedExternalFounder.email}</div>
+                            </div>
+                        </div>
+
+                        {/* Messages Thread */}
+                        <div style={{ flex: 1, overflowY: 'auto', padding: '1rem', backgroundColor: 'rgba(0,0,0,0.02)', borderRadius: '16px', marginBottom: '1.5rem', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                            {founderMessages.length === 0 && (
+                                <div style={{ textAlign: 'center', padding: '3rem 1rem' }}>
+                                    <div style={{ fontSize: '40px', marginBottom: '1rem' }}>✉️</div>
+                                    <div style={{ color: '#888', fontSize: '14px', fontWeight: '600' }}>No messages in this thread.</div>
+                                    <div style={{ color: '#aaa', fontSize: '12px' }}>Start the conversation by sending a mail.</div>
+                                </div>
+                            )}
+                            {founderMessages.map((m, idx) => (
+                                <div key={idx} style={{ 
+                                    alignSelf: m.sender === 'admin' ? 'flex-end' : 'flex-start',
+                                    maxWidth: '80%',
+                                    padding: '12px 16px',
+                                    borderRadius: m.sender === 'admin' ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
+                                    backgroundColor: m.sender === 'admin' ? '#000' : '#fff',
+                                    color: m.sender === 'admin' ? '#fff' : '#000',
+                                    boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
+                                    position: 'relative'
+                                }}>
+                                    {m.subject && <div style={{ fontSize: '11px', fontWeight: '800', marginBottom: '4px', textTransform: 'uppercase', opacity: 0.7 }}>{m.subject}</div>}
+                                    {m.imageUrl && (
+                                        <img 
+                                            src={m.imageUrl} 
+                                            alt="attachment" 
+                                            style={{ maxWidth: '100%', borderRadius: '12px', marginTop: '4px', cursor: 'pointer', border: '1px solid rgba(255,255,255,0.1)' }} 
+                                            onClick={() => window.open(m.imageUrl, '_blank')}
+                                        />
+                                    )}
+                                    <div style={{ fontSize: '14px', fontWeight: '500', lineHeight: '1.5' }}>{m.text}</div>
+                                    <div style={{ fontSize: '10px', color: m.sender === 'admin' ? 'rgba(255,255,255,0.6)' : '#999', marginTop: '6px', textAlign: 'right' }}>
+                                        {new Date(m.timestamp).toLocaleString([], { hour: '2-digit', minute: '2-digit', month: 'short', day: 'numeric' })}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+
+                        {/* Input Area */}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', padding: '4px' }}>
+                            <input 
+                                value={individualMailSubject}
+                                onChange={e => setIndividualMailSubject(e.target.value)}
+                                placeholder="Subject (Optional)"
+                                style={{ width: '100%', padding: '12px 16px', borderRadius: '12px', border: '1px solid rgba(0,0,0,0.1)', fontSize: '14px', fontWeight: '600', outline: 'none' }}
+                                onFocus={e => e.currentTarget.style.borderColor = '#000'}
+                                onBlur={e => e.currentTarget.style.borderColor = 'rgba(0,0,0,0.1)'}
+                            />
+                            <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-end' }}>
+                                <textarea 
+                                    value={individualMailText}
+                                    onChange={e => setIndividualMailText(e.target.value)}
+                                    placeholder="Type your message here..."
+                                    style={{ flex: 1, minHeight: '100px', padding: '14px', borderRadius: '16px', border: '1px solid rgba(0,0,0,0.1)', fontSize: '14px', fontFamily: 'Inter, sans-serif', resize: 'none', outline: 'none' }}
+                                    onFocus={e => e.currentTarget.style.borderColor = '#000'}
+                                    onBlur={e => e.currentTarget.style.borderColor = 'rgba(0,0,0,0.1)'}
+                                />
+                                <input 
+                                    type="file" 
+                                    id="image-upload-input" 
+                                    hidden 
+                                    accept="image/*" 
+                                    onChange={handleImageUpload} 
+                                />
+                                <button 
+                                    onClick={() => document.getElementById('image-upload-input').click()}
+                                    disabled={isUploadingImage}
+                                    style={{ 
+                                        width: '56px', height: '56px', borderRadius: '28px', 
+                                        backgroundColor: 'rgba(0,0,0,0.05)', 
+                                        color: '#000', border: 'none', display: 'flex', alignItems: 'center', 
+                                        justifyContent: 'center', cursor: isUploadingImage ? 'not-allowed' : 'pointer',
+                                        transition: 'all 0.2s',
+                                        opacity: isUploadingImage ? 0.5 : 1
+                                    }}
+                                >
+                                    {isUploadingImage ? (
+                                        <div style={{ width: '20px', height: '20px', border: '2px solid #ccc', borderTopColor: '#000', borderRadius: '50%', animation: 'spin 1s linear infinite' }}></div>
+                                    ) : (
+                                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
+                                    )}
+                                </button>
+                                <button 
+                                    onClick={handleSendIndividualMail}
+                                    disabled={!individualMailText.trim()}
+                                    style={{ 
+                                        width: '56px', height: '56px', borderRadius: '28px', 
+                                        backgroundColor: individualMailText.trim() ? '#000' : '#ccc', 
+                                        color: '#fff', border: 'none', display: 'flex', alignItems: 'center', 
+                                        justifyContent: 'center', cursor: individualMailText.trim() ? 'pointer' : 'not-allowed',
+                                        transition: 'all 0.2s',
+                                        boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+                                    }}
+                                    onMouseEnter={e => { if(individualMailText.trim()) e.currentTarget.style.transform = 'scale(1.05)' }}
+                                    onMouseLeave={e => { if(individualMailText.trim()) e.currentTarget.style.transform = 'scale(1)' }}
+                                >
+                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                ) : (
+                    <div className="glass-card" style={{ flex: 1, padding: '2rem', borderRadius: '24px', position: 'relative' }}>
+                        <h3 style={{ margin: '0 0 1.5rem 0', fontWeight: '800', fontSize: '1.5rem' }}>Cold Mail</h3>
+                        
+                        <div style={{ marginBottom: '2rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '1.5rem', backgroundColor: 'rgba(0,0,0,0.02)', padding: '12px 16px', borderRadius: '12px', width: 'fit-content' }}>
+                                <label style={{ fontSize: '14px', fontWeight: '700', cursor: 'pointer' }} onClick={() => setSendToAll(!sendToAll)}>Send to all External Founders</label>
+                                <div 
+                                    onClick={() => setSendToAll(!sendToAll)}
+                                    style={{ 
+                                        width: '44px', height: '24px', 
+                                        backgroundColor: sendToAll ? '#34c759' : '#e5e5ea', 
+                                        borderRadius: '12px', 
+                                        position: 'relative', 
+                                        cursor: 'pointer',
+                                        transition: 'background-color 0.3s'
+                                    }}
+                                >
+                                    <div style={{
+                                        width: '20px', height: '20px',
+                                        backgroundColor: '#fff',
+                                        borderRadius: '50%',
+                                        position: 'absolute',
+                                        top: '2px',
+                                        left: sendToAll ? '22px' : '2px',
+                                        transition: 'left 0.3s',
+                                        boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                                    }} />
+                                </div>
+                            </div>
+                            
+                            <div style={{ animation: 'fadeInUp 0.3s ease-out' }}>
+                                {getEmailSuggestion(coldEmailsText) && (
+                                    <div style={{ backgroundColor: 'rgba(255,149,0,0.1)', border: '1px solid rgba(255,149,0,0.2)', padding: '10px 14px', borderRadius: '10px', marginBottom: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', animation: 'fadeInDown 0.3s' }}>
+                                        <div style={{ fontSize: '12px', color: '#cc7700', fontWeight: '600' }}>
+                                            Did you mean <span style={{ color: '#000' }}>{getEmailSuggestion(coldEmailsText).suggestion}</span> instead of {getEmailSuggestion(coldEmailsText).original}?
+                                        </div>
+                                        <button 
+                                            onClick={() => applyEmailSuggestion(getEmailSuggestion(coldEmailsText))} 
+                                            style={{ background: '#ff9500', color: '#fff', border: 'none', padding: '4px 12px', borderRadius: '6px', fontSize: '11px', fontWeight: '800', cursor: 'pointer', transition: 'transform 0.2s' }}
+                                            onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.05)'}
+                                            onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
+                                        >Apply Correction</button>
+                                    </div>
+                                )}
+                                <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '700' }}>Paste Emails (comma or newline separated)</label>
+                                <textarea 
+                                    value={coldEmailsText}
+                                    onChange={(e) => setColdEmailsText(e.target.value)}
+                                    placeholder="example1@mail.com, example2@mail.com\nexample3@mail.com"
+                                    style={{ width: '100%', minHeight: '150px', padding: '12px', borderRadius: '12px', border: '1px solid rgba(0,0,0,0.1)', backgroundColor: 'rgba(255,255,255,0.8)', fontSize: '14px', fontFamily: 'Inter, sans-serif', resize: 'vertical' }}
+                                />
+                                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '12px' }}>
+                                    <button 
+                                        onClick={handleAddExternalFounders}
+                                        disabled={!coldEmailsText.trim()}
+                                        style={{ 
+                                            padding: '10px 20px', 
+                                            backgroundColor: coldEmailsText.trim() ? '#000' : '#ccc', 
+                                            color: '#fff', 
+                                            border: 'none', 
+                                            borderRadius: '10px', 
+                                            fontSize: '13px', 
+                                            fontWeight: '700', 
+                                            cursor: coldEmailsText.trim() ? 'pointer' : 'not-allowed',
+                                            transition: 'all 0.2s'
+                                        }}
+                                        onMouseEnter={e => { if(coldEmailsText.trim()) e.currentTarget.style.transform = 'scale(1.02)' }}
+                                        onMouseLeave={e => { if(coldEmailsText.trim()) e.currentTarget.style.transform = 'scale(1)' }}
+                                    >
+                                        Add to Founders Registry
+                                    </button>
+                                </div>
+                                
+                                {coldEmailsText && (
+                                    <div style={{ marginTop: '1.5rem' }}>
+                                        <h4 style={{ fontSize: '13px', color: '#666', marginBottom: '12px', fontWeight: '700' }}>Parsed Valid Emails ({coldEmailsText.split(/[,\n]/).map(e => e.trim()).filter(e => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)).length}):</h4>
+                                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', maxHeight: '150px', overflowY: 'auto' }}>
+                                            {coldEmailsText.split(/[,\n]/).map(e => e.trim()).filter(e => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)).map((email, idx) => (
+                                                <span key={idx} style={{ padding: '6px 12px', backgroundColor: 'rgba(0,122,255,0.1)', color: '#007aff', borderRadius: '16px', fontSize: '12px', fontWeight: '600', border: '1px solid rgba(0,122,255,0.2)' }}>
+                                                    {email}
+                                                </span>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* FAB */}
+                        <button 
+                            onClick={() => setShowDraftModal(true)}
+                            style={{ 
+                                position: 'absolute', 
+                                bottom: '2rem', 
+                                right: '2rem', 
+                                width: '60px', 
+                                height: '60px', 
+                                borderRadius: '30px', 
+                                backgroundColor: '#000', 
+                                color: '#fff', 
+                                border: 'none', 
+                                display: 'flex', 
+                                alignItems: 'center', 
+                                justifyContent: 'center', 
+                                cursor: 'pointer', 
+                                boxShadow: '0 8px 24px rgba(0,0,0,0.2)',
+                                transition: 'transform 0.2s',
+                                zIndex: 100
+                            }}
+                            onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.05)'}
+                            onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
+                            title="Draft Mail"
+                        >
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                        </button>
+                    </div>
+                )}
+                
+                {/* Right Sidebar - External Founders List */}
+                <div className="glass-card" style={{ width: '360px', padding: '1.5rem', borderRadius: '24px', display: 'flex', flexDirection: 'column', height: 'calc(100vh - 100px)', overflow: 'hidden' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                        <h4 style={{ margin: 0, fontWeight: '800', fontSize: '1.1rem' }}>External Founders ({externalFounders.length})</h4>
+                        {externalFounders.length > 0 && (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                {selectedFounderIds.length > 0 && (
+                                    <button 
+                                        onClick={handleRemoveSelectedFounders}
+                                        style={{ background: '#ff3b30', border: 'none', color: '#fff', fontSize: '10px', fontWeight: '800', cursor: 'pointer', padding: '6px 10px', borderRadius: '8px', animation: 'fadeInRight 0.3s' }}
+                                    >
+                                        Delete ({selectedFounderIds.length})
+                                    </button>
+                                )}
+                                <div 
+                                    onClick={toggleSelectAll}
+                                    style={{ 
+                                        width: '20px', height: '20px', borderRadius: '6px', border: '2px solid #000', 
+                                        display: 'flex', alignItems: 'center', justifyContent: 'center', 
+                                        backgroundColor: selectedFounderIds.length > 0 && selectedFounderIds.length === externalFounders.filter(f => f.email.toLowerCase().includes(founderSearch.toLowerCase()) || (f.name && f.name.toLowerCase().includes(founderSearch.toLowerCase()))).length ? '#000' : 'transparent', 
+                                        cursor: 'pointer',
+                                        transition: 'all 0.2s'
+                                    }}
+                                    title="Select All"
+                                >
+                                    {selectedFounderIds.length > 0 && selectedFounderIds.length === externalFounders.filter(f => f.email.toLowerCase().includes(founderSearch.toLowerCase()) || (f.name && f.name.toLowerCase().includes(founderSearch.toLowerCase()))).length && <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Search Bar */}
+                    <div style={{ position: 'relative', marginBottom: '1rem' }}>
+                        <input 
+                            value={founderSearch}
+                            onChange={e => setFounderSearch(e.target.value)}
+                            placeholder="Search by name or email..."
+                            style={{ width: '100%', padding: '10px 12px 10px 36px', borderRadius: '12px', border: '1px solid rgba(0,0,0,0.08)', backgroundColor: 'rgba(0,0,0,0.02)', fontSize: '13px', outline: 'none', transition: 'all 0.2s' }}
+                            onFocus={e => { e.currentTarget.style.borderColor = '#000'; e.currentTarget.style.backgroundColor = '#fff'; }}
+                            onBlur={e => { e.currentTarget.style.borderColor = 'rgba(0,0,0,0.08)'; e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.02)'; }}
+                        />
+                        <svg style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#999' }} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                    </div>
+
+                    {getFuzzySearchSuggestion() && (
+                        <div style={{ padding: '8px 12px', backgroundColor: 'rgba(0,122,255,0.05)', borderRadius: '10px', marginBottom: '1rem', border: '1px solid rgba(0,122,255,0.1)', animation: 'fadeInDown 0.3s' }}>
+                            <div style={{ fontSize: '11px', color: '#007aff', fontWeight: '700', marginBottom: '4px' }}>Did you mean?</div>
+                            <div 
+                                onClick={() => { setFounderSearch(getFuzzySearchSuggestion().email); }}
+                                style={{ fontSize: '13px', fontWeight: '600', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+                            >
+                                <span>{getFuzzySearchSuggestion().email}</span>
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                            </div>
+                        </div>
+                    )}
+
+                    <div style={{ flex: 1, overflowY: 'auto', paddingRight: '8px' }}>
+                        {externalFounders
+                            .filter(f => 
+                                f.email.toLowerCase().includes(founderSearch.toLowerCase()) || 
+                                (f.name && f.name.toLowerCase().includes(founderSearch.toLowerCase()))
+                            )
+                            .map((u, i) => (
+                            <div 
+                                key={u.id} 
+                                onClick={() => { setSelectedExternalFounder(u); fetchFounderMessages(u.email); }}
+                                style={{ 
+                                    display: 'flex', alignItems: 'flex-start', gap: '12px', padding: '12px 10px', 
+                                    borderBottom: '1px solid rgba(0,0,0,0.05)', cursor: 'pointer',
+                                    borderRadius: '12px',
+                                    backgroundColor: selectedExternalFounder?.id === u.id ? 'rgba(0,0,0,0.05)' : 'transparent',
+                                    transition: 'all 0.2s',
+                                    marginBottom: '4px',
+                                    position: 'relative'
+                                }}
+                                onMouseEnter={e => { if(selectedExternalFounder?.id !== u.id) e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.02)' }}
+                                onMouseLeave={e => { if(selectedExternalFounder?.id !== u.id) e.currentTarget.style.backgroundColor = 'transparent' }}
+                            >
+                                <div style={{ position: 'relative' }}>
+                                    <div 
+                                        onClick={(e) => { e.stopPropagation(); toggleFounderSelection(u.id); }}
+                                        style={{ 
+                                            width: '18px', height: '18px', borderRadius: '5px', border: '2px solid #000', 
+                                            display: 'flex', alignItems: 'center', justifyContent: 'center', 
+                                            backgroundColor: selectedFounderIds.includes(u.id) ? '#000' : 'transparent', 
+                                            cursor: 'pointer', flexShrink: 0, marginTop: '2px',
+                                            transition: 'all 0.1s'
+                                        }}
+                                    >
+                                        {selectedFounderIds.includes(u.id) && <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>}
+                                    </div>
+                                    {u.replyCount > 0 && (
+                                        <div style={{ 
+                                            position: 'absolute', top: '-8px', left: '-8px', 
+                                            backgroundColor: '#ff3b30', color: '#fff', 
+                                            fontSize: '9px', fontWeight: '900', 
+                                            minWidth: '16px', height: '16px', borderRadius: '8px', 
+                                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                            padding: '0 4px', boxShadow: '0 2px 5px rgba(255,59,48,0.4)',
+                                            zIndex: 2,
+                                            border: '2px solid #fff'
+                                        }}>
+                                            {u.replyCount}
+                                        </div>
+                                    )}
+                                </div>
+                                <div style={{ fontSize: '11px', fontWeight: '800', color: '#888', width: '22px', flexShrink: 0, marginTop: '4px' }}>
+                                    {i + 1}.
+                                </div>
+                                <div style={{ flex: 1, overflow: 'hidden' }}>
+                                    <div style={{ fontSize: '14px', fontWeight: '700', color: '#000', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                        {u.name || 'External Founder'}
+                                    </div>
+                                    <div style={{ fontSize: '12px', color: '#6300dd', fontWeight: '600', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                        {u.email}
+                                    </div>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px' }}>
+                                        <div style={{ fontSize: '11px', color: '#ff9500', fontWeight: '600', backgroundColor: 'rgba(255,149,0,0.05)', padding: '2px 6px', borderRadius: '4px' }}>
+                                            External
+                                        </div>
+                                        <button 
+                                            onClick={(e) => { e.stopPropagation(); handleRemoveExternalFounder(u.email); }}
+                                            style={{ background: 'none', border: 'none', color: '#ff3b30', fontSize: '10px', fontWeight: '700', cursor: 'pointer', opacity: 0.6 }}
+                                            onMouseEnter={e => e.currentTarget.style.opacity = 1}
+                                            onMouseLeave={e => e.currentTarget.style.opacity = 0.6}
+                                        >
+                                            Remove
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+
+                {/* Draft Modal */}
+                {showDraftModal && (
+                    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, animation: 'fadeInUp 0.2s ease-out' }}>
+                        <div className="glass-card" style={{ width: '600px', maxWidth: '90%', padding: '2.5rem', borderRadius: '24px', backgroundColor: '#fff', boxShadow: '0 20px 60px rgba(0,0,0,0.15)', position: 'relative' }}>
+                            <button onClick={() => setShowDraftModal(false)} style={{ position: 'absolute', top: '1.5rem', right: '1.5rem', background: 'rgba(0,0,0,0.05)', border: 'none', cursor: 'pointer', color: '#666', width: '32px', height: '32px', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'background 0.2s' }} onMouseEnter={e => e.currentTarget.style.background = 'rgba(0,0,0,0.1)'} onMouseLeave={e => e.currentTarget.style.background = 'rgba(0,0,0,0.05)'}>
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                            </button>
+                            <h3 style={{ margin: '0 0 1.5rem 0', fontSize: '1.5rem', fontWeight: '800' }}>Draft Email</h3>
+                            
+                            <input 
+                                value={draftSubject}
+                                onChange={e => setDraftSubject(e.target.value)}
+                                placeholder="Subject" 
+                                style={{ width: '100%', padding: '14px 16px', borderRadius: '12px', border: '1px solid rgba(0,0,0,0.1)', marginBottom: '1rem', fontSize: '15px', fontWeight: '600', outline: 'none', transition: 'border-color 0.2s' }}
+                                onFocus={e => e.currentTarget.style.borderColor = '#000'}
+                                onBlur={e => e.currentTarget.style.borderColor = 'rgba(0,0,0,0.1)'}
+                            />
+                            
+                            <textarea 
+                                value={draftMessage}
+                                onChange={e => setDraftMessage(e.target.value)}
+                                placeholder="Write your message here... (HTML supported)" 
+                                style={{ width: '100%', height: '250px', padding: '16px', borderRadius: '12px', border: '1px solid rgba(0,0,0,0.1)', marginBottom: '1.5rem', fontSize: '14px', resize: 'vertical', fontFamily: 'Inter, sans-serif', outline: 'none', transition: 'border-color 0.2s' }}
+                                onFocus={e => e.currentTarget.style.borderColor = '#000'}
+                                onBlur={e => e.currentTarget.style.borderColor = 'rgba(0,0,0,0.1)'}
+                            />
+                            
+                            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+                                <button onClick={() => setShowDraftModal(false)} style={{ padding: '12px 24px', borderRadius: '10px', border: '1px solid rgba(0,0,0,0.1)', background: '#fff', fontWeight: '700', cursor: 'pointer', transition: 'background 0.2s' }} onMouseEnter={e => e.currentTarget.style.background = 'rgba(0,0,0,0.02)'} onMouseLeave={e => e.currentTarget.style.background = '#fff'}>Cancel</button>
+                                <button onClick={handleSendColdMail} style={{ padding: '12px 28px', borderRadius: '10px', border: 'none', background: '#000', color: '#fff', fontWeight: '700', cursor: 'pointer', transition: 'transform 0.2s', display: 'flex', alignItems: 'center', gap: '8px' }} onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.02)'} onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}>
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+                                    Send Mail
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+            </div>
+        )}
         {/* Toast Notification */}
         {showToast && (
           <div style={{ 
@@ -1129,6 +1895,44 @@ const Admin = () => {
           </div>
         )}
       </main>
+        {/* Confirmation Modal */}
+        {showConfirmModal && (
+            <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000, animation: 'fadeIn 0.2s ease-out' }}>
+                <div className="glass-card" style={{ width: '400px', padding: '2.5rem', borderRadius: '28px', backgroundColor: '#fff', textAlign: 'center', boxShadow: '0 24px 80px rgba(0,0,0,0.25)', position: 'relative' }}>
+                    <div style={{ fontSize: '48px', marginBottom: '1rem' }}>⚠️</div>
+                    <h3 style={{ margin: '0 0 0.75rem 0', fontWeight: '900', fontSize: '1.5rem', color: '#000' }}>Wait! Are you sure?</h3>
+                    <p style={{ color: '#666', fontSize: '14px', lineHeight: '1.6', marginBottom: '2rem', padding: '0 10px' }}>{confirmConfig.title}</p>
+                    
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', marginBottom: '2rem', cursor: 'pointer', userSelect: 'none' }} onClick={() => setSkipConfirm(!skipConfirm)}>
+                        <div style={{ 
+                            width: '20px', height: '20px', borderRadius: '6px', border: '2px solid #000', 
+                            display: 'flex', alignItems: 'center', justifyContent: 'center', 
+                            backgroundColor: skipConfirm ? '#000' : 'transparent', 
+                            transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                            transform: skipConfirm ? 'scale(1.1)' : 'scale(1)'
+                        }}>
+                            {skipConfirm && <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>}
+                        </div>
+                        <span style={{ fontSize: '14px', fontWeight: '700', color: '#333' }}>Remember my choice</span>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '14px' }}>
+                        <button 
+                            onClick={() => setShowConfirmModal(false)} 
+                            style={{ flex: 1, padding: '14px', borderRadius: '14px', border: '1px solid rgba(0,0,0,0.1)', background: '#f5f5f7', color: '#000', fontWeight: '800', cursor: 'pointer', transition: 'all 0.2s' }}
+                            onMouseEnter={e => e.currentTarget.style.background = '#e5e5ea'}
+                            onMouseLeave={e => e.currentTarget.style.background = '#f5f5f7'}
+                        >Cancel</button>
+                        <button 
+                            onClick={() => { confirmConfig.onConfirm(); setShowConfirmModal(false); }} 
+                            style={{ flex: 1, padding: '14px', borderRadius: '14px', border: 'none', background: '#ff3b30', color: '#fff', fontWeight: '800', cursor: 'pointer', transition: 'all 0.2s', boxShadow: '0 4px 12px rgba(255, 59, 48, 0.2)' }}
+                            onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-2px)'}
+                            onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}
+                        >Confirm</button>
+                    </div>
+                </div>
+            </div>
+        )}
     </div>
   );
 };

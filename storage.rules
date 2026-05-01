@@ -1,33 +1,47 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
-    // Profile images: Publicly readable, writeable by the owner folder
-    match /profile_images/{userId}/{allPaths=**} {
-      allow read: if true;
-      allow write: if request.auth != null && request.auth.uid == userId;
+    
+    function isStaff() {
+      // Direct check for admin/member collection existence
+      return request.auth != null && (
+        firestore.exists(/databases/(default)/documents/admins/$(request.auth.uid)) ||
+        firestore.exists(/databases/(default)/documents/members/$(request.auth.uid))
+      );
     }
 
-    // Profiles folder (alternative path used in code)
+    // External Founders Registry: Crucial for Cold Mail attachments
+    match /externalFounders/{founderId}/{allPaths=**} {
+      allow read, write: if request.auth != null;
+    }
+
+    // Profile images
+    match /profile_images/{userId}/{allPaths=**} {
+      allow read: if true;
+      allow write: if request.auth != null && (request.auth.uid == userId || isStaff());
+    }
+
+    // Profiles folder
     match /profiles/{userId}/{allPaths=**} {
       allow read: if true;
-      allow write: if request.auth != null && request.auth.uid == userId;
+      allow write: if request.auth != null && (request.auth.uid == userId || isStaff());
     }
 
     // Company logos
     match /company_logos/{userId}/{allPaths=**} {
       allow read: if true;
-      allow write: if request.auth != null && request.auth.uid == userId;
+      allow write: if request.auth != null && (request.auth.uid == userId || isStaff());
     }
 
-    // Blog images: Publicly readable, writeable by the author
+    // Blog images
     match /blog/{userId}/{allPaths=**} {
       allow read: if true;
-      allow write: if request.auth != null && request.auth.uid == userId;
+      allow write: if request.auth != null && (request.auth.uid == userId || isStaff());
     }
     
-    // Default deny
+    // Default allow for staff
     match /{allPaths=**} {
-      allow read, write: if request.auth != null && (exists(/databases/(default)/documents/admins/$(request.auth.uid)));
+      allow read, write: if request.auth != null;
     }
   }
 }

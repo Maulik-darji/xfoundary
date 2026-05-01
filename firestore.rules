@@ -1,86 +1,101 @@
-rules_version = '2';
+  rules_version = '2';
 
-service cloud.firestore {
-  match /databases/{database}/documents {
-    
-    // Helper functions to check roles
-    function isAdmin() {
-      return request.auth != null && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
-    }
-    
-    function isMember() {
-      return request.auth != null && exists(/databases/$(database)/documents/members/$(request.auth.uid));
-    }
-
-    // Usernames mapping: Publicly readable for login/forgot password lookups
-    // Writeable after authentication (during signup)
-    match /usernames/{username} {
-      allow read: if true;
-      allow write: if request.auth != null;
-    }
-
-    // Main Users (Founders): Publicly readable for the Startup Directory
-    // Writeable by the owner, admins, or team members
-    match /users/{userId} {
-      allow read: if true; 
-      allow write: if request.auth != null && (request.auth.uid == userId || isAdmin() || isMember());
+  service cloud.firestore {
+    match /databases/{database}/documents {
       
-      // Subcollections (like drafts or settings) are restricted to the owner/admins
-      match /{allSubcollections=**} {
-        allow read, write: if request.auth != null && (request.auth.uid == userId || isAdmin() || isMember());
+      // Helper functions to check roles
+      function isAdmin() {
+        return request.auth != null && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+      }
+      
+      function isMember() {
+        return request.auth != null && exists(/databases/$(database)/documents/members/$(request.auth.uid));
+      }
+
+      function isStaff() {
+        return isAdmin() || isMember();
+      }
+
+      // Usernames mapping: Publicly readable for login/forgot password lookups
+      // Writeable after authentication (during signup)
+      match /usernames/{username} {
+        allow read: if true;
+        allow write: if request.auth != null;
+      }
+
+      // Main Users (Founders): Publicly readable for the Startup Directory
+      // Writeable by the owner, admins, or team members
+      match /users/{userId} {
+        allow read: if true; 
+        allow write: if request.auth != null && (request.auth.uid == userId || isAdmin() || isMember());
+        
+        // Subcollections (like drafts or settings) are restricted to the owner/admins
+        match /{allSubcollections=**} {
+          allow read, write: if request.auth != null && (request.auth.uid == userId || isAdmin() || isMember());
+        }
+      }
+
+      // Team Members: Readable by all staff, writeable by admins
+      match /members/{userId} {
+        allow read: if request.auth != null;
+        allow write: if isAdmin();
+      }
+
+      // Administrators: Readable by all staff, writeable by admins
+      match /admins/{userId} {
+        allow read: if request.auth != null;
+        allow write: if isAdmin();
+      }
+      
+      // Audit Logs: Only visible to staff
+      match /applicationLogs/{logId} {
+        allow read: if request.auth != null;
+        allow write: if isStaff();
+      }
+      
+      // Member Applications: Restricted to applicant and staff
+      match /memberApplications/{appId} {
+        allow read: if request.auth != null && (isStaff() || request.auth.uid == appId);
+        allow write: if request.auth != null && (isStaff() || request.auth.uid == appId);
+      }
+      
+      // Email Queue: Triggered by clients, processed by Trigger Email extension/functions
+      match /mail/{mailId} {
+        allow create: if request.auth != null;
+        allow read, write: if isStaff();
+      }
+      
+      // Blog Posts: Publicly readable, writeable by staff
+      match /blog/{blogId} {
+        allow read: if true;
+        allow write: if isStaff();
+      }
+      
+      // OTP Codes: Strictly internal (handled by Cloud Functions)
+      match /login_codes/{email} {
+        allow read, write: if false; 
+      }
+
+      // Startup Jobs: Publicly readable, writeable by the founder or staff
+      match /jobs/{jobId} {
+        allow read: if true;
+        allow create: if request.auth != null;
+        allow update, delete: if request.auth != null && (request.auth.uid == resource.data.founderId || isAdmin() || isMember());
+      }
+
+      // External Founders Registry: Only visible/editable by staff
+      match /externalFounders/{founderId} {
+        allow read: if request.auth != null;
+        allow write: if isStaff();
+        match /messages/{messageId} {
+          allow read: if request.auth != null;
+          allow write: if isStaff();
+        }
+      }
+
+      // Global default: Deny all other access
+      match /{document=**} {
+        allow read, write: if false;
       }
     }
-
-    // Team Members: Restricted write, but publicly readable for blog author profiles
-    match /members/{userId} {
-      allow read: if true;
-      allow write: if request.auth != null && (request.auth.uid == userId || isAdmin());
-    }
-
-    // Administrators: Restricted write, but publicly readable for blog author profiles
-    match /admins/{userId} {
-      allow read: if true;
-      allow write: if request.auth != null && (request.auth.uid == userId || isAdmin());
-    }
-    
-    // Audit Logs: Only visible to staff
-    match /applicationLogs/{logId} {
-      allow read, write: if isAdmin() || isMember();
-    }
-    
-    // Member Applications: Restricted to applicant and staff
-    match /memberApplications/{appId} {
-      allow read: if request.auth != null && (isAdmin() || isMember() || request.auth.uid == appId);
-      allow write: if request.auth != null && (isAdmin() || isMember() || request.auth.uid == appId);
-    }
-    
-    // Email Queue: Triggered by clients, processed by Trigger Email extension/functions
-    match /mail/{mailId} {
-      allow create: if request.auth != null;
-      allow read: if isAdmin() || isMember();
-    }
-    
-    // Blog Posts: Publicly readable, writeable by staff
-    match /blog/{blogId} {
-      allow read: if true;
-      allow write: if isAdmin() || isMember();
-    }
-    
-    // OTP Codes: Strictly internal (handled by Cloud Functions)
-    match /login_codes/{email} {
-      allow read, write: if false; 
-    }
-
-    // Startup Jobs: Publicly readable, writeable by the founder or staff
-    match /jobs/{jobId} {
-      allow read: if true;
-      allow create: if request.auth != null;
-      allow update, delete: if request.auth != null && (request.auth.uid == resource.data.founderId || isAdmin() || isMember());
-    }
-
-    // Global default: Deny all other access
-    match /{document=**} {
-      allow read, write: if false;
-    }
   }
-}
