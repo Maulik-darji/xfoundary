@@ -7,6 +7,7 @@ import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import Blog from './Blog';
 
 const Admin = () => {
+  const sidebarRef = React.useRef(null);
   const [activeTab, setActiveTab] = useState(localStorage.getItem('xf_admin_active_tab') || 'Overview');
   const [applications, setApplications] = useState([]);
   const [users, setUsers] = useState([]);
@@ -47,6 +48,11 @@ const Admin = () => {
   const [confirmConfig, setConfirmConfig] = useState({ title: '', onConfirm: null });
   const [skipConfirm, setSkipConfirm] = useState(false);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [sidebarFilter, setSidebarFilter] = useState('all'); 
+  const [sendingStatus, setSendingStatus] = useState(null); // { current, count, total }
+  const [visibleExternalCount, setVisibleExternalCount] = useState(30);
+  const [sidebarWidth, setSidebarWidth] = useState(480);
+  const [isResizing, setIsResizing] = useState(false);
 
   useEffect(() => {
     if (selectedExternalFounder) {
@@ -208,6 +214,42 @@ const Admin = () => {
       }
   }, [selectedExternalFounder]);
 
+  useEffect(() => {
+      setVisibleExternalCount(30);
+  }, [founderSearch, sidebarFilter]);
+
+  const filteredFounders = React.useMemo(() => {
+      const counts = {};
+      externalFounders.forEach(f => {
+          const email = f.email.toLowerCase();
+          counts[email] = (counts[email] || 0) + 1;
+      });
+
+      return externalFounders.filter(f => {
+          // 1. Search Filter
+          const matchesSearch = f.email.toLowerCase().includes(founderSearch.toLowerCase()) || 
+                              (f.name && f.name.toLowerCase().includes(founderSearch.toLowerCase()));
+          if (!matchesSearch) return false;
+
+          // 2. Sidebar Tab Filter
+          if (sidebarFilter === 'all') return true;
+          if (sidebarFilter === 'duplicates') return counts[f.email.toLowerCase()] > 1;
+          if (sidebarFilter === 'gmail') return f.email.toLowerCase().includes('gmail.com') || f.email.toLowerCase().includes('googlemail.com');
+          if (sidebarFilter === 'yahoo') return f.email.toLowerCase().includes('yahoo.') || f.email.toLowerCase().includes('ymail.com');
+          if (sidebarFilter === 'other') {
+              const email = f.email.toLowerCase();
+              return !email.includes('gmail.com') && !email.includes('googlemail.com') && !email.includes('yahoo.') && !email.includes('ymail.com');
+          }
+          if (sidebarFilter === 'invalid') {
+              const email = f.email.toLowerCase();
+              const isBasicValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+              const hasIncompleteDomain = email.includes('@') && (email.split('@')[1].split('.').length < 2 || email.split('@')[1].split('.').some(part => part.length < 2));
+              return !isBasicValid || hasIncompleteDomain;
+          }
+          return true;
+      });
+  }, [externalFounders, founderSearch, sidebarFilter]);
+
   const handleSendIndividualMail = async () => {
       if (!selectedExternalFounder || !individualMailText) return;
       
@@ -238,6 +280,46 @@ const Admin = () => {
       } catch (e) { alert(e.message); }
   };
 
+
+
+  const startResizing = (e) => {
+      setIsResizing(true);
+      e.preventDefault();
+  };
+
+  useEffect(() => {
+      const handleMouseMove = (e) => {
+          if (!isResizing || !sidebarRef.current) return;
+          const newWidth = e.clientX - 300; // Subtract Admin sidebar width
+          if (newWidth > 300 && newWidth < 900) {
+              // Direct DOM manipulation for smoothness
+              sidebarRef.current.style.width = `${newWidth}px`;
+          }
+      };
+      
+      const stopResizing = (e) => {
+          if (!isResizing) return;
+          setIsResizing(false);
+          if (sidebarRef.current) {
+              const finalWidth = parseInt(sidebarRef.current.style.width);
+              setSidebarWidth(finalWidth);
+          }
+      };
+      
+      if (isResizing) {
+          window.addEventListener('mousemove', handleMouseMove);
+          window.addEventListener('mouseup', stopResizing);
+          document.body.style.cursor = 'col-resize';
+          document.body.style.userSelect = 'none';
+      } else {
+          document.body.style.cursor = 'default';
+          document.body.style.userSelect = 'auto';
+      }
+      return () => {
+          window.removeEventListener('mousemove', handleMouseMove);
+          window.removeEventListener('mouseup', stopResizing);
+      };
+  }, [isResizing]);
 
   const handleImageUpload = async (e) => {
     const file = e.target.files[0];
@@ -301,6 +383,94 @@ const Admin = () => {
           });
           setShowConfirmModal(true);
       }
+  };
+
+  const handleExportToCSV = () => {
+      if (externalFounders.length === 0) {
+          alert("No data to export.");
+          return;
+      }
+      
+      const headers = ['Name', 'Email', 'Date Added'];
+      const rows = externalFounders.map(f => [
+          f.name || 'External Founder',
+          f.email,
+          f.createdAt ? new Date(f.createdAt).toLocaleDateString() : 'N/A'
+      ]);
+      
+      const csvContent = [
+          headers.join(','),
+          ...rows.map(r => r.map(cell => `"${cell.replace(/"/g, '""')}"`).join(','))
+      ].join('\n');
+      
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.setAttribute('href', url);
+      link.setAttribute('download', `XF_Founders_Export_${new Date().toISOString().split('T')[0]}.csv`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      setToastMessage("Registry exported to CSV successfully.");
+      setShowToast(true);
+      setTimeout(() => setShowToast(false), 3000);
+  };
+
+  const handleBackupRegistry = async () => {
+      try {
+          if (externalFounders.length === 0) {
+              alert("No founders to backup.");
+              return;
+          }
+          await setDoc(doc(db, 'adminSettings', 'backups'), {
+              externalFoundersBackup: externalFounders,
+              backupDate: new Date().toISOString(),
+              count: externalFounders.length
+          });
+          setToastMessage(`Registry backed up successfully (${externalFounders.length} entries).`);
+          setShowToast(true);
+          setTimeout(() => setShowToast(false), 3000);
+      } catch (e) { alert("Backup failed: " + e.message); }
+  };
+
+  const handleRestoreRegistry = async () => {
+      const action = async () => {
+          try {
+              const backupDoc = await getDoc(doc(db, 'adminSettings', 'backups'));
+              if (!backupDoc.exists()) {
+                  alert("No backup found in the cloud.");
+                  return;
+              }
+              const { externalFoundersBackup } = backupDoc.data();
+              if (!externalFoundersBackup || externalFoundersBackup.length === 0) {
+                  alert("Backup is empty.");
+                  return;
+              }
+
+              const batch = writeBatch(db);
+              // Note: This adds/overwrites. It doesn't clear existing unless we add logic for that.
+              externalFoundersBackup.forEach(f => {
+                  const docId = f.email.replace(/[.#$[\]]/g, '_');
+                  batch.set(doc(db, 'externalFounders', docId), {
+                      ...f,
+                      restoredAt: new Date().toISOString()
+                  });
+              });
+              await batch.commit();
+              fetchData();
+              setToastMessage(`Restored ${externalFoundersBackup.length} founders from backup.`);
+              setShowToast(true);
+              setTimeout(() => setShowToast(false), 3000);
+          } catch (e) { alert("Restore failed: " + e.message); }
+      };
+
+      setConfirmConfig({ 
+          title: "Restore from backup? This will overwrite or merge with your current list.", 
+          onConfirm: action 
+      });
+      setShowConfirmModal(true);
   };
 
   const handleRemoveAllExternalFounders = async () => {
@@ -585,23 +755,32 @@ const Admin = () => {
 
       if (window.confirm(`Are you sure you want to send this email to ${recipients.length} recipients?`)) {
           try {
-              for (const email of recipients) {
+              setShowDraftModal(false); // Close modal immediately to show progress
+              for (let i = 0; i < recipients.length; i++) {
+                  const email = recipients[i];
+                  setSendingStatus({ current: email, count: i + 1, total: recipients.length });
+                  
                   await addDoc(collection(db, 'mail'), {
                       to: email,
                       message: {
                           subject: draftSubject,
-                          html: draftMessage
+                          html: `<div style="font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; color: #111;">${draftMessage.replace(/\n/g, '<br/>')}</div>`
                       }
                   });
+                  
+                  // Optional small delay to make the UI visible if it's too fast
+                  if (recipients.length < 50) await new Promise(r => setTimeout(r, 100));
               }
+              
+              setSendingStatus(null);
+              setDraftSubject('');
+              setDraftMessage('');
               setToastMessage(`Email successfully queued for ${recipients.length} recipients.`);
               setShowToast(true);
               setTimeout(() => setShowToast(false), 3000);
-              setShowDraftModal(false);
-              setDraftSubject('');
-              setDraftMessage('');
-          } catch (e) {
-              alert("Error sending emails: " + e.message);
+          } catch (e) { 
+              setSendingStatus(null);
+              alert("Error sending emails: " + e.message); 
           }
       }
   };
@@ -658,7 +837,7 @@ const Admin = () => {
     </div>
   );
 
-  const TABS = ['Overview', 'Pending Apps', 'Applications', 'Founders', 'Admins', 'Members', 'Blog Approvals', 'Manage Blog', 'XF Blog', 'Member Requests', 'Withdrawn Apps', 'Cold Mail', 'Settings'];
+  const TABS = ['Overview', 'Pending Apps', 'Applications', 'Founders', 'Admins', 'Members', 'Blog Approvals', 'Manage Blog', 'XF Blog', 'Member Requests', 'Withdrawn Apps', 'Cold Mail', 'Backup', 'Settings'];
 
   return (
     <div style={{ display: 'flex', height: '100vh', backgroundColor: '#f0f2f5', fontFamily: 'Inter, sans-serif', overflow: 'hidden', position: 'relative' }}>
@@ -714,6 +893,12 @@ const Admin = () => {
             border: 1px solid rgba(255, 255, 255, 0.5) !important;
             box-shadow: 0 8px 32px rgba(0,0,0,0.03) !important;
             transition: all 0.3s ease !important;
+        }
+        .glass-card.is-resizing {
+            backdrop-filter: none !important;
+            -webkit-backdrop-filter: none !important;
+            transition: none !important;
+            background: rgba(255, 255, 255, 0.95) !important;
         }
         .glass-card:hover {
             background: rgba(255, 255, 255, 0.85) !important;
@@ -835,7 +1020,7 @@ const Admin = () => {
       <main style={{ 
         flex: 1, 
         marginLeft: '300px',
-        padding: activeTab === 'Blog' ? '0' : '2.5rem', 
+        padding: (activeTab === 'Blog' || activeTab === 'Cold Mail' || activeTab === 'Backup') ? '0.5rem' : '2.5rem', 
         zIndex: 1, 
         position: 'relative', 
         minHeight: '100vh'
@@ -1147,8 +1332,19 @@ const Admin = () => {
                             <tr key={u.id} style={{ borderBottom: '1px solid rgba(0,0,0,0.03)' }}>
                                 {activeTab === 'Founders' && <td style={{ padding: '1.25rem', fontWeight: '700', color: '#888', fontSize: '13px' }}>{i + 1}</td>}
                                 <td style={{ padding: '1.25rem' }}>
-                                    <div style={{ fontWeight: '700', fontSize: '14px' }}>{u.profile?.name || u.name || 'Unnamed'}</div>
-                                    <div style={{ fontSize: '12px', color: '#666' }}>{u.email}</div>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                        {u.profile?.profileImage || u.photoURL ? (
+                                            <img src={u.profile?.profileImage || u.photoURL} style={{ width: '38px', height: '38px', borderRadius: '12px', objectFit: 'cover', border: '1px solid rgba(0,0,0,0.05)' }} alt="" />
+                                        ) : (
+                                            <div style={{ width: '38px', height: '38px', borderRadius: '12px', backgroundColor: 'rgba(0,0,0,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', fontWeight: '800', color: '#888' }}>
+                                                {(u.profile?.name || u.name || 'U').charAt(0).toUpperCase()}
+                                            </div>
+                                        )}
+                                        <div>
+                                            <div style={{ fontWeight: '700', fontSize: '14px', color: '#000' }}>{u.profile?.name || u.name || 'Unnamed'}</div>
+                                            <div style={{ fontSize: '12px', color: '#667777' }}>{u.email}</div>
+                                        </div>
+                                    </div>
                                 </td>
                                 {activeTab === 'Founders' && (
                                     <>
@@ -1165,18 +1361,18 @@ const Admin = () => {
                                     {activeTab === 'Founders' ? (
                                         <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
                                             {(u.linkedin || u.application?.founderLinkedin) && (
-                                                <a href={u.linkedin?.startsWith('http') ? u.linkedin : (u.application?.founderLinkedin?.startsWith('http') ? u.application.founderLinkedin : `https://linkedin.com/in/${u.linkedin || u.application?.founderLinkedin}`)} target="_blank" rel="noopener noreferrer" style={{ color: '#0077b5', display: 'flex' }} title="LinkedIn">
+                                                <a href={u.linkedin?.startsWith('http') ? u.linkedin : (u.application?.founderLinkedin?.startsWith('http') ? u.application.founderLinkedin : `https://linkedin.com/in/${u.linkedin || u.application?.founderLinkedin}`)} target="_blank" rel="noopener noreferrer" style={{ color: '#0077b5', display: 'flex', transition: 'transform 0.2s' }} onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-2px)'} onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'} title="LinkedIn">
                                                     <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M19 0h-14c-2.761 0-5 2.239-5 5v14c0 2.761 2.239 5 5 5h14c2.762 0 5-2.239 5-5v-14c0-2.761-2.238-5-5-5zm-11 19h-3v-11h3v11zm-1.5-12.268c-.966 0-1.75-.79-1.75-1.764s.784-1.764 1.75-1.764 1.75.79 1.75 1.764-.783 1.764-1.75 1.764zm13.5 12.268h-3v-5.604c0-3.368-4-3.113-4 0v5.604h-3v-11h3v1.765c1.396-2.586 7-2.777 7 2.476v6.759z"/></svg>
                                                 </a>
                                             )}
                                             {(u.twitter || u.application?.founderTwitter) && (
-                                                <a href={u.twitter?.startsWith('http') ? u.twitter : `https://twitter.com/${(u.twitter || u.application?.founderTwitter).replace('@', '')}`} target="_blank" rel="noopener noreferrer" style={{ color: '#1DA1F2', display: 'flex' }} title="Twitter / X">
-                                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M24 4.557c-.883.392-1.832.656-2.828.775 1.017-.609 1.798-1.574 2.165-2.724-.951.564-2.005.974-3.127 1.195-.897-.957-2.178-1.555-3.594-1.555-3.179 0-5.515 2.966-4.797 6.045-4.091-.205-7.719-2.165-10.148-5.144-1.29 2.213-.669 5.108 1.523 6.574-.806-.026-1.566-.247-2.229-.616-.054 2.281 1.581 4.415 3.949 4.89-.693.188-1.452.232-2.224.084.626 1.956 2.444 3.379 4.6 3.419-2.07 1.623-4.678 2.348-7.29 2.04 2.179 1.397 4.768 2.212 7.548 2.212 9.142 0 14.307-7.721 13.995-14.646.962-.695 1.797-1.562 2.457-2.549z"/></svg>
+                                                <a href={u.twitter?.startsWith('http') ? u.twitter : `https://twitter.com/${(u.twitter || u.application?.founderTwitter).replace('@', '')}`} target="_blank" rel="noopener noreferrer" style={{ color: '#000', display: 'flex', transition: 'transform 0.2s' }} onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-2px)'} onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'} title="Twitter / X">
+                                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
                                                 </a>
                                             )}
                                             {(u.instagram || u.application?.founderInstagram) && (
-                                                <a href={u.instagram?.startsWith('http') ? u.instagram : `https://instagram.com/${(u.instagram || u.application?.founderInstagram).replace('@', '')}`} target="_blank" rel="noopener noreferrer" style={{ color: '#E1306C', display: 'flex' }} title="Instagram">
-                                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/></svg>
+                                                <a href={u.instagram?.startsWith('http') ? u.instagram : `https://instagram.com/${(u.instagram || u.application?.founderInstagram).replace('@', '')}`} target="_blank" rel="noopener noreferrer" style={{ color: '#E1306C', display: 'flex', transition: 'transform 0.2s' }} onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-2px)'} onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'} title="Instagram">
+                                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"></rect><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"></line></svg>
                                                 </a>
                                             )}
                                         </div>
@@ -1441,11 +1637,340 @@ const Admin = () => {
                 </table>
             </div>
         )}
+        {activeTab === 'Backup' && (
+            <div className="glass-card" style={{ flex: 1, padding: '2.5rem', borderRadius: '32px', height: 'calc(100vh - 20px)', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
+                    <div>
+                        <h3 style={{ margin: 0, fontWeight: '900', fontSize: '1.8rem', letterSpacing: '-0.02em' }}>Cloud Backups</h3>
+                        <p style={{ margin: '4px 0 0 0', opacity: 0.5, fontSize: '14px', fontWeight: 600 }}>Manage your startup registry archives</p>
+                    </div>
+                    <button 
+                        onClick={fetchData}
+                        style={{ background: '#000', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: '12px', fontWeight: '800', fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}
+                    >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M23 4v6h-6"></path><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>
+                        REFRESH BACKUPS
+                    </button>
+                </div>
+
+                <div style={{ flex: 1, overflowY: 'auto', paddingRight: '10px' }}>
+                    <div style={{ backgroundColor: 'rgba(0,0,0,0.02)', borderRadius: '24px', padding: '2rem', border: '1px solid rgba(0,0,0,0.05)' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '2rem' }}>
+                            <div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
+                                    <div style={{ padding: '8px', backgroundColor: '#000', borderRadius: '10px', color: '#fff', display: 'flex' }}>
+                                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                                    </div>
+                                    <span style={{ fontWeight: '900', fontSize: '1.2rem' }}>External Founders Registry Backup</span>
+                                </div>
+                                <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
+                                    <span style={{ fontSize: '12px', fontWeight: '800', opacity: 0.4 }}>PRIMARY CLOUD STORAGE</span>
+                                    <div style={{ width: '4px', height: '4px', backgroundColor: '#ccc', borderRadius: '50%' }}></div>
+                                    <span style={{ fontSize: '12px', fontWeight: '800', color: '#34c759' }}>PROTECTED</span>
+                                </div>
+                            </div>
+                            <button 
+                                onClick={handleRestoreRegistry}
+                                style={{ background: '#000', color: '#fff', border: 'none', padding: '12px 24px', borderRadius: '14px', fontWeight: '900', fontSize: '13px', cursor: 'pointer', transition: 'all 0.2s', boxShadow: '0 4px 15px rgba(0,0,0,0.1)' }}
+                                onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.02)'}
+                                onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
+                            >
+                                RESTORE THIS BACKUP
+                            </button>
+                        </div>
+
+                        <div style={{ backgroundColor: '#fff', borderRadius: '16px', padding: '1.5rem', border: '1px solid rgba(0,0,0,0.05)' }}>
+                            <h4 style={{ margin: '0 0 1rem 0', fontSize: '11px', fontWeight: '900', letterSpacing: '0.1em', opacity: 0.4 }}>BACKUP CONTENT ({externalFounders.length} EMAILS)</h4>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '12px', maxHeight: '400px', overflowY: 'auto', paddingRight: '10px' }}>
+                                {externalFounders.map((f, i) => (
+                                    <div key={i} style={{ padding: '12px 16px', backgroundColor: 'rgba(0,0,0,0.02)', borderRadius: '12px', fontSize: '13px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '12px', border: '1px solid rgba(0,0,0,0.02)' }}>
+                                        <span style={{ opacity: 0.3, fontSize: '11px', fontWeight: '800', width: '20px' }}>{i + 1}.</span>
+                                        <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: '#000' }}>{f.email}</span>
+                                    </div>
+                                ))}
+                                {externalFounders.length === 0 && (
+                                    <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: '4rem', opacity: 0.5, fontWeight: 700 }}>
+                                        <div style={{ fontSize: '40px', marginBottom: '1rem' }}>☁️</div>
+                                        <div>No emails found in the current cloud registry.</div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        )}
         {activeTab === 'Cold Mail' && (
-            <div style={{ display: 'flex', gap: '0.75rem', animation: 'fadeInUp 0.4s ease-out', minHeight: 'calc(100vh - 100px)' }}>
+            <>
+                <div style={{ display: 'flex', gap: '0.5rem', animation: 'fadeInUp 0.4s ease-out', minHeight: 'calc(100vh - 20px)' }}>
+                {/* External Founders Sidebar (Left Side) */}
+                <div 
+                    ref={sidebarRef}
+                    className={`glass-card ${isResizing ? 'is-resizing' : ''}`} 
+                    style={{ 
+                        width: `${sidebarWidth}px`, 
+                        padding: '1.5rem', 
+                        borderRadius: '0', 
+                        display: 'flex', 
+                        flexDirection: 'column', 
+                        height: 'calc(100vh - 20px)', 
+                        overflow: 'hidden', 
+                        position: 'relative'
+                    }}
+                >
+                    {/* Resize Handle */}
+                    <div 
+                        onMouseDown={startResizing}
+                        style={{ 
+                            position: 'absolute', right: 0, top: 0, bottom: 0, width: '10px', 
+                            cursor: 'col-resize', backgroundColor: isResizing ? 'rgba(0,122,255,0.4)' : 'transparent', 
+                            transition: 'background-color 0.2s', zIndex: 100 
+                        }}
+                        onMouseEnter={e => { if(!isResizing) e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.02)' }}
+                        onMouseLeave={e => { if(!isResizing) e.currentTarget.style.backgroundColor = 'transparent' }}
+                    />
+                    {isResizing && (
+                        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 99, cursor: 'col-resize' }} />
+                    )}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                        <h4 style={{ margin: 0, fontWeight: '800', fontSize: '1.1rem' }}>External Founders ({externalFounders.length})</h4>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            {/* Backup/Restore Controls */}
+                            <div style={{ display: 'flex', gap: '4px', marginRight: '4px' }}>
+                                <button 
+                                    onClick={handleBackupRegistry}
+                                    style={{ background: 'rgba(0,0,0,0.04)', border: 'none', borderRadius: '8px', padding: '6px', cursor: 'pointer', display: 'flex', color: '#555' }}
+                                    title="Backup Registry to Cloud"
+                                    onMouseEnter={e => e.currentTarget.style.background = 'rgba(0,0,0,0.08)'}
+                                    onMouseLeave={e => e.currentTarget.style.background = 'rgba(0,0,0,0.04)'}
+                                >
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                                </button>
+                                <button 
+                                    onClick={handleRestoreRegistry}
+                                    style={{ background: 'rgba(0,0,0,0.04)', border: 'none', borderRadius: '8px', padding: '6px', cursor: 'pointer', display: 'flex', color: '#555' }}
+                                    title="Restore Registry from Backup"
+                                    onMouseEnter={e => e.currentTarget.style.background = 'rgba(0,0,0,0.08)'}
+                                    onMouseLeave={e => e.currentTarget.style.background = 'rgba(0,0,0,0.04)'}
+                                >
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                                </button>
+                                <button 
+                                    onClick={handleExportToCSV}
+                                    style={{ background: 'rgba(0,0,0,0.04)', border: 'none', borderRadius: '8px', padding: '6px', cursor: 'pointer', display: 'flex', color: '#555' }}
+                                    title="Export Registry to CSV (Excel)"
+                                    onMouseEnter={e => e.currentTarget.style.background = 'rgba(0,0,0,0.08)'}
+                                    onMouseLeave={e => e.currentTarget.style.background = 'rgba(0,0,0,0.04)'}
+                                >
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="12" y1="18" x2="12" y2="12"></line><polyline points="9 15 12 18 15 15"></polyline></svg>
+                                </button>
+                            </div>
+
+                            {externalFounders.length > 0 && (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                    {selectedFounderIds.length > 0 && (
+                                        <button 
+                                            onClick={handleRemoveSelectedFounders}
+                                            style={{ background: '#ff3b30', border: 'none', color: '#fff', fontSize: '10px', fontWeight: '800', cursor: 'pointer', padding: '6px 10px', borderRadius: '8px', animation: 'fadeInRight 0.3s' }}
+                                        >
+                                            Delete ({selectedFounderIds.length})
+                                        </button>
+                                    )}
+                                    <div 
+                                        onClick={toggleSelectAll}
+                                        style={{ 
+                                            width: '20px', height: '20px', borderRadius: '6px', border: '2px solid #000', 
+                                            display: 'flex', alignItems: 'center', justifyContent: 'center', 
+                                            backgroundColor: selectedFounderIds.length > 0 && selectedFounderIds.length === externalFounders.filter(f => f.email.toLowerCase().includes(founderSearch.toLowerCase()) || (f.name && f.name.toLowerCase().includes(founderSearch.toLowerCase()))).length ? '#000' : 'transparent', 
+                                            cursor: 'pointer',
+                                            transition: 'all 0.2s'
+                                        }}
+                                        title="Select All"
+                                    >
+                                        {selectedFounderIds.length > 0 && selectedFounderIds.length === externalFounders.filter(f => f.email.toLowerCase().includes(founderSearch.toLowerCase()) || (f.name && f.name.toLowerCase().includes(founderSearch.toLowerCase()))).length && <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Filter Menu Bar */}
+                    <div style={{ display: 'flex', gap: '6px', marginBottom: '1.25rem', overflowX: 'auto', paddingBottom: '4px', scrollbarWidth: 'none' }}>
+                        {[
+                            { id: 'all', label: 'All', count: externalFounders.length, icon: (
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="7" y1="8" x2="17" y2="8"></line><line x1="7" y1="12" x2="17" y2="12"></line><line x1="7" y1="16" x2="17" y2="16"></line></svg>
+                            )},
+                            { id: 'duplicates', label: 'Duplicate', count: externalFounders.filter(f => externalFounders.filter(x => x.email.toLowerCase() === f.email.toLowerCase()).length > 1).length, icon: (
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                            )},
+                            { id: 'gmail', label: 'Gmail', count: externalFounders.filter(f => f.email.toLowerCase().includes('gmail.com') || f.email.toLowerCase().includes('googlemail.com')).length, icon: (
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
+                            )},
+                            { id: 'yahoo', label: 'Yahoo', count: externalFounders.filter(f => f.email.toLowerCase().includes('yahoo.') || f.email.toLowerCase().includes('ymail.com')).length, icon: (
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 21V12M12 12l8-8M12 12L4 4"></path></svg>
+                            )},
+                            { id: 'other', label: 'Other', count: externalFounders.filter(f => !f.email.toLowerCase().includes('gmail.com') && !f.email.toLowerCase().includes('googlemail.com') && !f.email.toLowerCase().includes('yahoo.') && !f.email.toLowerCase().includes('ymail.com')).length, icon: (
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
+                            )},
+                            { id: 'invalid', label: 'Invalid', count: externalFounders.filter(f => {
+                                const email = f.email.toLowerCase();
+                                const isBasicValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+                                const hasIncompleteDomain = email.includes('@') && (email.split('@')[1].split('.').length < 2 || email.split('@')[1].split('.').some(part => part.length < 2));
+                                return !isBasicValid || hasIncompleteDomain;
+                            }).length, icon: (
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+                            )}
+                        ].map(filter => (
+                            <button
+                                key={filter.id}
+                                onClick={() => setSidebarFilter(filter.id)}
+                                style={{
+                                    whiteSpace: 'nowrap',
+                                    padding: '7px 14px',
+                                    borderRadius: '12px',
+                                    fontSize: '11px',
+                                    fontWeight: '800',
+                                    letterSpacing: '0.02em',
+                                    border: '1px solid',
+                                    borderColor: sidebarFilter === filter.id ? '#000' : 'rgba(0,0,0,0.06)',
+                                    backgroundColor: sidebarFilter === filter.id ? '#000' : 'rgba(255,255,255,0.7)',
+                                    color: sidebarFilter === filter.id ? '#fff' : '#555',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '7px',
+                                    transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+                                    flexShrink: 0,
+                                    boxShadow: sidebarFilter === filter.id ? '0 4px 12px rgba(0,0,0,0.12)' : 'none'
+                                }}
+                            >
+                                <span style={{ display: 'flex', alignItems: 'center', opacity: sidebarFilter === filter.id ? 1 : 0.7 }}>{filter.icon}</span>
+                                <span>{filter.label.toUpperCase()}</span>
+                                <span style={{ 
+                                    padding: '2px 6px', 
+                                    backgroundColor: sidebarFilter === filter.id ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.04)', 
+                                    borderRadius: '5px',
+                                    fontSize: '9px',
+                                    fontWeight: '900',
+                                    opacity: 0.9,
+                                    minWidth: '20px',
+                                    textAlign: 'center'
+                                }}>{filter.count}</span>
+                            </button>
+                        ))}
+                    </div>
+
+                    {/* Search Bar */}
+                    <div style={{ position: 'relative', marginBottom: '1rem' }}>
+                        <input 
+                            value={founderSearch}
+                            onChange={e => setFounderSearch(e.target.value)}
+                            onKeyDown={e => { if (e.key === 'Enter') setFounderSearch(''); }}
+                            placeholder="Search by name or email..."
+                            style={{ width: '100%', padding: '10px 12px 10px 36px', borderRadius: '12px', border: '1px solid rgba(0,0,0,0.08)', backgroundColor: 'rgba(0,0,0,0.02)', fontSize: '13px', outline: 'none', transition: 'all 0.2s' }}
+                            onFocus={e => { e.currentTarget.style.borderColor = '#000'; e.currentTarget.style.backgroundColor = '#fff'; }}
+                            onBlur={e => { e.currentTarget.style.borderColor = 'rgba(0,0,0,0.08)'; e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.02)'; }}
+                        />
+                        <svg style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#999' }} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                    </div>
+
+                    {getFuzzySearchSuggestion() && (
+                        <div style={{ padding: '8px 12px', backgroundColor: 'rgba(0,122,255,0.05)', borderRadius: '10px', marginBottom: '1rem', border: '1px solid rgba(0,122,255,0.1)', animation: 'fadeInDown 0.3s' }}>
+                            <div style={{ fontSize: '11px', color: '#007aff', fontWeight: '700', marginBottom: '4px' }}>Did you mean?</div>
+                            <div 
+                                onClick={() => { setFounderSearch(getFuzzySearchSuggestion().email); }}
+                                style={{ fontSize: '13px', fontWeight: '600', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+                            >
+                                <span>{getFuzzySearchSuggestion().email}</span>
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                            </div>
+                        </div>
+                    )}
+                      <div 
+                        style={{ flex: 1, overflowY: 'auto', paddingRight: '8px' }}
+                        onScroll={(e) => {
+                            const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
+                            // Trigger pre-load when 10 items are left (approx 800px) so user doesn't wait
+                            if (scrollHeight - scrollTop <= clientHeight + 800) {
+                                setVisibleExternalCount(prev => prev + 30);
+                            }
+                        }}
+                    >
+                        {filteredFounders.slice(0, visibleExternalCount).map((u, i) => (
+                            <div 
+                                key={u.id} 
+                                onClick={() => { setSelectedExternalFounder(u); fetchFounderMessages(u.email); }}
+                                style={{ 
+                                    display: 'flex', alignItems: 'flex-start', gap: '12px', padding: '12px 10px', 
+                                    borderBottom: '1px solid rgba(0,0,0,0.05)', cursor: 'pointer',
+                                    borderRadius: '0',
+                                    backgroundColor: selectedExternalFounder?.id === u.id ? 'rgba(0,0,0,0.05)' : 'transparent',
+                                    transition: 'all 0.2s',
+                                    marginBottom: '4px',
+                                    position: 'relative'
+                                }}
+                                onMouseEnter={e => { if(selectedExternalFounder?.id !== u.id) e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.02)' }}
+                                onMouseLeave={e => { if(selectedExternalFounder?.id !== u.id) e.currentTarget.style.backgroundColor = 'transparent' }}
+                            >
+                                <div style={{ position: 'relative' }}>
+                                    <div 
+                                        onClick={(e) => { e.stopPropagation(); toggleFounderSelection(u.id); }}
+                                        style={{ 
+                                            width: '18px', height: '18px', borderRadius: '5px', border: '2px solid #000', 
+                                            display: 'flex', alignItems: 'center', justifyContent: 'center', 
+                                            backgroundColor: selectedFounderIds.includes(u.id) ? '#000' : 'transparent', 
+                                            cursor: 'pointer', flexShrink: 0, marginTop: '2px',
+                                            transition: 'all 0.1s'
+                                        }}
+                                    >
+                                        {selectedFounderIds.includes(u.id) && <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>}
+                                    </div>
+                                    {u.replyCount > 0 && (
+                                        <div style={{ 
+                                            position: 'absolute', top: '-8px', left: '-8px', 
+                                            backgroundColor: '#ff3b30', color: '#fff', 
+                                            fontSize: '9px', fontWeight: '900', 
+                                            minWidth: '16px', height: '16px', borderRadius: '8px', 
+                                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                            padding: '0 4px', boxShadow: '0 2px 5px rgba(255,59,48,0.4)',
+                                            zIndex: 2,
+                                            border: '2px solid #fff'
+                                        }}>
+                                            {u.replyCount}
+                                        </div>
+                                    )}
+                                </div>
+                                <div style={{ fontSize: '11px', fontWeight: '800', color: '#888', width: '22px', flexShrink: 0, marginTop: '4px' }}>
+                                    {i + 1}.
+                                </div>
+                                <div style={{ flex: 1, overflow: 'hidden' }}>
+                                    <div style={{ fontSize: '14px', fontWeight: '700', color: '#000', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                        {u.name || 'External Founder'}
+                                    </div>
+                                    <div style={{ fontSize: '12px', color: '#6300dd', fontWeight: '600', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                        {u.email}
+                                    </div>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px' }}>
+                                        <div style={{ fontSize: '11px', color: '#ff9500', fontWeight: '600', backgroundColor: 'rgba(255,149,0,0.05)', padding: '2px 6px', borderRadius: '4px' }}>
+                                            External
+                                        </div>
+                                        <button 
+                                            onClick={(e) => { e.stopPropagation(); handleRemoveExternalFounder(u.email); }}
+                                            style={{ background: 'none', border: 'none', color: '#ff3b30', fontSize: '10px', fontWeight: '700', cursor: 'pointer', opacity: 0.6 }}
+                                            onMouseEnter={e => e.currentTarget.style.opacity = 1}
+                                            onMouseLeave={e => e.currentTarget.style.opacity = 0.6}
+                                        >
+                                            Remove
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
                 {selectedExternalFounder ? (
                     /* Individual Chat Interface */
-                    <div className="glass-card" style={{ flex: 1, padding: '2rem', borderRadius: '24px', display: 'flex', flexDirection: 'column', position: 'relative' }}>
+                    <div className="glass-card" style={{ flex: 1, padding: '2.5rem', borderRadius: '0', height: 'calc(100vh - 20px)', display: 'flex', flexDirection: 'column', position: 'relative' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '2rem' }}>
                             <button 
                                 onClick={() => {
@@ -1563,7 +2088,7 @@ const Admin = () => {
                         </div>
                     </div>
                 ) : (
-                    <div className="glass-card" style={{ flex: 1, padding: '2rem', borderRadius: '24px', position: 'relative' }}>
+                    <div className="glass-card" style={{ flex: 1, padding: '2rem', borderRadius: '0', position: 'relative', height: 'calc(100vh - 20px)', overflowY: 'auto' }}>
                         <h3 style={{ margin: '0 0 1.5rem 0', fontWeight: '800', fontSize: '1.5rem' }}>Cold Mail</h3>
                         
                         <div style={{ marginBottom: '2rem' }}>
@@ -1612,7 +2137,7 @@ const Admin = () => {
                                     value={coldEmailsText}
                                     onChange={(e) => setColdEmailsText(e.target.value)}
                                     placeholder="example1@mail.com, example2@mail.com\nexample3@mail.com"
-                                    style={{ width: '100%', minHeight: '150px', padding: '12px', borderRadius: '12px', border: '1px solid rgba(0,0,0,0.1)', backgroundColor: 'rgba(255,255,255,0.8)', fontSize: '14px', fontFamily: 'Inter, sans-serif', resize: 'vertical' }}
+                                    style={{ width: '100%', minHeight: '350px', padding: '12px', borderRadius: '12px', border: '1px solid rgba(0,0,0,0.1)', backgroundColor: 'rgba(255,255,255,0.8)', fontSize: '14px', fontFamily: 'Inter, sans-serif', resize: 'vertical' }}
                                 />
                                 <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '12px' }}>
                                     <button 
@@ -1680,142 +2205,7 @@ const Admin = () => {
                         </button>
                     </div>
                 )}
-                
-                {/* Right Sidebar - External Founders List */}
-                <div className="glass-card" style={{ width: '360px', padding: '1.5rem', borderRadius: '24px', display: 'flex', flexDirection: 'column', height: 'calc(100vh - 100px)', overflow: 'hidden' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                        <h4 style={{ margin: 0, fontWeight: '800', fontSize: '1.1rem' }}>External Founders ({externalFounders.length})</h4>
-                        {externalFounders.length > 0 && (
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                {selectedFounderIds.length > 0 && (
-                                    <button 
-                                        onClick={handleRemoveSelectedFounders}
-                                        style={{ background: '#ff3b30', border: 'none', color: '#fff', fontSize: '10px', fontWeight: '800', cursor: 'pointer', padding: '6px 10px', borderRadius: '8px', animation: 'fadeInRight 0.3s' }}
-                                    >
-                                        Delete ({selectedFounderIds.length})
-                                    </button>
-                                )}
-                                <div 
-                                    onClick={toggleSelectAll}
-                                    style={{ 
-                                        width: '20px', height: '20px', borderRadius: '6px', border: '2px solid #000', 
-                                        display: 'flex', alignItems: 'center', justifyContent: 'center', 
-                                        backgroundColor: selectedFounderIds.length > 0 && selectedFounderIds.length === externalFounders.filter(f => f.email.toLowerCase().includes(founderSearch.toLowerCase()) || (f.name && f.name.toLowerCase().includes(founderSearch.toLowerCase()))).length ? '#000' : 'transparent', 
-                                        cursor: 'pointer',
-                                        transition: 'all 0.2s'
-                                    }}
-                                    title="Select All"
-                                >
-                                    {selectedFounderIds.length > 0 && selectedFounderIds.length === externalFounders.filter(f => f.email.toLowerCase().includes(founderSearch.toLowerCase()) || (f.name && f.name.toLowerCase().includes(founderSearch.toLowerCase()))).length && <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>}
-                                </div>
-                            </div>
-                        )}
-                    </div>
-
-                    {/* Search Bar */}
-                    <div style={{ position: 'relative', marginBottom: '1rem' }}>
-                        <input 
-                            value={founderSearch}
-                            onChange={e => setFounderSearch(e.target.value)}
-                            placeholder="Search by name or email..."
-                            style={{ width: '100%', padding: '10px 12px 10px 36px', borderRadius: '12px', border: '1px solid rgba(0,0,0,0.08)', backgroundColor: 'rgba(0,0,0,0.02)', fontSize: '13px', outline: 'none', transition: 'all 0.2s' }}
-                            onFocus={e => { e.currentTarget.style.borderColor = '#000'; e.currentTarget.style.backgroundColor = '#fff'; }}
-                            onBlur={e => { e.currentTarget.style.borderColor = 'rgba(0,0,0,0.08)'; e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.02)'; }}
-                        />
-                        <svg style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#999' }} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-                    </div>
-
-                    {getFuzzySearchSuggestion() && (
-                        <div style={{ padding: '8px 12px', backgroundColor: 'rgba(0,122,255,0.05)', borderRadius: '10px', marginBottom: '1rem', border: '1px solid rgba(0,122,255,0.1)', animation: 'fadeInDown 0.3s' }}>
-                            <div style={{ fontSize: '11px', color: '#007aff', fontWeight: '700', marginBottom: '4px' }}>Did you mean?</div>
-                            <div 
-                                onClick={() => { setFounderSearch(getFuzzySearchSuggestion().email); }}
-                                style={{ fontSize: '13px', fontWeight: '600', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
-                            >
-                                <span>{getFuzzySearchSuggestion().email}</span>
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
-                            </div>
-                        </div>
-                    )}
-
-                    <div style={{ flex: 1, overflowY: 'auto', paddingRight: '8px' }}>
-                        {externalFounders
-                            .filter(f => 
-                                f.email.toLowerCase().includes(founderSearch.toLowerCase()) || 
-                                (f.name && f.name.toLowerCase().includes(founderSearch.toLowerCase()))
-                            )
-                            .map((u, i) => (
-                            <div 
-                                key={u.id} 
-                                onClick={() => { setSelectedExternalFounder(u); fetchFounderMessages(u.email); }}
-                                style={{ 
-                                    display: 'flex', alignItems: 'flex-start', gap: '12px', padding: '12px 10px', 
-                                    borderBottom: '1px solid rgba(0,0,0,0.05)', cursor: 'pointer',
-                                    borderRadius: '12px',
-                                    backgroundColor: selectedExternalFounder?.id === u.id ? 'rgba(0,0,0,0.05)' : 'transparent',
-                                    transition: 'all 0.2s',
-                                    marginBottom: '4px',
-                                    position: 'relative'
-                                }}
-                                onMouseEnter={e => { if(selectedExternalFounder?.id !== u.id) e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.02)' }}
-                                onMouseLeave={e => { if(selectedExternalFounder?.id !== u.id) e.currentTarget.style.backgroundColor = 'transparent' }}
-                            >
-                                <div style={{ position: 'relative' }}>
-                                    <div 
-                                        onClick={(e) => { e.stopPropagation(); toggleFounderSelection(u.id); }}
-                                        style={{ 
-                                            width: '18px', height: '18px', borderRadius: '5px', border: '2px solid #000', 
-                                            display: 'flex', alignItems: 'center', justifyContent: 'center', 
-                                            backgroundColor: selectedFounderIds.includes(u.id) ? '#000' : 'transparent', 
-                                            cursor: 'pointer', flexShrink: 0, marginTop: '2px',
-                                            transition: 'all 0.1s'
-                                        }}
-                                    >
-                                        {selectedFounderIds.includes(u.id) && <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>}
-                                    </div>
-                                    {u.replyCount > 0 && (
-                                        <div style={{ 
-                                            position: 'absolute', top: '-8px', left: '-8px', 
-                                            backgroundColor: '#ff3b30', color: '#fff', 
-                                            fontSize: '9px', fontWeight: '900', 
-                                            minWidth: '16px', height: '16px', borderRadius: '8px', 
-                                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                            padding: '0 4px', boxShadow: '0 2px 5px rgba(255,59,48,0.4)',
-                                            zIndex: 2,
-                                            border: '2px solid #fff'
-                                        }}>
-                                            {u.replyCount}
-                                        </div>
-                                    )}
-                                </div>
-                                <div style={{ fontSize: '11px', fontWeight: '800', color: '#888', width: '22px', flexShrink: 0, marginTop: '4px' }}>
-                                    {i + 1}.
-                                </div>
-                                <div style={{ flex: 1, overflow: 'hidden' }}>
-                                    <div style={{ fontSize: '14px', fontWeight: '700', color: '#000', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                        {u.name || 'External Founder'}
-                                    </div>
-                                    <div style={{ fontSize: '12px', color: '#6300dd', fontWeight: '600', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                        {u.email}
-                                    </div>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px' }}>
-                                        <div style={{ fontSize: '11px', color: '#ff9500', fontWeight: '600', backgroundColor: 'rgba(255,149,0,0.05)', padding: '2px 6px', borderRadius: '4px' }}>
-                                            External
-                                        </div>
-                                        <button 
-                                            onClick={(e) => { e.stopPropagation(); handleRemoveExternalFounder(u.email); }}
-                                            style={{ background: 'none', border: 'none', color: '#ff3b30', fontSize: '10px', fontWeight: '700', cursor: 'pointer', opacity: 0.6 }}
-                                            onMouseEnter={e => e.currentTarget.style.opacity = 1}
-                                            onMouseLeave={e => e.currentTarget.style.opacity = 0.6}
-                                        >
-                                            Remove
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                </div>
+            </div>
 
                 {/* Draft Modal */}
                 {showDraftModal && (
@@ -1854,7 +2244,7 @@ const Admin = () => {
                         </div>
                     </div>
                 )}
-            </div>
+            </>
         )}
         {/* Toast Notification */}
         {showToast && (
@@ -1893,6 +2283,48 @@ const Admin = () => {
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
             </div>
           </div>
+        )}
+
+        {/* Real-time Sending Progress */}
+        {sendingStatus && (
+            <div style={{ 
+                position: 'fixed', 
+                bottom: '40px', 
+                right: '40px', 
+                backgroundColor: '#000', 
+                padding: '20px 24px', 
+                borderRadius: '20px', 
+                boxShadow: '0 20px 50px rgba(0,0,0,0.3)',
+                color: '#fff',
+                zIndex: 6000,
+                minWidth: '320px',
+                animation: 'slideUp 0.3s ease-out'
+            }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <div style={{ width: '10px', height: '10px', backgroundColor: '#34c759', borderRadius: '50%', animation: 'pulse 1.5s infinite' }}></div>
+                        <span style={{ fontSize: '13px', fontWeight: '800', letterSpacing: '0.05em' }}>SENDING PROGRESS</span>
+                    </div>
+                    <span style={{ fontSize: '12px', fontWeight: '700', opacity: 0.7 }}>{sendingStatus.count} / {sendingStatus.total}</span>
+                </div>
+                
+                <div style={{ marginBottom: '14px', backgroundColor: 'rgba(255,255,255,0.1)', height: '6px', borderRadius: '3px', overflow: 'hidden' }}>
+                    <div style={{ 
+                        width: `${(sendingStatus.count / sendingStatus.total) * 100}%`, 
+                        height: '100%', 
+                        backgroundColor: '#fff', 
+                        transition: 'width 0.3s ease-out' 
+                    }}></div>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', backgroundColor: 'rgba(255,255,255,0.05)', padding: '10px 14px', borderRadius: '12px' }}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M22 2L11 13"></path><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+                    <div style={{ overflow: 'hidden' }}>
+                        <div style={{ fontSize: '10px', fontWeight: '800', opacity: 0.5, marginBottom: '2px' }}>CURRENT RECIPIENT</div>
+                        <div style={{ fontSize: '13px', fontWeight: '600', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{sendingStatus.current}</div>
+                    </div>
+                </div>
+            </div>
         )}
       </main>
         {/* Confirmation Modal */}

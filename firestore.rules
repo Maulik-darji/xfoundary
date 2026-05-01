@@ -93,6 +93,11 @@
         }
       }
 
+      // Admin Settings & Backups: Only visible/editable by admins
+      match /adminSettings/{settingId} {
+        allow read, write: if isAdmin();
+      }
+
       // Global default: Deny all other access
       match /{document=**} {
         allow read, write: if false;
