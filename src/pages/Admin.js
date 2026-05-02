@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { adminAuth as auth, adminDb as db, adminStorage as storage } from '../firebase';
-import { onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, GoogleAuthProvider, signInWithPopup, setPersistence, inMemoryPersistence } from 'firebase/auth';
+import { onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, GoogleAuthProvider, signInWithPopup, setPersistence, inMemoryPersistence, updateEmail, verifyBeforeUpdateEmail, updatePassword } from 'firebase/auth';
 import { collection, getDocs, doc, getDoc, updateDoc, setDoc, writeBatch, addDoc, deleteDoc, onSnapshot, increment } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { initializeApp, getApp } from 'firebase/app';
@@ -189,6 +189,8 @@ const Admin = () => {
   const previousFounder = useRef(null);
   const [externalFounders, setExternalFounders] = useState([]);
   const [selectedExternalFounder, setSelectedExternalFounder] = useState(null);
+  const [selectedApplication, setSelectedApplication] = useState(null);
+  const [showAppDetail, setShowAppDetail] = useState(false);
   const [founderMessages, setFounderMessages] = useState([]);
   const [selectedFounderIds, setSelectedFounderIds] = useState([]);
   const [founderSearch, setFounderSearch] = useState('');
@@ -210,9 +212,13 @@ const Admin = () => {
   const [showGmailSecret, setShowGmailSecret] = useState(false);
   const [settingsSaved, setSettingsSaved] = useState(false);
   const [isSavingSettings, setIsSavingSettings] = useState(false);
-  const [selectedApplication, setSelectedApplication] = useState(null);
-  const [showAppDetail, setShowAppDetail] = useState(false);
   const [isSyncingIndividual, setIsSyncingIndividual] = useState(false);
+  const [newAdminEmail, setNewAdminEmail] = useState(user?.email || '');
+  const [isUpdatingEmail, setIsUpdatingEmail] = useState(false);
+  const [settingsSubTab, setSettingsSubTab] = useState('Account');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showNewPassword, setShowNewPassword] = useState(false);
 
   useEffect(() => {
     if (selectedExternalFounder) {
@@ -242,6 +248,105 @@ const Admin = () => {
         }
     }
   }, [externalFounders]);
+
+  useEffect(() => {
+    if (user && !newAdminEmail) {
+      setNewAdminEmail(user.email);
+    }
+  }, [user]);
+
+  const handleUpdateEmail = async () => {
+    // Basic validation
+    if (newPassword && newPassword !== confirmPassword) {
+        setToastMessage("Error: Passwords do not match.");
+        setShowToast(true);
+        setTimeout(() => setShowToast(false), 5000);
+        return;
+    }
+
+    if (newPassword && newPassword.length < 6) {
+        setToastMessage("Error: Password must be at least 6 characters.");
+        setShowToast(true);
+        setTimeout(() => setShowToast(false), 5000);
+        return;
+    }
+
+    const isEmailChanged = newAdminEmail && newAdminEmail !== user.email;
+    if (!isEmailChanged && !newPassword) return;
+    
+    // Check uniqueness if email is being changed
+    if (isEmailChanged) {
+        const isEmailTaken = users.some(u => u.email?.toLowerCase() === newAdminEmail.toLowerCase()) || 
+                           members.some(m => m.email?.toLowerCase() === newAdminEmail.toLowerCase());
+        
+        if (isEmailTaken) {
+            setToastMessage("Access Denied: This email is already linked to a Founder or Member account.");
+            setShowToast(true);
+            setTimeout(() => setShowToast(false), 5000);
+            return;
+        }
+    }
+
+    setIsUpdatingEmail(true);
+    try {
+        let successMsg = "Changes saved!";
+
+        // Update password if provided
+        if (newPassword) {
+            await updatePassword(auth.currentUser, newPassword);
+            successMsg = "Password updated successfully!";
+        }
+
+        // Update email if provided
+        if (isEmailChanged) {
+            const actionCodeSettings = {
+                url: window.location.origin + '/admin', 
+                handleCodeInApp: true,
+            };
+            await verifyBeforeUpdateEmail(auth.currentUser, newAdminEmail, actionCodeSettings);
+            successMsg = newPassword ? "Password updated & verification email sent!" : "Verification email sent to " + newAdminEmail;
+            
+            // Show a special toast with Gmail redirect
+            setToastMessage(
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <span>{successMsg}</span>
+                    <a 
+                        href={`https://mail.google.com/mail/u/${newAdminEmail}`} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        style={{ 
+                            display: 'flex', alignItems: 'center', gap: '4px', 
+                            color: '#6300dd', fontWeight: '800', textDecoration: 'none',
+                            backgroundColor: 'rgba(99, 0, 221, 0.1)', padding: '4px 8px', borderRadius: '6px',
+                            fontSize: '12px'
+                        }}
+                    >
+                        GO TO GMAIL
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="7" y1="17" x2="17" y2="7"></line><polyline points="7 7 17 7 17 17"></polyline></svg>
+                    </a>
+                </div>
+            );
+        } else {
+            setToastMessage(successMsg);
+        }
+        
+        setShowToast(true);
+        setTimeout(() => setShowToast(false), 8000); // Longer for verification
+        setNewPassword('');
+        setConfirmPassword('');
+    } catch (err) {
+        console.error(err);
+        if (err.code === 'auth/requires-recent-login') {
+            setToastMessage("Security: Please log out and back in to change sensitive credentials.");
+        } else {
+            setToastMessage("Update failed: " + err.message);
+        }
+        setShowToast(true);
+        setTimeout(() => setShowToast(false), 5000);
+    } finally {
+        setIsUpdatingEmail(false);
+    }
+  };
 
   const toggleFounderSelection = (id) => {
       setSelectedFounderIds(prev => 
@@ -1542,7 +1647,16 @@ const Admin = () => {
     </div>
   );
 
-  const TABS = ['Overview', 'Pending Apps', 'Applications', 'Founders', 'Admins', 'Members', 'Blog Approvals', 'Manage Blog', 'XF Blog', 'Member Requests', 'Withdrawn Apps', 'Cold Mail', 'Backup', 'Settings'];
+  const TAB_GROUPS = [
+    { name: 'Analytics', tabs: ['Overview'] },
+    { name: 'Admissions', tabs: ['Pending Apps', 'Applications', 'Withdrawn Apps', 'Member Requests'] },
+    { name: 'Directory', tabs: ['Founders', 'Admins', 'Members'] },
+    { name: 'Content', tabs: ['Blog Approvals', 'Manage Blog', 'XF Blog'] },
+    { name: 'Tools', tabs: ['Cold Mail', 'Backup'] },
+    { name: 'System', tabs: ['Settings'] }
+  ];
+
+  const TABS = TAB_GROUPS.flatMap(g => g.tabs);
 
   return (
     <div style={{ display: 'flex', height: '100vh', backgroundColor: '#f0f2f5', fontFamily: 'Inter, sans-serif', overflow: 'hidden', position: 'relative' }}>
@@ -1591,6 +1705,20 @@ const Admin = () => {
             );
             animation: glassShine 3s infinite linear;
         }
+        ::-webkit-scrollbar {
+            width: 4px;
+            height: 4px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(0,0,0,0.1);
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(0,0,0,0.2);
+        }
         .glass-card {
             background: rgba(255, 255, 255, 0.7) !important;
             backdrop-filter: blur(20px) saturate(180%) !important;
@@ -1629,7 +1757,7 @@ const Admin = () => {
         backdropFilter: 'blur(30px)', 
         color: '#000', 
         borderRight: '1px solid rgba(201, 218, 218, 0.5)', 
-        padding: '2rem 1.5rem', 
+        padding: '2rem 0 2rem 1.5rem', 
         height: '100vh', 
         position: 'fixed', 
         left: 0,
@@ -1638,64 +1766,73 @@ const Admin = () => {
         flexDirection: 'column', 
         zIndex: 10 
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '3rem' }}>
-          <div style={{ backgroundColor: '#000', width: '40px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: '900', borderRadius: '10px', fontSize: '20px' }}>X</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '3rem', paddingRight: '1.5rem' }}>
+          <div style={{ backgroundColor: '#6300dd', width: '40px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: '900', borderRadius: '10px', fontSize: '20px' }}>X</div>
           <span style={{ fontWeight: '800', color: '#000', fontSize: '20px', letterSpacing: '-0.02em' }}>X Foundary</span>
         </div>
-        <nav style={{ flex: 1, position: 'relative', overflowY: 'auto', paddingRight: '5px' }}>
-          <div className="liquid-glass-active" style={{ 
-              transform: `translateY(${TABS.indexOf(activeTab) * 50}px)`,
-              height: '46px'
-          }}></div>
-          {TABS.map((tab) => {
-              let badgeCount = 0;
-              if (tab === 'Pending Apps') badgeCount = stats.pending;
-              if (tab === 'Member Requests') badgeCount = stats.pendingMembers;
-              if (tab === 'Blog Approvals') badgeCount = stats.pendingBlogs;
-              if (tab === 'Withdrawn Apps') badgeCount = stats.withdrawnApps;
-              
-              return (
-                  <div key={tab} onClick={() => setActiveTab(tab)} style={{ 
-                      position: 'relative', 
-                      zIndex: 1, 
-                      padding: '12px 18px', 
-                      marginBottom: '4px', 
-                      cursor: 'pointer', 
-                      color: activeTab === tab ? '#000' : '#556666',
-                      fontSize: '16px', 
-                      fontWeight: '700',
-                      transition: 'color 0.4s ease',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      height: '46px'
-                  }}>
-                    <span>{tab}</span>
-                    {badgeCount > 0 && (
-                        <span style={{ 
-                            backgroundColor: '#ff3b30', 
-                            color: '#fff', 
-                            borderRadius: '50%', 
-                            minWidth: '20px', 
-                            height: '20px', 
-                            padding: '0 6px',
-                            display: 'flex', 
-                            alignItems: 'center', 
-                            justifyContent: 'center', 
-                            fontSize: '11px', 
-                            fontWeight: 'bold',
-                            boxShadow: '0 2px 4px rgba(255, 59, 48, 0.3)'
-                        }}>
-                            {badgeCount > 99 ? '99+' : badgeCount}
-                        </span>
-                    )}
-                  </div>
-              );
-          })}
-          <button onClick={() => fetchData()} style={{ position: 'relative', zIndex: 1, marginTop: '2rem', width: '100%', padding: '10px', backgroundColor: 'rgba(0,0,0,0.05)', border: '1px solid rgba(0,0,0,0.1)', borderRadius: '12px', cursor: 'pointer', fontSize: '13px', color: '#000', backdropFilter: 'blur(10px)', fontWeight: '700', transition: 'all 0.2s' }} onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.1)'} onMouseLeave={e => e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.05)'}>Refresh Data</button>
+        <nav style={{ flex: 1, position: 'relative', overflowY: 'auto', paddingRight: '0' }}>
+          {TAB_GROUPS.map((group) => (
+            <div key={group.name} style={{ marginBottom: '1.5rem', paddingRight: '1.5rem' }}>
+              <div style={{ padding: '0 8px', fontSize: '12px', fontWeight: '1000', color: '#000', letterSpacing: '0.12em', marginBottom: '1rem', textTransform: 'uppercase', opacity: 0.8 }}>
+                {group.name}
+              </div>
+              {group.tabs.map((tab) => {
+                  let badgeCount = 0;
+                  if (tab === 'Pending Apps') badgeCount = stats.pending;
+                  if (tab === 'Member Requests') badgeCount = stats.pendingMembers;
+                  if (tab === 'Blog Approvals') badgeCount = stats.pendingBlogs;
+                  if (tab === 'Withdrawn Apps') badgeCount = stats.withdrawnApps;
+                  
+                  const isActive = activeTab === tab;
+                  return (
+                      <div key={tab} onClick={() => setActiveTab(tab)} style={{ 
+                          position: 'relative', 
+                          zIndex: 1, 
+                          padding: '10px 18px', 
+                          marginBottom: '2px', 
+                          cursor: 'pointer', 
+                          color: isActive ? '#000' : '#556666',
+                          backgroundColor: isActive ? 'rgba(0,0,0,0.05)' : 'transparent',
+                          borderRadius: '12px',
+                          fontSize: '14.5px', 
+                          fontWeight: isActive ? '800' : '600',
+                          transition: 'all 0.2s ease',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          height: '40px'
+                      }}
+                      onMouseEnter={e => !isActive && (e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.02)')}
+                      onMouseLeave={e => !isActive && (e.currentTarget.style.backgroundColor = 'transparent')}
+                      >
+                        <span>{tab}</span>
+                        {badgeCount > 0 && (
+                            <span style={{ 
+                                backgroundColor: '#ff3b30', 
+                                color: '#fff', 
+                                borderRadius: '50%', 
+                                minWidth: '18px', 
+                                height: '18px', 
+                                padding: '0 5px',
+                                display: 'flex', 
+                                alignItems: 'center', 
+                                justifyContent: 'center', 
+                                fontSize: '10px', 
+                                fontWeight: 'bold',
+                                boxShadow: '0 2px 4px rgba(255, 59, 48, 0.3)'
+                            }}>
+                                {badgeCount > 99 ? '99+' : badgeCount}
+                            </span>
+                        )}
+                      </div>
+                  );
+              })}
+            </div>
+          ))}
+          <button onClick={() => fetchData()} style={{ position: 'relative', zIndex: 1, marginTop: '2rem', width: 'calc(100% - 1.5rem)', padding: '10px', backgroundColor: 'rgba(0,0,0,0.05)', border: '1px solid rgba(0,0,0,0.1)', borderRadius: '12px', cursor: 'pointer', fontSize: '13px', color: '#000', backdropFilter: 'blur(10px)', fontWeight: '700', transition: 'all 0.2s' }} onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.1)'} onMouseLeave={e => e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.05)'}>Refresh Data</button>
         </nav>
 
-        <div style={{ position: 'relative', borderTop: '1px solid rgba(0,0,0,0.05)', paddingTop: '1.5rem', marginTop: 'auto' }}>
+        <div style={{ position: 'relative', borderTop: '1px solid rgba(0,0,0,0.05)', paddingTop: '1.5rem', marginTop: 'auto', paddingRight: '1.5rem' }}>
             {showProfilePopup && (
                 <div style={{ position: 'absolute', bottom: '100%', left: '0', width: '220px', backgroundColor: 'rgba(255, 255, 255, 0.9)', backdropFilter: 'blur(20px)', border: '1px solid rgba(255,255,255,0.5)', borderRadius: '15px', boxShadow: '0 15px 45px rgba(0,0,0,0.1)', marginBottom: '12px', padding: '10px', zIndex: 1000, animation: 'fadeInUp 0.2s ease-out' }}>
                     <div onClick={() => { setActiveTab('Settings'); setShowProfilePopup(false); }} style={{ padding: '12px', borderRadius: '10px', cursor: 'pointer', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '10px', transition: 'background 0.2s', color: '#333' }} onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.03)'} onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}>
@@ -3228,62 +3365,205 @@ const Admin = () => {
             </div>
             </>
         )}
-        
-        {/* The sync card has been moved outside <main> for layout safety */}
 
-        {/* Toast Notification */}
-        {showToast && (
-          <div style={{ 
-            position: 'fixed', 
-            bottom: '40px', 
-            right: '40px', 
-            backgroundColor: '#fff', 
-            padding: '16px 24px', 
-            borderRadius: '12px', 
-            boxShadow: '0 8px 30px rgba(0,0,0,0.08)',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '12px',
-            zIndex: 5000,
-            animation: 'slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
-            borderLeft: '6px solid #4caf50',
-            minWidth: '280px'
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#4caf50" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="16 12 12 8 8 12"></polyline><line x1="12" y1="16" x2="12" y2="8"></line></svg>
+        {activeTab === 'Settings' && (
+            <div style={{ animation: 'fadeInUp 0.4s ease-out', maxWidth: '1200px', margin: '0 auto', display: 'flex', gap: '3rem', padding: '1rem 0' }}>
+                {/* Internal Settings Sidebar */}
+                <div style={{ width: '240px', flexShrink: 0, position: 'sticky', top: '20px', height: 'fit-content' }}>
+                    <h2 style={{ margin: '0 0 0.5rem 0', fontWeight: '900', fontSize: '2rem', letterSpacing: '-0.02em' }}>Settings</h2>
+                    <p style={{ margin: '0 0 2rem 0', color: '#667777', fontSize: '14px', fontWeight: '500', lineHeight: '1.4' }}>Manage platform parameters and account security</p>
+                    
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        {[
+                            { id: 'Account', icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>, label: 'Account Settings' },
+                            { id: 'Integrations', icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>, label: 'Gmail API' }
+                        ].map(sub => (
+                            <div 
+                                key={sub.id}
+                                onClick={() => setSettingsSubTab(sub.id)}
+                                style={{ 
+                                    padding: '12px 16px', borderRadius: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px',
+                                    backgroundColor: settingsSubTab === sub.id ? '#000' : 'transparent',
+                                    color: settingsSubTab === sub.id ? '#fff' : '#667777',
+                                    fontWeight: '700', transition: 'all 0.2s', fontSize: '14.5px',
+                                    boxShadow: settingsSubTab === sub.id ? '0 10px 20px rgba(0,0,0,0.1)' : 'none'
+                                }}
+                                onMouseEnter={e => settingsSubTab !== sub.id && (e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.03)')}
+                                onMouseLeave={e => settingsSubTab !== sub.id && (e.currentTarget.style.backgroundColor = 'transparent')}
+                            >
+                                <div style={{ display: 'flex', alignItems: 'center' }}>{sub.icon}</div>
+                                {sub.label}
+                            </div>
+                        ))}
+                    </div>
+                </div>
+
+                {/* Settings Content */}
+                <div style={{ flex: 1 }}>
+                    {settingsSubTab === 'Account' && (
+                        <div className="glass-card" style={{ padding: '2.5rem', borderRadius: '32px', marginBottom: '2rem', animation: 'fadeInDown 0.4s ease-out' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '2rem' }}>
+                                <div style={{ width: '40px', height: '40px', backgroundColor: 'rgba(99, 0, 221, 0.1)', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#6300dd' }}>
+                                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                                </div>
+                                <div>
+                                    <h3 style={{ margin: 0, fontWeight: '800', fontSize: '1.25rem' }}>Account Credentials</h3>
+                                    <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#667777', fontWeight: '600' }}>Update your administrative email and password</p>
+                                </div>
+                            </div>
+
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+                                <div>
+                                    <label style={{ display: 'block', marginBottom: '8px', fontSize: '13px', fontWeight: '800', color: '#1a1a1a', letterSpacing: '0.02em' }}>ADMIN EMAIL ADDRESS</label>
+                                    <input 
+                                        type="email"
+                                        value={newAdminEmail}
+                                        onChange={e => setNewAdminEmail(e.target.value)}
+                                        placeholder="admin@xfoundary.com"
+                                        style={{ width: '100%', padding: '14px 18px', borderRadius: '14px', border: '1px solid rgba(0,0,0,0.1)', fontSize: '14px', fontWeight: '600', outline: 'none', transition: 'all 0.2s', backgroundColor: 'rgba(0,0,0,0.02)' }}
+                                        onFocus={e => { e.currentTarget.style.borderColor = '#6300dd'; e.currentTarget.style.backgroundColor = '#fff'; }}
+                                        onBlur={e => { e.currentTarget.style.borderColor = 'rgba(0,0,0,0.1)'; e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.02)'; }}
+                                    />
+                                    <p style={{ margin: '8px 0 0 0', fontSize: '11px', color: '#667777', fontWeight: '500' }}>Verification required for email changes.</p>
+                                </div>
+
+                                <div style={{ paddingTop: '2rem', borderTop: '1px solid rgba(0,0,0,0.05)', display: 'flex', gap: '1.5rem' }}>
+                                    <div style={{ flex: 1 }}>
+                                        <label style={{ display: 'block', marginBottom: '8px', fontSize: '12px', fontWeight: '800', color: '#1a1a1a' }}>NEW PASSWORD (OPTIONAL)</label>
+                                        <div style={{ position: 'relative' }}>
+                                            <input 
+                                                type={showNewPassword ? "text" : "password"}
+                                                value={newPassword}
+                                                onChange={e => setNewPassword(e.target.value)}
+                                                placeholder="Leave blank to keep current"
+                                                style={{ width: '100%', padding: '12px 45px 12px 16px', borderRadius: '12px', border: '1px solid rgba(0,0,0,0.1)', fontSize: '14px', fontWeight: '600', outline: 'none', transition: 'all 0.2s', backgroundColor: 'rgba(0,0,0,0.02)' }}
+                                                onFocus={e => { e.currentTarget.style.borderColor = '#34c759'; e.currentTarget.style.backgroundColor = '#fff'; }}
+                                                onBlur={e => { e.currentTarget.style.borderColor = 'rgba(0,0,0,0.1)'; e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.02)'; }}
+                                            />
+                                            <button 
+                                                type="button"
+                                                onClick={() => setShowNewPassword(!showNewPassword)}
+                                                style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#666', padding: '4px', display: 'flex' }}
+                                            >
+                                                {showNewPassword ? (
+                                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>
+                                                ) : (
+                                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                                                )}
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div style={{ flex: 1 }}>
+                                        <label style={{ display: 'block', marginBottom: '8px', fontSize: '12px', fontWeight: '800', color: '#1a1a1a' }}>CONFIRM PASSWORD</label>
+                                        <input 
+                                            type="password"
+                                            value={confirmPassword}
+                                            onChange={e => setConfirmPassword(e.target.value)}
+                                            placeholder="Re-enter password..."
+                                            style={{ width: '100%', padding: '12px 16px', borderRadius: '12px', border: '1px solid rgba(0,0,0,0.1)', fontSize: '14px', fontWeight: '600', outline: 'none', transition: 'all 0.2s', backgroundColor: 'rgba(0,0,0,0.02)' }}
+                                            onFocus={e => { e.currentTarget.style.borderColor = '#34c759'; e.currentTarget.style.backgroundColor = '#fff'; }}
+                                            onBlur={e => { e.currentTarget.style.borderColor = 'rgba(0,0,0,0.1)'; e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.02)'; }}
+                                        />
+                                    </div>
+                                </div>
+
+                                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1rem' }}>
+                                    <button 
+                                        onClick={handleUpdateEmail}
+                                        disabled={isUpdatingEmail || (newAdminEmail === user?.email && !newPassword)}
+                                        style={{ 
+                                            padding: '14px 40px', borderRadius: '14px', border: 'none', 
+                                            background: (isUpdatingEmail || (newAdminEmail === user?.email && !newPassword)) ? '#8e8e93' : '#000', 
+                                            color: '#fff', fontWeight: '800', fontSize: '14px', 
+                                            cursor: (isUpdatingEmail || (newAdminEmail === user?.email && !newPassword)) ? 'not-allowed' : 'pointer', 
+                                            transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                                            display: 'flex', alignItems: 'center', gap: '10px',
+                                            boxShadow: (isUpdatingEmail || (newAdminEmail === user?.email && !newPassword)) ? 'none' : '0 10px 25px rgba(0,0,0,0.1)'
+                                        }}
+                                    >
+                                        {isUpdatingEmail ? (
+                                            <div style={{ width: '18px', height: '18px', border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin 1s linear infinite' }}></div>
+                                        ) : (
+                                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
+                                        )}
+                                        {isUpdatingEmail ? 'UPDATING...' : 'SAVE CHANGES'}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {settingsSubTab === 'Integrations' && (
+                        <div className="glass-card" style={{ padding: '2.5rem', borderRadius: '32px', marginBottom: '2rem', animation: 'fadeInDown 0.4s ease-out' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '2rem' }}>
+                                <div style={{ width: '40px', height: '40px', backgroundColor: 'rgba(234, 67, 53, 0.1)', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ea4335' }}>
+                                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
+                                </div>
+                                <div>
+                                    <h3 style={{ margin: 0, fontWeight: '800', fontSize: '1.25rem' }}>Gmail API Integration</h3>
+                                    <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#667777', fontWeight: '600' }}>Required for synchronizing external email history</p>
+                                </div>
+                            </div>
+
+                            {syncAccountEmail && (
+                                <div style={{ marginBottom: '2rem', padding: '1.25rem', backgroundColor: 'rgba(52,199,89,0.05)', borderRadius: '16px', border: '1px solid rgba(52,199,89,0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                        <div style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: '#34c759' }}></div>
+                                        <div>
+                                            <div style={{ fontSize: '10px', fontWeight: '800', color: '#34c759', letterSpacing: '0.05em' }}>AUTHORIZED GMAIL ACCOUNT</div>
+                                            <div style={{ fontSize: '15px', fontWeight: '700', color: '#000' }}>{syncAccountEmail}</div>
+                                        </div>
+                                    </div>
+                                    <div style={{ display: 'flex', gap: '8px' }}>
+                                        <a href="https://mail.google.com" target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'none', padding: '8px 16px', background: 'rgba(0,0,0,0.05)', color: '#000', borderRadius: '10px', fontSize: '12px', fontWeight: '800', cursor: 'pointer' }}>GO TO GMAIL</a>
+                                        <button onClick={handleDisconnectGmail} style={{ padding: '8px 16px', background: '#fff', border: '1px solid #ff3b30', color: '#ff3b30', borderRadius: '10px', fontSize: '12px', fontWeight: '800', cursor: 'pointer' }}>DISCONNECT</button>
+                                    </div>
+                                </div>
+                            )}
+
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                                <div>
+                                    <label style={{ display: 'block', marginBottom: '8px', fontSize: '13px', fontWeight: '800', color: '#1a1a1a' }}>GMAIL CLIENT ID</label>
+                                    <input 
+                                        value={gmailClientId}
+                                        onChange={e => setGmailClientId(e.target.value)}
+                                        style={{ width: '100%', padding: '14px 18px', borderRadius: '14px', border: '1px solid rgba(0,0,0,0.1)', fontSize: '14px', fontWeight: '600', backgroundColor: 'rgba(0,0,0,0.02)' }}
+                                    />
+                                </div>
+                                <div>
+                                    <label style={{ display: 'block', marginBottom: '8px', fontSize: '13px', fontWeight: '800', color: '#1a1a1a' }}>GMAIL CLIENT SECRET</label>
+                                    <input 
+                                        type="password"
+                                        value={gmailClientSecret}
+                                        onChange={e => setGmailClientSecret(e.target.value)}
+                                        style={{ width: '100%', padding: '14px 18px', borderRadius: '14px', border: '1px solid rgba(0,0,0,0.1)', fontSize: '14px', fontWeight: '600', backgroundColor: 'rgba(0,0,0,0.02)' }}
+                                    />
+                                </div>
+                            </div>
+
+                            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '2.5rem' }}>
+                                <button 
+                                    onClick={handleSaveSettings}
+                                    disabled={isSavingSettings || settingsSaved}
+                                    style={{ padding: '14px 32px', borderRadius: '16px', border: 'none', background: settingsSaved ? '#8e8e93' : '#000', color: '#fff', fontWeight: '800', cursor: 'pointer' }}
+                                >
+                                    {isSavingSettings ? 'SAVING...' : settingsSaved ? 'SAVED' : 'SAVE CONFIGURATION'}
+                                </button>
+                            </div>
+                        </div>
+                    )}
+                </div>
             </div>
-            <span style={{ fontSize: '15px', fontWeight: 600, color: '#1a1a1a', flex: 1 }}>{toastMessage}</span>
-            <div 
-                onClick={() => setShowToast(false)} 
-                style={{ 
-                    cursor: 'pointer', 
-                    color: '#ccc', 
-                    fontSize: '18px', 
-                    display: 'flex', 
-                    alignItems: 'center', 
-                    padding: '4px',
-                    marginLeft: '8px'
-                }}
-            >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
-            </div>
-          </div>
         )}
+        </main>
 
-        {/* Real-time Sending Progress */}
+        {/* Real-time Sending Progress Overlay */}
         {sendingStatus && (
             <div style={{ 
-                position: 'fixed', 
-                bottom: '40px', 
-                right: '40px', 
-                backgroundColor: '#000', 
-                padding: '20px 24px', 
-                borderRadius: '20px', 
-                boxShadow: '0 20px 50px rgba(0,0,0,0.3)',
-                color: '#fff',
-                zIndex: 6000,
-                minWidth: '320px',
-                animation: 'slideUp 0.3s ease-out'
+                position: 'fixed', bottom: '40px', right: '40px', 
+                backgroundColor: '#000', padding: '20px 24px', borderRadius: '20px', 
+                boxShadow: '0 20px 50px rgba(0,0,0,0.3)', color: '#fff', zIndex: 6000, 
+                minWidth: '320px', animation: 'slideUp 0.3s ease-out'
             }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -3292,16 +3572,9 @@ const Admin = () => {
                     </div>
                     <span style={{ fontSize: '12px', fontWeight: '700', opacity: 0.7 }}>{sendingStatus.count} / {sendingStatus.total}</span>
                 </div>
-                
                 <div style={{ marginBottom: '14px', backgroundColor: 'rgba(255,255,255,0.1)', height: '6px', borderRadius: '3px', overflow: 'hidden' }}>
-                    <div style={{ 
-                        width: `${(sendingStatus.count / sendingStatus.total) * 100}%`, 
-                        height: '100%', 
-                        backgroundColor: '#fff', 
-                        transition: 'width 0.3s ease-out' 
-                    }}></div>
+                    <div style={{ width: `${(sendingStatus.count / sendingStatus.total) * 100}%`, height: '100%', backgroundColor: '#fff', transition: 'width 0.3s ease-out' }}></div>
                 </div>
-
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px', backgroundColor: 'rgba(255,255,255,0.05)', padding: '10px 14px', borderRadius: '12px' }}>
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M22 2L11 13"></path><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
                     <div style={{ overflow: 'hidden' }}>
@@ -3311,135 +3584,26 @@ const Admin = () => {
                 </div>
             </div>
         )}
-        {activeTab === 'Settings' && (
-            <div style={{ animation: 'fadeInUp 0.4s ease-out', maxWidth: '800px', margin: '0 auto' }}>
-                <div style={{ marginBottom: '2.5rem' }}>
-                    <h2 style={{ margin: 0, fontWeight: '900', fontSize: '2rem', letterSpacing: '-0.02em' }}>Settings</h2>
-                    <p style={{ margin: '8px 0 0 0', color: '#667777', fontSize: '15px', fontWeight: '500' }}>Configure platform parameters and external integrations</p>
-                </div>
 
-                <div className="glass-card" style={{ padding: '2.5rem', borderRadius: '32px', marginBottom: '2rem' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '2rem' }}>
-                        <div style={{ width: '40px', height: '40px', backgroundColor: 'rgba(234, 67, 53, 0.1)', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ea4335' }}>
-                            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
-                        </div>
-                        <div>
-                            <h3 style={{ margin: 0, fontWeight: '800', fontSize: '1.25rem' }}>Gmail API Integration</h3>
-                            <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#667777', fontWeight: '600' }}>Required for synchronizing external email history</p>
-                        </div>
-                    </div>
-
-                    {syncAccountEmail && (
-                        <div style={{ marginBottom: '2rem', padding: '1.25rem', backgroundColor: 'rgba(52,199,89,0.05)', borderRadius: '16px', border: '1px solid rgba(52,199,89,0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', animation: 'fadeInDown 0.3s' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                <div style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: '#34c759', animation: 'pulse 1.5s infinite' }}></div>
-                                <div>
-                                    <div style={{ fontSize: '10px', fontWeight: '800', color: '#34c759', letterSpacing: '0.05em' }}>AUTHORIZED GMAIL ACCOUNT</div>
-                                    <div style={{ fontSize: '15px', fontWeight: '700', color: '#000' }}>{syncAccountEmail}</div>
-                                </div>
-                            </div>
-                            <button 
-                                onClick={handleDisconnectGmail}
-                                style={{ padding: '8px 16px', background: '#fff', border: '1px solid #ff3b30', color: '#ff3b30', borderRadius: '10px', fontSize: '12px', fontWeight: '800', cursor: 'pointer', transition: 'all 0.2s' }}
-                                onMouseEnter={e => { e.currentTarget.style.background = '#ff3b30'; e.currentTarget.style.color = '#fff'; }}
-                                onMouseLeave={e => { e.currentTarget.style.background = '#fff'; e.currentTarget.style.color = '#ff3b30'; }}
-                            >
-                                DISCONNECT
-                            </button>
-                        </div>
-                    )}
-
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                        <div>
-                            <label style={{ display: 'block', marginBottom: '8px', fontSize: '13px', fontWeight: '800', color: '#1a1a1a', letterSpacing: '0.02em' }}>GMAIL CLIENT ID</label>
-                            <input 
-                                value={gmailClientId}
-                                onChange={e => setGmailClientId(e.target.value)}
-                                placeholder="Enter your Google Cloud Project Client ID..."
-                                style={{ width: '100%', padding: '14px 18px', borderRadius: '14px', border: '1px solid rgba(0,0,0,0.1)', fontSize: '14px', fontWeight: '600', outline: 'none', transition: 'all 0.2s', backgroundColor: 'rgba(0,0,0,0.02)' }}
-                                onFocus={e => { e.currentTarget.style.borderColor = '#000'; e.currentTarget.style.backgroundColor = '#fff'; }}
-                                onBlur={e => { e.currentTarget.style.borderColor = 'rgba(0,0,0,0.1)'; e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.02)'; }}
-                            />
-                        </div>
-
-                        <div>
-                            <label style={{ display: 'block', marginBottom: '8px', fontSize: '13px', fontWeight: '800', color: '#1a1a1a', letterSpacing: '0.02em' }}>GMAIL CLIENT SECRET</label>
-                            <div style={{ position: 'relative' }}>
-                                <input 
-                                    type={showGmailSecret ? "text" : "password"}
-                                    value={gmailClientSecret}
-                                    onChange={e => setGmailClientSecret(e.target.value)}
-                                    placeholder="••••••••••••••••••••••••"
-                                    style={{ width: '100%', padding: '14px 50px 14px 18px', borderRadius: '14px', border: '1px solid rgba(0,0,0,0.1)', fontSize: '14px', fontWeight: '600', outline: 'none', transition: 'all 0.2s', backgroundColor: 'rgba(0,0,0,0.02)' }}
-                                    onFocus={e => { e.currentTarget.style.borderColor = '#000'; e.currentTarget.style.backgroundColor = '#fff'; }}
-                                    onBlur={e => { e.currentTarget.style.borderColor = 'rgba(0,0,0,0.1)'; e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.02)'; }}
-                                />
-                                <button 
-                                    type="button"
-                                    onClick={() => setShowGmailSecret(!showGmailSecret)}
-                                    style={{ position: 'absolute', right: '14px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#666', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '4px' }}
-                                >
-                                    {showGmailSecret ? (
-                                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>
-                                    ) : (
-                                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
-                                    )}
-                                </button>
-                            </div>
-                        </div>
-
-                        <div style={{ marginTop: '1rem', padding: '1.25rem', backgroundColor: 'rgba(0,122,255,0.05)', borderRadius: '16px', border: '1px solid rgba(0,122,255,0.1)' }}>
-                            <div style={{ display: 'flex', gap: '12px' }}>
-                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#007aff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
-                                <div>
-                                    <h4 style={{ margin: 0, fontSize: '13px', fontWeight: '800', color: '#007aff' }}>Developer Note</h4>
-                                    <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: '#007aff', opacity: 0.8, lineHeight: '1.5' }}>Ensure that the redirect URI in your Google Cloud Console is set to your production domain and that the Gmail API is enabled for your project.</p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '2.5rem' }}>
-                        <button 
-                            onClick={handleSaveSettings}
-                            disabled={isSavingSettings || settingsSaved}
-                            style={{ 
-                                padding: '14px 32px', borderRadius: '16px', border: 'none', 
-                                background: settingsSaved ? '#8e8e93' : '#000', 
-                                color: '#fff', 
-                                fontWeight: '800', fontSize: '14px', cursor: (isSavingSettings || settingsSaved) ? 'not-allowed' : 'pointer', 
-                                transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)', 
-                                display: 'flex', alignItems: 'center', gap: '10px', boxShadow: settingsSaved ? '0 10px 25px rgba(0,0,0,0.05)' : '0 10px 25px rgba(0,0,0,0.1)' 
-                            }}
-                            onMouseEnter={e => { if(!isSavingSettings && !settingsSaved) e.currentTarget.style.transform = 'translateY(-2px)' }}
-                            onMouseLeave={e => { if(!isSavingSettings && !settingsSaved) e.currentTarget.style.transform = 'translateY(0)' }}
-                        >
-                            {isSavingSettings ? (
-                                <div style={{ width: '18px', height: '18px', border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin 1s linear infinite' }}></div>
-                            ) : settingsSaved ? (
-                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                            ) : (
-                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
-                            )}
-                            {isSavingSettings ? 'SAVING...' : settingsSaved ? 'SAVED' : 'SAVE CONFIGURATION'}
-                        </button>
-                    </div>
-                </div>
-
-                <div className="glass-card" style={{ padding: '2.5rem', borderRadius: '32px', opacity: 0.6 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '1.5rem' }}>
-                        <div style={{ width: '40px', height: '40px', backgroundColor: 'rgba(0,0,0,0.05)', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
-                        </div>
-                        <h3 style={{ margin: 0, fontWeight: '800', fontSize: '1.1rem' }}>General Configuration</h3>
-                    </div>
-                    <p style={{ margin: 0, fontSize: '13px', color: '#666' }}>Advanced system parameters are currently managed via the master CLI. UI controls for feature flags and maintenance mode coming in v2.4.</p>
-                </div>
+        {/* Toast Notification */}
+        {showToast && (
+          <div style={{ 
+            position: 'fixed', bottom: '40px', right: '40px', 
+            backgroundColor: '#fff', padding: '16px 24px', borderRadius: '12px', 
+            boxShadow: '0 8px 30px rgba(0,0,0,0.08)', display: 'flex', 
+            alignItems: 'center', gap: '12px', zIndex: 9000, 
+            animation: 'slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1)', 
+            borderLeft: '6px solid #4caf50', minWidth: '280px'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#4caf50" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="16 12 12 8 8 12"></polyline><line x1="12" y1="16" x2="12" y2="8"></line></svg>
             </div>
+            <span style={{ fontSize: '15px', fontWeight: 600, color: '#1a1a1a', flex: 1 }}>{toastMessage}</span>
+            <div onClick={() => setShowToast(false)} style={{ cursor: 'pointer', color: '#ccc', fontSize: '18px', display: 'flex', alignItems: 'center', padding: '4px', marginLeft: '8px' }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+            </div>
+          </div>
         )}
-      </main>
-
-        {/* Sync All Progress Overlay (Moved outside main to prevent stacking/clipping issues) */}
         {isSyncingAll && (
             <div 
                 ref={syncCardRef}
