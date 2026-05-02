@@ -24,3 +24,4 @@ const adminApp = initializeApp(firebaseConfig, 'adminApp');
 export const adminAuth = getAuth(adminApp);
 export const adminDb = getFirestore(adminApp);
 export const adminStorage = getStorage(adminApp);
+export const adminFunctions = getFunctions(adminApp);

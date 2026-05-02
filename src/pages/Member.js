@@ -408,7 +408,7 @@ const Member = () => {
     <>
     <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f6f6ef' }}>
         <div style={{ width: '400px', backgroundColor: '#fff', padding: '3rem', borderRadius: '12px', border: '1px solid #eee' }}>
-            <div style={{ backgroundColor: '#6300dd', width: '48px', height: '48px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 'bold', borderRadius: '8px', margin: '0 auto 2rem', fontSize: '24px' }}>X</div>
+            <div style={{ backgroundColor: '#6300dd', width: '56px', height: '56px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 'bold', borderRadius: '0', margin: '0 auto 2rem', fontSize: '28px' }}>X</div>
             <h2 style={{ textAlign: 'center', marginBottom: '2rem' }}>Team {authMode === 'login' ? 'Login' : 'Signup'}</h2>
             {error && <p style={{ color: '#ff4d4f', fontSize: '13px', textAlign: 'center', marginBottom: '1.5rem' }}>{error}</p>}
             <form onSubmit={handleMemberAuth}>
@@ -475,7 +475,7 @@ const Member = () => {
     <>
     <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f6f6ef' }}>
         <form onSubmit={handlePinSubmit} style={{ width: '320px', textAlign: 'center' }}>
-            <div style={{ backgroundColor: '#6300dd', width: '48px', height: '48px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 'bold', borderRadius: '8px', margin: '0 auto 2rem' }}>X</div>
+            <div style={{ backgroundColor: '#6300dd', width: '56px', height: '56px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 'bold', borderRadius: '0', margin: '0 auto 2rem', fontSize: '28px' }}>X</div>
             <h2 style={{ marginBottom: '1rem' }}>Member Portal</h2>
             <div style={{ position: 'relative', marginBottom: '1.5rem' }}>
                 <input type={showPin ? "text" : "password"} value={pinInput} onChange={(e) => setPinInput(e.target.value)} placeholder="••••••" maxLength={6} style={{ width: '100%', padding: '12px', textAlign: 'center', fontSize: '24px', letterSpacing: '8px', borderRadius: '8px', border: '1px solid #ddd' }} />
@@ -498,10 +498,10 @@ const Member = () => {
   return (
     <div style={{ backgroundColor: '#f6f6ef', minHeight: '100vh', fontFamily: 'Inter, sans-serif' }}>
       <nav style={{ display: 'flex', justifyContent: 'space-between', padding: '1.25rem 2.5rem', backgroundColor: '#fff', alignItems: 'center', borderBottom: '1px solid #eee' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}><div style={{ backgroundColor: '#6300dd', width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 'bold', borderRadius: '4px' }}>X</div><span>Team Portal</span></div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}><div style={{ backgroundColor: '#6300dd', width: '36px', height: '36px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 'bold', borderRadius: '0', fontSize: '18px' }}>X</div><span style={{ fontWeight: '600' }}>Team Portal</span></div>
         <div style={{ display: 'flex', gap: '2rem' }}>
             {['Applications', 'Manage Blog', 'My Blog', 'Startup Directory', 'Founder Directory', 'Settings'].map(tab => (
-                <span key={tab} onClick={() => setActiveTab(tab)} style={{ fontSize: '14px', fontWeight: '600', textShadow: activeTab === tab ? '0 0 0.5px #6300dd' : 'none', color: activeTab === tab ? '#6300dd' : '#666', cursor: 'pointer', transition: 'color 0.2s' }}>{tab}</span>
+                <span key={tab} onClick={() => setActiveTab(tab)} style={{ fontSize: '14px', fontWeight: '600', textShadow: activeTab === tab ? '0 0 0.5px #6300dd' : 'none', color: activeTab === tab ? '#6300dd' : '#666', cursor: 'pointer', transition: 'color 0.2s', userSelect: 'none' }}>{tab}</span>
             ))}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}><span style={{ fontSize: '14px', color: '#666' }}>{profile.name || user.email}</span><button onClick={() => auth.signOut()} style={{ background: 'none', border: 'none', color: '#ff4d4f', fontWeight: '600', cursor: 'pointer' }}>Log out</button></div>
@@ -749,7 +749,7 @@ const Member = () => {
                 <div style={{ padding: '2rem 1rem' }}>
                     <div style={{ maxWidth: '800px', margin: '0 auto' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
-                            <div style={{ backgroundColor: '#6300dd', width: '24px', height: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 'bold', fontSize: '14px', borderRadius: '4px' }}>X</div>
+                            <div style={{ backgroundColor: '#6300dd', width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 'bold', fontSize: '16px', borderRadius: '0' }}>X</div>
                             <div style={{ display: 'flex', gap: '1.5rem', fontSize: '13px' }}>
                                 <span style={{ fontWeight: 'bold' }}>{user.email}</span>
                                 <span style={{ color: '#ccc' }}>|</span>

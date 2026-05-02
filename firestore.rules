@@ -19,7 +19,7 @@
       // Usernames mapping: Publicly readable for login/forgot password lookups
       // Writeable after authentication (during signup)
       match /usernames/{username} {
-        allow read: if true;
+        allow read, list: if true;
         allow write: if request.auth != null;
       }
 
@@ -61,7 +61,8 @@
       
       // Email Queue: Triggered by clients, processed by Trigger Email extension/functions
       match /mail/{mailId} {
-        allow create: if request.auth != null;
+        // Allow unauthenticated creation for "Forgot Username" flow
+        allow create: if request.auth != null || request.resource.data.message.subject == 'X Foundary Username Reminder';
         allow read, write: if isStaff();
       }
       

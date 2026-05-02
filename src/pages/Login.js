@@ -530,7 +530,6 @@ const Login = () => {
                   required 
                 />
               </div>
-              <p className="modal-tip">Tip: If you have a Hacker News account, you can use your credentials to log in.</p>
               {modalMessage && <p className="modal-message">{modalMessage}</p>}
               <div className="modal-actions">
                 <button type="button" className="btn-cancel" onClick={() => { setShowForgotUsername(false); setModalMessage(''); }}>Cancel</button>

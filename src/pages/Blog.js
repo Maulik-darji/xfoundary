@@ -320,20 +320,20 @@ const Blog = ({ embedded }) => {
             <div style={{ padding: '8rem 0 0 0' }} />
             
             {/* Blog Nav & Search */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4rem', borderBottom: '1px solid #ddd', position: 'relative' }}>
-                <div style={{ display: 'flex', gap: '1.5rem', position: 'relative' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4.5rem', borderBottom: '1px solid rgba(0,0,0,0.06)', position: 'relative' }}>
+                <div style={{ display: 'flex', gap: '2rem', position: 'relative' }}>
                     {['All Posts', 'Startup Jobs', 'Startup School'].map(tab => (
                         <span 
                             key={tab} 
                             id={`tab-${tab.replace(/\s+/g, '-')}`}
                             onClick={() => { setActiveTab(tab); setSelectedCategory(null); }} 
                             style={{
-                                padding: '0.5rem 1rem',
+                                padding: '1rem 0',
                                 cursor: 'pointer',
-                                fontSize: '14px',
-                                fontWeight: '500',
-                                color: activeTab === tab ? '#111' : '#666',
-                                transition: 'color 0.3s ease',
+                                fontSize: '15px',
+                                fontWeight: '700',
+                                color: activeTab === tab ? '#111' : '#888',
+                                transition: 'color 0.2s ease',
                                 fontFamily: 'Inter, sans-serif'
                             }}
                         >
@@ -344,36 +344,36 @@ const Blog = ({ embedded }) => {
                     <div style={{
                         position: 'absolute',
                         bottom: '-1px',
-                        height: '2px',
+                        height: '3px',
                         backgroundColor: '#ff6026',
-                        transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                        transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
                         left: (() => {
                             if (activeTab === 'All Posts') return '0';
-                            if (activeTab === 'Startup Jobs') return '100px';
-                            if (activeTab === 'Startup School') return '215px';
+                            if (activeTab === 'Startup Jobs') return '95px';
+                            if (activeTab === 'Startup School') return '225px';
                             return '0';
                         })(),
                         width: (() => {
-                            if (activeTab === 'All Posts') return '85px';
+                            if (activeTab === 'All Posts') return '65px';
                             if (activeTab === 'Startup Jobs') return '100px';
                             if (activeTab === 'Startup School') return '110px';
                             return '0';
                         })()
                     }} />
                 </div>
-                <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-                    <div style={{ position: 'relative', display: 'flex', alignItems: 'center', backgroundColor: '#fff', border: '1px solid #ddd', borderRadius: '4px', width: '280px' }}>
-                        <svg style={{ position: 'absolute', left: '10px', color: '#999' }} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                <div style={{ position: 'relative', display: 'flex', alignItems: 'center', marginBottom: '10px' }}>
+                    <div style={{ position: 'relative', display: 'flex', alignItems: 'center', backgroundColor: '#fff', border: '1px solid #e0e0e0', borderRadius: '6px', width: '320px', boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}>
+                        <svg style={{ position: 'absolute', left: '12px', color: '#999' }} width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
                         <input 
                           type="text" 
                           placeholder="Search Blog" 
                           value={searchTerm}
                           onChange={(e) => setSearchTerm(e.target.value)}
-                          style={{ padding: '10px 35px 10px 35px', border: 'none', borderRadius: '4px', fontSize: '14px', width: '100%', outline: 'none', background: 'transparent' }} 
+                          style={{ padding: '12px 40px 12px 42px', border: 'none', borderRadius: '6px', fontSize: '15px', width: '100%', outline: 'none', background: 'transparent', fontWeight: '500' }} 
                         />
                         {searchTerm && (
-                            <button onClick={handleClearSearch} style={{ position: 'absolute', right: '10px', background: 'none', border: 'none', cursor: 'pointer', color: '#999', display: 'flex', alignItems: 'center', padding: '4px' }}>
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                            <button onClick={handleClearSearch} style={{ position: 'absolute', right: '12px', background: 'none', border: 'none', cursor: 'pointer', color: '#999', display: 'flex', alignItems: 'center', padding: '4px' }}>
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
                             </button>
                         )}
                     </div>
@@ -395,28 +395,30 @@ const Blog = ({ embedded }) => {
 
             {/* Featured Post */}
             {!selectedCategory && !currentFilter && pinnedPost && (
-                <div style={{ display: 'flex', gap: '4rem', marginBottom: '6rem', alignItems: 'center' }}>
-                    <div style={{ flex: 1 }}>
+                <div style={{ display: 'flex', gap: '4rem', marginBottom: '8rem', alignItems: 'center', paddingTop: '2rem' }}>
+                    <div style={{ flex: 1.2 }}>
                         <h1 
                             onClick={() => handleOpenBlog(pinnedPost)}
-                            style={{ fontSize: '2.5rem', fontWeight: '500', marginBottom: '1.5rem', fontFamily: 'Inter, sans-serif', color: '#111', lineHeight: '1.2', cursor: 'pointer' }}
+                            style={{ fontSize: '3.2rem', fontWeight: '900', marginBottom: '1.5rem', fontFamily: 'Inter, sans-serif', color: '#111', lineHeight: '1.1', cursor: 'pointer', letterSpacing: '-0.03em' }}
                         >
                             {pinnedPost.title}
                         </h1>
-                        <p style={{ fontSize: '1.1rem', lineHeight: '1.6', color: '#333', marginBottom: '1.5rem', fontFamily: 'Inter, sans-serif', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                        <p style={{ fontSize: '1.15rem', lineHeight: '1.7', color: '#333', marginBottom: '2rem', fontFamily: 'Inter, sans-serif', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden', maxWidth: '90%' }}>
                             {pinnedPost.content?.replace(/<[^>]*>?/gm, '').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&')}
                         </p>
                         <button 
                             onClick={() => handleOpenBlog(pinnedPost)}
-                            style={{ color: '#007bff', fontWeight: '500', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '5px', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                            style={{ color: '#007bff', fontWeight: '700', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '8px', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontSize: '15px' }}
                         >
-                            Read More <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 8 16 12 12 16"></polyline><line x1="8" y1="12" x2="16" y2="12"></line></svg>
+                            Read More <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 8 16 12 12 16"></polyline><line x1="8" y1="12" x2="16" y2="12"></line></svg>
                         </button>
                     </div>
                     <div style={{ flex: 1 }}>
                         <div 
                             onClick={() => handleOpenBlog(pinnedPost)}
-                            style={{ width: '100%', aspectRatio: '16/10', borderRadius: '12px', overflow: 'hidden', boxShadow: '0 20px 40px rgba(0,0,0,0.1)', cursor: 'pointer' }}
+                            style={{ width: '100%', aspectRatio: '1.1/1', borderRadius: '12px', overflow: 'hidden', boxShadow: '0 30px 60px rgba(0,0,0,0.12)', cursor: 'pointer', transition: 'transform 0.3s ease' }}
+                            onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.02)'}
+                            onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
                         >
                             <img src={pinnedPost.image} alt="Featured" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                         </div>
@@ -462,9 +464,9 @@ const Blog = ({ embedded }) => {
                         </div>
                     ))}
                 </div>
-            ) : (
+            ) : (currentFilter || selectedCategory) ? (
                 <div style={{ textAlign: 'center', padding: '6rem 2rem', color: '#666', backgroundColor: '#fff', borderRadius: '12px', border: '1px solid #eee', marginBottom: '8rem' }}>
-                  <p style={{ fontSize: '1.25rem', fontWeight: '600', color: '#111', marginBottom: '0.5rem' }}>No posts found for "{currentFilter}"</p>
+                  <p style={{ fontSize: '1.25rem', fontWeight: '600', color: '#111', marginBottom: '0.5rem' }}>No posts found {currentFilter && `for "${currentFilter}"`}</p>
                   {suggestion ? (
                       <p style={{ fontSize: '1rem', color: '#666', marginBottom: '1.5rem' }}>
                           Did you mean: <span onClick={() => { setSearchTerm(suggestion.title); }} style={{ color: '#ff6026', cursor: 'pointer', fontWeight: 'bold', borderBottom: '2px solid #ff6026' }}>{suggestion.title}</span>?
@@ -474,7 +476,7 @@ const Blog = ({ embedded }) => {
                   )}
                   <button onClick={handleClearSearch} style={{ color: '#ff6026', background: 'none', border: '1px solid #ff6026', padding: '8px 24px', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', transition: 'all 0.2s ease' }} onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#ff6026'; e.currentTarget.style.color = '#fff'; }} onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = '#ff6026'; }}>Clear Search</button>
                 </div>
-            )}
+            ) : null}
 
             {/* Categories Sidebar Layout */}
             {!currentFilter && (

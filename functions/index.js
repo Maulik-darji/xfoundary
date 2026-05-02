@@ -43,8 +43,80 @@ exports.onuserdelete = functions.auth.user().onDelete(async (user) => {
   }
 });
 
+// New function to handle Admin Email Update via the reliable "mail" collection
+exports.requestAdminEmailUpdate = onCall({ cors: true }, async (request) => {
+  const { newEmail } = request.data;
+  
+  // 1. Security Check: Only authenticated users can call this
+  if (!request.auth || !request.auth.uid) {
+    throw new HttpsError("unauthenticated", "You must be logged in to change your email.");
+  }
+
+  if (!newEmail) {
+    throw new HttpsError("invalid-argument", "Missing new email.");
+  }
+
+  try {
+    const uid = request.auth.uid;
+    const oldEmail = request.auth.token.email;
+
+    console.log(`Performing direct email update for UID ${uid}: ${oldEmail} -> ${newEmail}`);
+
+    // 2. Direct Update (Works without Identity Platform)
+    await admin.auth().updateUser(uid, {
+      email: newEmail,
+      emailVerified: true // Mark as verified since the Admin performed this action while logged in
+    });
+
+    // Generate a custom token for automatic login if permissions allow
+    let loginUrl = request.data.url;
+    try {
+        const customToken = await admin.auth().createCustomToken(uid);
+        loginUrl = `${request.data.url}?token=${customToken}`;
+    } catch (tokenErr) {
+        console.warn("Could not create custom token (missing IAM permissions). Falling back to standard login link.", tokenErr);
+    }
+
+    // 3. Send Confirmation Email via the reliable "mail" collection
+    await db.collection("mail").add({
+      to: newEmail,
+      message: {
+        subject: 'Admin Email Updated - X Foundary',
+        html: `
+          <div style="font-family: 'Inter', sans-serif; max-width: 450px; margin: 0 auto; border: 1px solid #eee; padding: 30px; border-radius: 12px; color: #111;">
+            <div style="text-align: center; margin-bottom: 30px;">
+              <div style="background-color: #6300dd; width: 42px; height: 42px; line-height: 42px; display: inline-block; border-radius: 0; color: white; font-weight: 800; font-size: 16px; text-align: center;">X</div>
+              <h2 style="margin-top: 20px; color: #111;">Email Updated Successfully</h2>
+            </div>
+            <p>Hello,</p>
+            <p>Your administrative email for X Foundary has been successfully updated.</p>
+            <p><strong>New Email:</strong> ${newEmail}</p>
+            <p><strong>Old Email:</strong> ${oldEmail}</p>
+            
+            <div style="text-align: center; margin: 30px 0;">
+                <a href="${loginUrl}" style="background-color: #111; color: #fff; padding: 14px 28px; border-radius: 8px; text-decoration: none; font-weight: 600; display: inline-block;">Log in to Dashboard</a>
+            </div>
+            
+            <p style="font-size: 12px; color: #999; margin-top: 30px; border-top: 1px solid #eee; padding-top: 20px;">
+              If you did not perform this change, please contact support immediately.
+            </p>
+          </div>
+        `
+      }
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error("Error updating admin email:", error);
+    if (error.code) {
+        throw new HttpsError("internal", `Update Error (${error.code}): ${error.message}`);
+    }
+    throw new HttpsError("internal", error.message);
+  }
+});
+
 // New function to generate and send OTP (V2)
-exports.requestLoginCode = onCall(async (request) => {
+exports.requestLoginCode = onCall({ cors: true }, async (request) => {
   const { email } = request.data;
 
   if (!email) {
@@ -82,7 +154,7 @@ exports.requestLoginCode = onCall(async (request) => {
         html: `
           <div style="font-family: 'Inter', sans-serif; max-width: 450px; margin: 0 auto; border: 1px solid #eee; padding: 30px; border-radius: 12px; color: #111;">
             <div style="text-align: center; margin-bottom: 30px;">
-              <div style="background-color: #000; width: 42px; height: 42px; line-height: 42px; display: inline-block; border-radius: 4px; color: white; font-weight: 800; font-size: 16px; text-align: center;">XF</div>
+              <div style="background-color: #000; width: 42px; height: 42px; line-height: 42px; display: inline-block; border-radius: 0; color: white; font-weight: 800; font-size: 16px; text-align: center;">XF</div>
               <h2 style="margin-top: 20px; color: #111;">Sign in to X Foundary</h2>
             </div>
             <p>Hello,</p>
@@ -112,7 +184,7 @@ exports.requestLoginCode = onCall(async (request) => {
 });
 
 // New function to verify OTP and return a custom auth token (V2)
-exports.verifyLoginCode = onCall(async (request) => {
+exports.verifyLoginCode = onCall({ cors: true }, async (request) => {
   const { email, otp } = request.data;
 
   if (!email || !otp) {
@@ -181,7 +253,7 @@ exports.onApplicationUpdate = functions.firestore.document('users/{uid}').onUpda
             html: `
                 <div style="font-family: 'Inter', sans-serif; max-width: 500px; margin: 0 auto; border: 1px solid #eee; padding: 40px; border-radius: 12px; color: #111; line-height: 1.6;">
                     <div style="text-align: center; margin-bottom: 30px;">
-                        <div style="background-color: #000; width: 42px; height: 42px; line-height: 42px; display: inline-block; border-radius: 4px; color: white; font-weight: 800; font-size: 16px; text-align: center;">XF</div>
+                        <div style="background-color: #000; width: 42px; height: 42px; line-height: 42px; display: inline-block; border-radius: 0; color: white; font-weight: 800; font-size: 16px; text-align: center;">XF</div>
                         <h2 style="margin-top: 20px; color: #111;">Application Submitted</h2>
                     </div>
                     <p>Hello ${name},</p>
@@ -210,7 +282,7 @@ exports.onApplicationUpdate = functions.firestore.document('users/{uid}').onUpda
             html: `
                 <div style="font-family: 'Inter', sans-serif; max-width: 500px; margin: 0 auto; border: 1px solid #eee; padding: 40px; border-radius: 12px; color: #111; line-height: 1.6;">
                     <div style="text-align: center; margin-bottom: 30px;">
-                        <div style="background-color: #000; width: 42px; height: 42px; line-height: 42px; display: inline-block; border-radius: 4px; color: white; font-weight: 800; font-size: 16px; text-align: center;">XF</div>
+                        <div style="background-color: #000; width: 42px; height: 42px; line-height: 42px; display: inline-block; border-radius: 0; color: white; font-weight: 800; font-size: 16px; text-align: center;">XF</div>
                         <h2 style="margin-top: 20px; color: #111;">Welcome to X Foundary!</h2>
                     </div>
                     <p>Hello ${name},</p>
@@ -239,7 +311,7 @@ exports.onApplicationUpdate = functions.firestore.document('users/{uid}').onUpda
             html: `
                 <div style="font-family: 'Inter', sans-serif; max-width: 500px; margin: 0 auto; border: 1px solid #eee; padding: 40px; border-radius: 12px; color: #111; line-height: 1.6;">
                     <div style="text-align: center; margin-bottom: 30px;">
-                        <div style="background-color: #000; width: 42px; height: 42px; line-height: 42px; display: inline-block; border-radius: 4px; color: white; font-weight: 800; font-size: 16px; text-align: center;">XF</div>
+                        <div style="background-color: #000; width: 42px; height: 42px; line-height: 42px; display: inline-block; border-radius: 0; color: white; font-weight: 800; font-size: 16px; text-align: center;">XF</div>
                         <h2 style="margin-top: 20px; color: #111;">Application Update</h2>
                     </div>
                     <p>Hello ${name},</p>
@@ -289,3 +361,50 @@ exports.onApplicationUpdate = functions.firestore.document('users/{uid}').onUpda
     }
 });
 
+
+// New function to delete a user account from Auth (V2)
+exports.deleteUserAccount = onCall({ cors: true }, async (request) => {
+  const { uid } = request.data;
+
+  console.log(`Delete request received for UID: ${uid} from requester: ${request.auth?.uid}`);
+
+  // 1. Security Check: Only authenticated admins can call this
+  if (!request.auth || !request.auth.uid) {
+    throw new HttpsError("unauthenticated", "You must be logged in to perform this action.");
+  }
+
+  try {
+    // Verify requester is an admin
+    const adminDoc = await db.collection("admins").doc(request.auth.uid).get();
+    if (!adminDoc.exists) {
+      console.error(`Permission Denied: User ${request.auth.uid} is not an admin.`);
+      throw new HttpsError("permission-denied", "Access Denied: Only administrators can delete accounts.");
+    }
+
+    if (!uid) {
+      throw new HttpsError("invalid-argument", "Missing UID of the account to delete.");
+    }
+
+    console.log(`Admin ${request.auth.uid} confirmed. Deleting user account: ${uid}`);
+    
+    // Check if user exists in Auth first
+    try {
+      await admin.auth().getUser(uid);
+    } catch (authErr) {
+      console.warn(`User ${uid} not found in Auth, checking Firestore for cleanup...`);
+      // If not in Auth, still try to trigger the cleanup by deleting Firestore doc if it exists
+      await db.collection("users").doc(uid).delete().catch(() => {});
+      return { success: true, message: "User not in Auth, Firestore record cleaned." };
+    }
+
+    // Delete from Auth
+    await admin.auth().deleteUser(uid);
+    console.log(`Successfully deleted Auth account for: ${uid}`);
+
+    return { success: true };
+  } catch (error) {
+    console.error("Error in deleteUserAccount:", error);
+    if (error instanceof HttpsError) throw error;
+    throw new HttpsError("internal", error.message || "An unexpected error occurred during account deletion.");
+  }
+});
