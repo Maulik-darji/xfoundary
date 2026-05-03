@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { auth, db, storage } from '../firebase';
-import { onAuthStateChanged, updateProfile, updateEmail } from 'firebase/auth';
+import { auth, db, storage, functions } from '../firebase';
+import { onAuthStateChanged, updateProfile, updateEmail, updatePassword } from 'firebase/auth';
 import { 
     doc, getDoc, updateDoc, onSnapshot, 
     collection, query, where, getDocs, addDoc, deleteDoc 
 } from 'firebase/firestore';
+import { httpsCallable } from 'firebase/functions';
 import { ref, uploadBytes, uploadBytesResumable, getDownloadURL, getBlob, deleteObject } from 'firebase/storage';
 import Cropper from 'react-easy-crop';
 
@@ -88,6 +89,21 @@ const FounderDashboard = () => {
     const [cities, setCities] = useState([]);
     const [loc, setLoc] = useState({ country: '', state: '', city: '', otherCountry: '', otherState: '', otherCity: '' });
     const [applicants, setApplicants] = useState({});
+
+    // Email Change States
+    const [isEditingEmail, setIsEditingEmail] = useState(false);
+    const [newEmailInput, setNewEmailInput] = useState('');
+    const [isAwaitingEmailOTP, setIsAwaitingEmailOTP] = useState(false);
+    const [emailOTP, setEmailOTP] = useState('');
+    const [emailChangeError, setEmailChangeError] = useState('');
+    const [isChangingEmail, setIsChangingEmail] = useState(false);
+
+    // Password Change States
+    const [newPassword, setNewPassword] = useState('');
+    const [confirmPassword, setConfirmPassword] = useState('');
+    const [showNewPassword, setShowNewPassword] = useState(false);
+    const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+    const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
 
     useEffect(() => {
         fetch('https://countriesnow.space/api/v0.1/countries/positions')
@@ -306,6 +322,79 @@ const FounderDashboard = () => {
             setMessage({ text: 'Failed to update company info. Please try again.', type: 'error' });
         } finally {
             setSaving(false);
+        }
+    };
+
+    const handleRequestEmailChange = async () => {
+        if (!newEmailInput || newEmailInput === user?.email) return;
+        setIsChangingEmail(true);
+        setEmailChangeError('');
+        try {
+            const requestOtp = httpsCallable(functions, 'requestEmailChangeOTP');
+            await requestOtp({ newEmail: newEmailInput });
+            setIsAwaitingEmailOTP(true);
+            setMessage({ text: 'Verification code sent to ' + newEmailInput, type: 'success', id: Date.now() });
+        } catch (err) {
+            setEmailChangeError(err.message);
+            setMessage({ text: 'Error: ' + err.message, type: 'error', id: Date.now() });
+        } finally {
+            setIsChangingEmail(false);
+        }
+    };
+
+    const handleVerifyEmailChange = async () => {
+        if (!emailOTP || emailOTP.length !== 6) {
+            setEmailChangeError('Please enter a valid 6-digit code.');
+            return;
+        }
+        setIsChangingEmail(true);
+        setEmailChangeError('');
+        try {
+            const verifyOtp = httpsCallable(functions, 'verifyEmailChangeOTP');
+            const res = await verifyOtp({ otp: emailOTP });
+            if (res.data.success) {
+                setIsEditingEmail(false);
+                setIsAwaitingEmailOTP(false);
+                setNewEmailInput('');
+                setEmailOTP('');
+                setMessage({ text: 'Email updated successfully!', type: 'success', id: Date.now() });
+                // Refresh data
+                setTimeout(() => window.location.reload(), 2000);
+            }
+        } catch (err) {
+            setEmailChangeError(err.message);
+            setMessage({ text: 'Error: ' + err.message, type: 'error', id: Date.now() });
+        } finally {
+            setIsChangingEmail(false);
+        }
+    };
+
+    const handleUpdatePassword = async (e) => {
+        e.preventDefault();
+        if (newPassword.length < 6) {
+            setMessage({ text: 'Password must be at least 6 characters.', type: 'error', id: Date.now() });
+            return;
+        }
+        if (newPassword !== confirmPassword) {
+            setMessage({ text: 'Passwords do not match.', type: 'error', id: Date.now() });
+            return;
+        }
+
+        setIsUpdatingPassword(true);
+        try {
+            await updatePassword(user, newPassword);
+            setMessage({ text: 'Password updated successfully!', type: 'success', id: Date.now() });
+            setNewPassword('');
+            setConfirmPassword('');
+        } catch (err) {
+            console.error(err);
+            if (err.code === 'auth/requires-recent-login') {
+                setMessage({ text: 'Security check: Please log out and sign in again to update your password.', type: 'error', id: Date.now() });
+            } else {
+                setMessage({ text: 'Error: ' + err.message, type: 'error', id: Date.now() });
+            }
+        } finally {
+            setIsUpdatingPassword(false);
         }
     };
 
@@ -732,6 +821,39 @@ const FounderDashboard = () => {
                 .nav-btn:hover:not(.active) {
                     background: rgba(0,0,0,0.03);
                 }
+                .password-input-wrapper {
+                    position: relative;
+                    display: flex;
+                    align-items: center;
+                }
+                .password-toggle-btn {
+                    position: absolute;
+                    right: 12px;
+                    background: none;
+                    border: none;
+                    padding: 0;
+                    cursor: pointer;
+                    color: #999;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    transition: color 0.2s;
+                }
+                .password-toggle-btn:hover {
+                    color: #6300dd;
+                }
+                .email-change-container {
+                    padding: 20px;
+                    background-color: #f9f9f9;
+                    border-radius: 12px;
+                    border: 1px solid #6300dd;
+                    margin-top: 10px;
+                    animation: slideUp 0.3s ease-out;
+                }
+                @keyframes slideUp {
+                    from { transform: translateY(10px); opacity: 0; }
+                    to { transform: translateY(0); opacity: 1; }
+                }
             `}</style>
 
 
@@ -1081,10 +1203,84 @@ const FounderDashboard = () => {
 
                                         <div className="form-group">
                                             <label className="label-text">Email Address</label>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 16px', backgroundColor: '#f9f9f9', borderRadius: '8px', border: '1px solid #eee' }}>
-                                                <span style={{ fontSize: '14px', color: '#666', flex: 1 }}>{userData.email || user?.email}</span>
-                                                <span style={{ fontSize: '12px', color: '#999', fontWeight: '600' }}>Primary</span>
-                                            </div>
+                                            {!isEditingEmail ? (
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 16px', backgroundColor: '#f9f9f9', borderRadius: '8px', border: '1px solid #eee' }}>
+                                                    <span style={{ fontSize: '14px', color: '#666', flex: 1 }}>{userData.email || user?.email}</span>
+                                                    <button 
+                                                        type="button" 
+                                                        onClick={() => setIsEditingEmail(true)}
+                                                        style={{ background: 'none', border: 'none', color: '#6300dd', fontSize: '13px', fontWeight: '700', cursor: 'pointer', padding: '0' }}
+                                                    >
+                                                        Change Email
+                                                    </button>
+                                                </div>
+                                            ) : (
+                                                <div className="email-change-container">
+                                                    {!isAwaitingEmailOTP ? (
+                                                        <>
+                                                            <input 
+                                                                type="email" 
+                                                                className="portal-input" 
+                                                                style={{ marginBottom: '15px' }} 
+                                                                placeholder="Enter new email address" 
+                                                                value={newEmailInput} 
+                                                                onChange={(e) => setNewEmailInput(e.target.value)} 
+                                                            />
+                                                            {emailChangeError && <p style={{ color: '#ff4d4f', fontSize: '12px', margin: '0 0 15px 0' }}>{emailChangeError}</p>}
+                                                            <div style={{ display: 'flex', gap: '12px' }}>
+                                                                <button 
+                                                                    type="button"
+                                                                    onClick={handleRequestEmailChange} 
+                                                                    disabled={isChangingEmail} 
+                                                                    className="action-btn"
+                                                                    style={{ padding: '8px 16px', fontSize: '13px', width: 'auto' }}
+                                                                >
+                                                                    {isChangingEmail ? 'Sending...' : 'Send Verification Code'}
+                                                                </button>
+                                                                <button 
+                                                                    type="button"
+                                                                    onClick={() => { setIsEditingEmail(false); setNewEmailInput(''); setEmailChangeError(''); }} 
+                                                                    style={{ background: 'none', border: 'none', color: '#666', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }}
+                                                                >
+                                                                    Cancel
+                                                                </button>
+                                                            </div>
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <p style={{ fontSize: '13px', color: '#333', margin: '0 0 15px 0', fontWeight: '500' }}>Enter the 6-digit code sent to <strong>{newEmailInput}</strong></p>
+                                                            <input 
+                                                                type="text" 
+                                                                maxLength="6" 
+                                                                className="portal-input" 
+                                                                style={{ marginBottom: '15px', letterSpacing: '8px', fontSize: '18px', fontWeight: '800', textAlign: 'center' }} 
+                                                                placeholder="000000" 
+                                                                value={emailOTP} 
+                                                                onChange={(e) => setEmailOTP(e.target.value)} 
+                                                            />
+                                                            {emailChangeError && <p style={{ color: '#ff4d4f', fontSize: '12px', margin: '0 0 15px 0' }}>{emailChangeError}</p>}
+                                                            <div style={{ display: 'flex', gap: '12px' }}>
+                                                                <button 
+                                                                    type="button"
+                                                                    onClick={handleVerifyEmailChange} 
+                                                                    disabled={isChangingEmail} 
+                                                                    className="action-btn"
+                                                                    style={{ padding: '8px 16px', fontSize: '13px', width: 'auto' }}
+                                                                >
+                                                                    {isChangingEmail ? 'Verifying...' : 'Verify & Update'}
+                                                                </button>
+                                                                <button 
+                                                                    type="button"
+                                                                    onClick={() => { setIsAwaitingEmailOTP(false); setEmailOTP(''); setEmailChangeError(''); }} 
+                                                                    style={{ background: 'none', border: 'none', color: '#666', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }}
+                                                                >
+                                                                    Back
+                                                                </button>
+                                                            </div>
+                                                        </>
+                                                    )}
+                                                </div>
+                                            )}
                                         </div>
 
                                         <div className="form-group">
@@ -1113,6 +1309,77 @@ const FounderDashboard = () => {
                                             </button>
                                         </div>
                                     </form>
+
+                                    {/* Password Change Section */}
+                                    <div style={{ marginTop: '4rem', padding: '30px', backgroundColor: '#f9f9f9', borderRadius: '16px', border: '1px solid #eee' }}>
+                                        <h3 style={{ fontSize: '18px', fontWeight: '800', marginBottom: '12px', color: '#000' }}>Security</h3>
+                                        <p style={{ fontSize: '14px', color: '#666', marginBottom: '2rem' }}>Update your password to keep your account secure.</p>
+                                        
+                                        <form onSubmit={handleUpdatePassword}>
+                                            <div className="form-group">
+                                                <label className="label-text">New Password</label>
+                                                <div className="password-input-wrapper" style={{ position: 'relative' }}>
+                                                    <input 
+                                                        type={showNewPassword ? "text" : "password"}
+                                                        className="portal-input"
+                                                        value={newPassword}
+                                                        onChange={(e) => setNewPassword(e.target.value)}
+                                                        placeholder="At least 6 characters"
+                                                        required
+                                                    />
+                                                    <button 
+                                                        type="button" 
+                                                        className="password-toggle-btn"
+                                                        onClick={() => setShowNewPassword(!showNewPassword)}
+                                                        style={{ position: 'absolute', right: '12px', top: '12px', background: 'none', border: 'none', cursor: 'pointer' }}
+                                                    >
+                                                        {showNewPassword ? (
+                                                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>
+                                                        ) : (
+                                                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                                                        )}
+                                                    </button>
+                                                </div>
+                                            </div>
+
+                                            <div className="form-group">
+                                                <label className="label-text">Confirm Password</label>
+                                                <div className="password-input-wrapper" style={{ position: 'relative' }}>
+                                                    <input 
+                                                        type={showConfirmPassword ? "text" : "password"}
+                                                        className="portal-input"
+                                                        value={confirmPassword}
+                                                        onChange={(e) => setConfirmPassword(e.target.value)}
+                                                        placeholder="Repeat new password"
+                                                        required
+                                                    />
+                                                    <button 
+                                                        type="button" 
+                                                        className="password-toggle-btn"
+                                                        onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                                                        style={{ position: 'absolute', right: '12px', top: '12px', background: 'none', border: 'none', cursor: 'pointer' }}
+                                                    >
+                                                        {showConfirmPassword ? (
+                                                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>
+                                                        ) : (
+                                                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                                                        )}
+                                                    </button>
+                                                </div>
+                                            </div>
+
+                                            <div style={{ marginTop: '2rem' }}>
+                                                <button 
+                                                    type="submit" 
+                                                    disabled={isUpdatingPassword || !newPassword || !confirmPassword} 
+                                                    className="action-btn"
+                                                    style={{ backgroundColor: '#000', color: '#fff', width: 'auto', padding: '10px 24px' }}
+                                                >
+                                                    {isUpdatingPassword ? 'Updating...' : 'Update Password'}
+                                                </button>
+                                            </div>
+                                        </form>
+                                    </div>
                                 </div>
                             </div>
                         </>

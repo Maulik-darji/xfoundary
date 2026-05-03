@@ -159,7 +159,11 @@ const Settings = () => {
   const handleChangePassword = async () => {
     if (user?.email) {
       try {
-        await sendPasswordResetEmail(auth, user.email);
+        const actionCodeSettings = {
+          url: 'https://xfoundaryapp.web.app/login',
+          handleCodeInApp: true,
+        };
+        await sendPasswordResetEmail(auth, user.email, actionCodeSettings);
         showAlert('Password reset email sent!', 'success');
       } catch (error) {
         showAlert('Error sending reset email: ' + error.message, 'error');

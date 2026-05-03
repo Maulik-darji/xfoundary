@@ -89,7 +89,11 @@ const Login = () => {
 
       // Directly send the password reset email. 
       // If the email doesn't exist, Firebase will handle it silently or throw an error based on Enum Protection.
-      await sendPasswordResetEmail(auth, resetEmail);
+      const actionCodeSettings = {
+        url: 'https://xfoundaryapp.web.app/login',
+        handleCodeInApp: true,
+      };
+      await sendPasswordResetEmail(auth, resetEmail, actionCodeSettings);
       setShowForgotPassword(false);
       showToast(`Password reset link sent to the email associated with this account.`);
       setForgotEmail('');

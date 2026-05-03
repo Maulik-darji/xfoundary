@@ -790,7 +790,7 @@ const Admin = () => {
                 await requestUpdateFn({ 
                     oldEmail: auth.currentUser.email, 
                     newEmail: newAdminEmail,
-                    url: window.location.origin + '/admin'
+                    url: 'https://xfoundaryapp.web.app/admin'
                 });
                 console.log("Cloud Function call successful.");
             } catch (vErr) {
@@ -1497,7 +1497,11 @@ const Admin = () => {
       const email = e.target.email.value;
       if (!email) return;
       try {
-          await sendPasswordResetEmail(auth, email);
+          const actionCodeSettings = {
+              url: 'https://xfoundaryapp.web.app/admin',
+              handleCodeInApp: true,
+          };
+          await sendPasswordResetEmail(auth, email, actionCodeSettings);
           setToastMessage("Password reset link sent to " + email);
           setShowToast(true);
           setTimeout(() => setShowToast(false), 5000);
