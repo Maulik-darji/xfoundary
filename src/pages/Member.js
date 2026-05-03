@@ -763,7 +763,7 @@ const Member = () => {
                         </button>
 
                         <h1 style={{ fontFamily: 'Newsreader, serif', fontSize: '3rem', fontWeight: 500, color: '#111', margin: '0 0 0.5rem 0' }}>{appData.companyName || "Untitled"}</h1>
-                        <p style={{ color: '#888', margin: '0 0 3rem 0', fontSize: '14px' }}>{appData.batch || "Summer 2026"}</p>
+                        <p style={{ color: '#888', margin: '0 0 3rem 0', fontSize: '14px' }}>Founded in {appData.batch || "Summer 2026"}</p>
 
                         {sections.map((section, idx) => (
                         <div key={idx} style={{ marginBottom: '4rem' }}>

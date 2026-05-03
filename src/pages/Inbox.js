@@ -194,7 +194,7 @@ const Inbox = () => {
                                 <span style={{ fontSize: '18px', fontWeight: '800' }}>{current.companyName}</span>
                             </div>
                             
-                            <h3 style={{ fontSize: '18px', fontWeight: '800', color: '#ff6600', margin: '0' }}>{current.companyName} ({current.batch})</h3>
+                            <h3 style={{ fontSize: '18px', fontWeight: '800', color: '#ff6600', margin: '0' }}>{current.companyName} (Founded in {current.batch})</h3>
                             <p style={{ fontSize: '14px', color: '#444', lineHeight: '1.5', margin: '0' }}>{current.tagline}</p>
                             
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', fontSize: '13px', color: '#666' }}>

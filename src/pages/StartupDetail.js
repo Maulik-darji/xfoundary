@@ -143,7 +143,7 @@ const StartupDetail = () => {
                 <nav style={{ fontSize: '14px', color: '#666', marginBottom: '2rem', fontWeight: '500' }}>
                     <Link to="/directory" style={{ color: '#666', textDecoration: 'none', transition: 'color 0.2s' }} onMouseEnter={e => e.currentTarget.style.color = '#000'} onMouseLeave={e => e.currentTarget.style.color = '#666'}>Companies</Link>
                     <span style={{ margin: '0 8px', color: '#ccc' }}>/</span>
-                    <span style={{ color: '#000', fontWeight: '700' }}>{startup.name} ({startup.batch})</span>
+                    <span style={{ color: '#000', fontWeight: '700' }}>{startup.name} (Founded in {startup.batch})</span>
                 </nav>
 
                 {/* Two-Column YC Layout */}

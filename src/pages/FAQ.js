@@ -94,7 +94,7 @@ const FAQ = () => {
                 <div className="faq-item">
                     <p style={questionStyle}>Are you an accelerator like Y Combinator?</p>
                     <div className="responsive-p">
-                        <p>No. We do not run batches, programs, or funding rounds. We focus on:</p>
+                        <p>No. We do not run batches, cohorts, or funding rounds. We focus on:</p>
                         <ul style={{ paddingLeft: '1.5rem', marginTop: '0.5rem' }}>
                             <li>Discovering great startups</li>
                             <li>Curating them</li>

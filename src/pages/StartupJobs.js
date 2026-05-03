@@ -125,7 +125,7 @@ const StartupJobs = () => {
                                 <div style={{ flex: 1 }}>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px', flexWrap: 'wrap' }}>
                                         <h2 style={{ fontSize: '18px', fontWeight: '800', margin: 0 }}>{company.name}</h2>
-                                        <span style={{ color: '#999', fontSize: '13px' }}>({company.batch})</span>
+                                        <span style={{ color: '#999', fontSize: '13px' }}>(Founded in {company.batch})</span>
                                     </div>
                                     <p style={{ fontSize: '14px', color: '#333', margin: '0 0 10px 0' }}>{company.tagline.split('.')[0]}.</p>
                                     <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>

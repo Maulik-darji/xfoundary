@@ -488,7 +488,7 @@ const ApplyForm = () => {
             </Link>
             
             <h1 style={{ fontFamily: 'Newsreader, serif', fontSize: '3.25rem', fontWeight: 500, fontStyle: 'italic', color: '#111', margin: '0 0 0.5rem 0', letterSpacing: '-0.02em' }}>YC Application</h1>
-            <p style={{ color: '#999', margin: '0 0 3.5rem 0', fontSize: '14px', fontFamily: 'Inter, sans-serif' }}>Summer 2026</p>
+            <p style={{ color: '#999', margin: '0 0 3.5rem 0', fontSize: '14px', fontFamily: 'Inter, sans-serif' }}>Founded in Summer 2026</p>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '4rem' }}>
                 {/* Basics Section */}
@@ -704,7 +704,7 @@ const ApplyForm = () => {
                         </div>
                     </div>
                     <div className="form-group" style={formGroupStyle}>
-                        <label style={labelStyle}>If you are applying with the same idea as a previous batch, did anything change? If you applied with a different idea, why did you pivot and what did you learn from the last idea?</label>
+                        <label style={labelStyle}>If you are applying with the same idea as a previous cohort, did anything change? If you applied with a different idea, why did you pivot and what did you learn from the last idea?</label>
                         <textarea style={textareaStyle} value={formData.pivotExplanation} onChange={(e) => handleInputChange('pivotExplanation', e.target.value)}></textarea>
                     </div>
                     <div className="form-group" style={formGroupStyle}>

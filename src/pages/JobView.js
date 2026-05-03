@@ -76,7 +76,7 @@ const JobView = () => {
                 <nav style={{ fontSize: '14px', color: '#0073b1', marginBottom: '2rem', fontWeight: '500' }}>
                     <Link to="/jobs" style={{ color: '#0073b1', textDecoration: 'none' }}>Companies</Link>
                     <span style={{ margin: '0 8px', color: '#999' }}>/</span>
-                    <Link to={`/companies/${job.founderId}`} style={{ color: '#0073b1', textDecoration: 'none' }}>{companyName} ({batch})</Link>
+                    <Link to={`/companies/${job.founderId}`} style={{ color: '#0073b1', textDecoration: 'none' }}>{companyName} (Founded in {batch})</Link>
                     <span style={{ margin: '0 8px', color: '#999' }}>/</span>
                     <span style={{ color: '#333' }}>Jobs</span>
                 </nav>
@@ -93,7 +93,7 @@ const JobView = () => {
                         </div>
                         <div style={{ flex: 1 }}>
                             <h1 style={{ fontSize: '28px', fontWeight: '800', color: '#111', margin: '0 0 8px 0', lineHeight: '1.2' }}>
-                                {job.role} at {companyName} <span style={{ color: '#999', fontWeight: '500' }}>({batch})</span>
+                                {job.role} at {companyName} <span style={{ color: '#999', fontWeight: '500' }}>(Founded in {batch})</span>
                             </h1>
                             <p style={{ fontSize: '16px', color: '#666', margin: '0 0 20px 0' }}>{company?.application?.companyDescription?.split('.')[0] + '.' || 'Construction & industrial logistics platform.'}</p>
                             

@@ -186,6 +186,12 @@ const FounderDirectory = ({ embedded }) => {
 
     useEffect(() => {
         document.title = "Founder Directory | X Foundary";
+        
+        // Initialize with hardcoded founders immediately for instant display
+        const initialFounders = hardcodedFounders.map(f => ({ ...f, isHardcoded: true }));
+        setFounders(initialFounders);
+        setFilteredFounders(initialFounders);
+
         const fetchFounders = async () => {
             try {
                 const q = query(collection(db, 'users'));
@@ -218,14 +224,10 @@ const FounderDirectory = ({ embedded }) => {
                     }
                 });
 
-                // Always include hardcoded founders
-                fetched.push(...hardcodedFounders.map(f => ({
-                    ...f,
-                    isHardcoded: true
-                })));
-
-                setFounders(fetched);
-                setFilteredFounders(fetched);
+                // Combine with hardcoded founders
+                const combined = [...fetched, ...initialFounders];
+                setFounders(combined);
+                setFilteredFounders(combined);
             } catch (error) {
                 console.error("Error fetching founders:", error);
             } finally {
@@ -265,7 +267,7 @@ const FounderDirectory = ({ embedded }) => {
 
     useEffect(() => {
         const queryLower = searchQuery.toLowerCase();
-        const filtered = founders.filter(founder => {
+        let filtered = founders.filter(founder => {
             const matchesSearch = founder.name.toLowerCase().includes(queryLower) || 
                                   founder.company.toLowerCase().includes(queryLower);
             
@@ -276,8 +278,22 @@ const FounderDirectory = ({ embedded }) => {
 
             return matchesSearch && matchesTop && matchesInd && matchesBatch && matchesRole;
         });
+
+        // Apply sorting
+        if (sortOption === 'Recently Added') {
+            // Firestore users (non-hardcoded) first, then hardcoded in their defined order
+            filtered = [...filtered].sort((a, b) => {
+                if (a.isHardcoded && !b.isHardcoded) return 1;
+                if (!a.isHardcoded && b.isHardcoded) return -1;
+                return 0; // Maintain relative order
+            });
+        } else if (sortOption === 'Default') {
+            // Alphabetical sort for Default
+            filtered = [...filtered].sort((a, b) => a.name.localeCompare(b.name));
+        }
+
         setFilteredFounders(filtered);
-    }, [searchQuery, activeFilters, founders]);
+    }, [searchQuery, activeFilters, founders, sortOption]);
 
     const batchList = useMemo(() => {
         const batches = [...new Set(founders.map(f => f.batch))].filter(b => b && b !== 'Upcoming');
@@ -535,6 +551,9 @@ const FounderDirectory = ({ embedded }) => {
                                         src={founder.image} 
                                         alt={founder.name} 
                                         style={{ width: '80px', height: '80px', borderRadius: '50%', objectFit: 'cover', border: '1px solid #eee' }} 
+                                        onError={(e) => {
+                                            e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(founder.name)}&background=random`;
+                                        }}
                                     />
                                     <div style={{ flex: 1 }}>
                                         <h3 style={{ margin: '0 0 4px 0', fontSize: '1.25rem', fontWeight: '700', color: '#111' }}>{founder.name}</h3>
