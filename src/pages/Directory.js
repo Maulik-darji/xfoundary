@@ -1,20 +1,30 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { db } from '../firebase';
-import { collection, query, getDocs } from 'firebase/firestore';
+import { collection, query, getDocs, doc, getDoc } from 'firebase/firestore';
+import { hardcodedStartups } from '../data/hardcodedStartups';
 
 const SortDropdown = ({ selected, setSelected }) => {
     const [isOpen, setIsOpen] = useState(false);
+    const wrapperRef = useRef(null);
+
+    useEffect(() => {
+        const handleClickOutside = (e) => {
+            if (wrapperRef.current && !wrapperRef.current.contains(e.target)) {
+                setIsOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
     return (
-        <div 
-            style={{ position: 'relative' }}
-            onMouseEnter={() => setIsOpen(true)}
-            onMouseLeave={() => setIsOpen(false)}
-        >
-            <div 
-                className="sort-dropdown"
+        <div ref={wrapperRef} style={{ position: 'relative' }}>
+            <div
+                onClick={() => setIsOpen(prev => !prev)}
                 style={{ 
                     borderColor: isOpen ? '#6300dd' : '#e5e5e0',
+                    border: `1px solid ${isOpen ? '#6300dd' : '#e5e5e0'}`,
                     width: '200px',
                     justifyContent: 'space-between',
                     padding: '12px 20px',
@@ -26,48 +36,48 @@ const SortDropdown = ({ selected, setSelected }) => {
                     fontSize: '15px',
                     fontWeight: '500',
                     userSelect: 'none',
-                    transition: 'all 0.2s',
+                    transition: 'border-color 0.2s',
                     boxShadow: '0 2px 8px rgba(0,0,0,0.02)'
                 }}
             >
                 {selected}
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ transition: 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)', transform: isOpen ? 'rotate(180deg)' : 'none' }}>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ transition: 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)', transform: isOpen ? 'rotate(180deg)' : 'none', flexShrink: 0 }}>
                     <path d="m6 9 6 6 6-6"/>
                 </svg>
             </div>
             {isOpen && (
                 <div style={{ 
                     position: 'absolute', 
-                    top: 'calc(100% + 5px)', 
+                    top: 'calc(100% + 8px)', 
                     right: 0, 
                     width: '240px', 
                     background: 'rgba(255, 255, 252, 0.98)', 
                     backdropFilter: 'blur(20px)',
-                    border: '1px solid rgba(0,0,0,0.05)', 
-                    borderRadius: '20px', 
-                    padding: '12px',
-                    boxShadow: '0 20px 40px rgba(0,0,0,0.1)', 
+                    border: '1px solid rgba(0,0,0,0.08)', 
+                    borderRadius: '16px', 
+                    padding: '8px',
+                    boxShadow: '0 20px 40px rgba(0,0,0,0.12)', 
                     zIndex: 1000,
                     display: 'flex',
                     flexDirection: 'column',
-                    gap: '4px'
+                    gap: '2px'
                 }}>
                     {['Default', 'Launch Date', 'Recently Added'].map(option => (
                         <div 
                             key={option}
-                            onClick={() => { setSelected(option); setIsOpen(false); }}
+                            onMouseDown={(e) => { e.preventDefault(); setSelected(option); setIsOpen(false); }}
                             style={{ 
-                                padding: '12px 16px', 
+                                padding: '10px 16px', 
                                 cursor: 'pointer',
-                                fontSize: '15px',
-                                borderRadius: '12px',
+                                fontSize: '14px',
+                                borderRadius: '10px',
                                 backgroundColor: selected === option ? 'rgba(99, 0, 221, 0.08)' : 'transparent',
                                 color: selected === option ? '#6300dd' : '#444',
                                 fontWeight: selected === option ? 700 : 400,
-                                transition: 'all 0.2s',
-                                border: selected === option ? '1px solid rgba(99, 0, 221, 0.1)' : '1px solid transparent'
+                                transition: 'background-color 0.15s',
+                                border: selected === option ? '1px solid rgba(99, 0, 221, 0.12)' : '1px solid transparent'
                             }}
-                            onMouseEnter={e => { if (selected !== option) e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.03)'; }}
+                            onMouseEnter={e => { if (selected !== option) e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.04)'; }}
                             onMouseLeave={e => { if (selected !== option) e.currentTarget.style.backgroundColor = 'transparent'; }}
                         >
                             {option}
@@ -121,15 +131,16 @@ const Directory = ({ embedded }) => {
     const [searchQuery, setSearchQuery] = useState('');
     const [sortOption, setSortOption] = useState('Default');
     const [expandedIndustries, setExpandedIndustries] = useState(['B2B']); 
-    const [companySize, setCompanySize] = useState([1, 1000]); 
     
     const industryHierarchy = {
         'B2B': ['Analytics', 'Engineering, Product and Design', 'Finance and Accounting', 'Human Resources', 'Infrastructure', 'Legal', 'Marketing', 'Office Management', 'Operations', 'Productivity', 'Recruiting and Talent', 'Retail', 'Sales', 'Security', 'Supply Chain and Logistics'],
-        'Consumer': ['Apparel and Cosmetics', 'Consumer Electronics', 'Content', 'Food and Beverage', 'Gaming', 'Home and Personal', 'Job and Career Services', 'Social', 'Transportation Services', 'Travel, Leisure and Tourism', 'Virtual and Augmented Reality'],
-        'Fintech': ['Asset Management', 'Banking and Exchange', 'Consumer Finance', 'Credit and Lending', 'Insurance', 'Payments'],
+        'Consumer': ['Apparel and Cosmetics', 'Consumer Electronics', 'Content', 'Food and Beverage', 'Gaming', 'Home and Personal', 'Job and Career Services', 'Social', 'Transportation Services', 'Travel, Leisure and Tourism', 'Virtual and Augmented Reality', 'Social Media', 'Quick Commerce', 'Spiritual Tech', 'Social Commerce'],
+        'Fintech': ['Asset Management', 'Banking and Exchange', 'Consumer Finance', 'Credit and Lending', 'Insurance', 'Payments', 'Savings', 'Banking'],
         'Healthcare': ['Consumer Health and Wellness', 'Diagnostics', 'Drug Discovery and Delivery', 'Healthcare IT', 'Healthcare Services', 'Industrial Bio', 'Medical Devices', 'Therapeutics'],
-        'Industrials': ['Agriculture', 'Automotive', 'Aviation and Space', 'Climate', 'Defense', 'Drones', 'Energy', 'Manufacturing and Robotics'],
-        'Real Estate and Construction': ['Construction', 'Housing and Real Estate']
+        'Industrials': ['Agriculture', 'Automotive', 'Aviation and Space', 'Climate', 'Defense', 'Drones', 'Energy', 'Manufacturing and Robotics', 'Aerospace', 'EV', 'Energy Storage'],
+        'Real Estate and Construction': ['Construction', 'Housing and Real Estate'],
+        'AI': ['Generative AI', 'Deep Tech', 'Foundational Models', 'Retail Tech', 'Conversational AI'],
+        'SaaS': ['Developer Tools', 'CRM', 'Billing', 'Software Testing', 'Productivity']
     };
 
     const indiaStates = [
@@ -161,6 +172,17 @@ const Directory = ({ embedded }) => {
         document.title = "Startup Directory | X Foundary";
         const fetchStartups = async () => {
             try {
+                // Fetch visibility setting
+                let showHardcoded = false;
+                try {
+                    const settingsDoc = await getDoc(doc(db, 'settings', 'global'));
+                    if (settingsDoc.exists()) {
+                        showHardcoded = settingsDoc.data().showHardcodedStartups;
+                    }
+                } catch (err) {
+                    console.error("Error fetching settings:", err);
+                }
+
                 const q = query(collection(db, 'users'));
                 const querySnapshot = await getDocs(q);
                 const fetched = [];
@@ -175,9 +197,7 @@ const Directory = ({ embedded }) => {
                             desc: app.companyDescription || 'No description provided.',
                             batch: app.batch || 'Upcoming',
                             industries: (() => {
-                                // Prefer the saved industries array (set by FounderDashboard)
                                 if (Array.isArray(app.industries) && app.industries.length > 0) return app.industries;
-                                // Fallback: build from category + subCategory
                                 const parts = [app.category, app.subCategory].filter(Boolean);
                                 return parts.length > 0 ? parts : ['Other'];
                             })(),
@@ -189,6 +209,16 @@ const Directory = ({ embedded }) => {
                         });
                     }
                 });
+
+                // Add hardcoded startups if enabled
+                if (showHardcoded) {
+                    fetched.push(...hardcodedStartups.map(s => ({
+                        ...s,
+                        isHardcoded: true,
+                        teamSize: s.teamSize || 10 // Default size to pass filters
+                    })));
+                }
+
                 setStartups(fetched);
                 setFilteredStartups(fetched);
             } catch (error) {
@@ -214,28 +244,39 @@ const Directory = ({ embedded }) => {
             }
         };
         startups.forEach(s => {
-            s.industries.forEach(i => {
-                c.industries[i] = (c.industries[i] || 0) + 1;
-                Object.entries(industryHierarchy).forEach(([main, subs]) => {
-                    if (subs.includes(i)) c.industries[main] = (c.industries[main] || 0) + 1;
+            if (s.top) c.top++;
+
+            const allTags = new Set();
+            s.industries.forEach(ind => {
+                allTags.add(ind);
+                Object.entries(industryHierarchy).forEach(([parent, subs]) => {
+                    if (subs.includes(ind)) allTags.add(parent);
                 });
             });
+            allTags.forEach(tag => {
+                c.industries[tag] = (c.industries[tag] || 0) + 1;
+            });
+
+            const startupRegions = new Set();
             if (s.location) {
                 const loc = s.location.toLowerCase();
+                if (loc.includes('india')) startupRegions.add('India');
                 indiaStates.forEach(state => {
-                    if (loc.includes(state.toLowerCase())) {
-                        c.regions[state] = (c.regions[state] || 0) + 1;
-                    }
+                    if (loc.includes(state.toLowerCase())) startupRegions.add(state);
                 });
             }
+            startupRegions.forEach(r => {
+                c.regions[r] = (c.regions[r] || 0) + 1;
+            });
+
+            if (s.hasAppVideo) c.hasAppVideo++;
+            if (s.hasDemoVideo) c.hasDemoVideo++;
+            if (s.hasAppAnswers) c.hasAppAnswers++;
+            if (s.hasBonusQuestions) c.hasBonusQuestions++;
         });
         return c;
     }, [startups]);
 
-    // Rule:
-    //  - Parent + specific children selected → only match those specific children
-    //  - Parent alone selected → match all children of that parent
-    //  - Sub-category alone → match it directly
     const resolveIndustryFilter = (selected) => {
         const expanded = new Set();
         const selectedSet = new Set(selected);
@@ -256,25 +297,47 @@ const Directory = ({ embedded }) => {
     };
 
     useEffect(() => {
-        let result = startups;
-        if (searchQuery) {
-            result = result.filter(s => s.name.toLowerCase().includes(searchQuery.toLowerCase()) || s.desc.toLowerCase().includes(searchQuery.toLowerCase()));
+        const queryLower = searchQuery.toLowerCase();
+        const resolved = resolveIndustryFilter(activeFilters.industries);
+
+        let result = startups.filter(s => {
+            const matchesSearch = s.name.toLowerCase().includes(queryLower) || 
+                                  (s.desc && s.desc.toLowerCase().includes(queryLower)) ||
+                                  (s.founders && s.founders.toLowerCase().includes(queryLower)) ||
+                                  s.industries.some(i => i.toLowerCase().includes(queryLower));
+            
+            const matchesTop = !activeFilters.topCompanies || s.top;
+            const matchesInd = activeFilters.industries.includes('All') || s.industries.some(i => resolved.has(i));
+            const matchesRegion = activeFilters.regions.includes('All') || activeFilters.regions.some(r => s.location?.toLowerCase().includes(r.toLowerCase()));
+            const matchesAppVideo = !activeFilters.hasAppVideo || s.hasAppVideo;
+            const matchesDemoVideo = !activeFilters.hasDemoVideo || s.hasDemoVideo;
+            const matchesAppAnswers = !activeFilters.hasAppAnswers || s.hasAppAnswers;
+            const matchesBonusQuestions = !activeFilters.hasBonusQuestions || s.hasBonusQuestions;
+
+            return matchesSearch && matchesTop && matchesInd && matchesRegion && matchesAppVideo && matchesDemoVideo && matchesAppAnswers && matchesBonusQuestions;
+        });
+
+        // Apply Sorting
+        if (sortOption === 'Launch Date') {
+            result.sort((a, b) => {
+                const parseBatch = (batch) => {
+                    if (!batch || batch === 'Upcoming') return 0;
+                    const match = batch.match(/\d+/);
+                    const year = match ? parseInt(match[0]) : 0;
+                    const seasonScore = batch.toUpperCase().startsWith('S') ? 1 : 0; // S is later than W
+                    // Handle years like 96 (Zoho) vs 24
+                    const fullYear = year < 50 ? 2000 + year : 1900 + year;
+                    return (fullYear * 10) + seasonScore;
+                };
+                return parseBatch(b.batch) - parseBatch(a.batch);
+            });
+        } else if (sortOption === 'Recently Added') {
+            // Newest entries are usually at the end of the combined array, so reverse to show them first
+            result.reverse();
         }
-        if (activeFilters.topCompanies) result = result.filter(s => s.top);
-        if (activeFilters.hasAppVideo) result = result.filter(s => s.hasAppVideo);
-        if (activeFilters.hasDemoVideo) result = result.filter(s => s.hasDemoVideo);
-        if (activeFilters.hasAppAnswers) result = result.filter(s => s.hasAppAnswers);
-        if (activeFilters.hasBonusQuestions) result = result.filter(s => s.hasBonusQuestions);
-        if (!activeFilters.industries.includes('All')) {
-            const resolved = resolveIndustryFilter(activeFilters.industries);
-            result = result.filter(s => s.industries.some(i => resolved.has(i)));
-        }
-        if (!activeFilters.regions.includes('All')) {
-            result = result.filter(s => activeFilters.regions.some(r => s.location?.toLowerCase().includes(r.toLowerCase())));
-        }
-        result = result.filter(s => s.teamSize >= companySize[0] && s.teamSize <= companySize[1]);
+
         setFilteredStartups(result);
-    }, [searchQuery, activeFilters, startups, companySize]);
+    }, [searchQuery, activeFilters, startups, sortOption]);
 
     const handleFilterToggle = (category, value) => {
         setActiveFilters(prev => {
@@ -299,9 +362,10 @@ const Directory = ({ embedded }) => {
     };
 
     return (
-        <div style={{ minHeight: embedded ? 'auto' : '100vh', backgroundColor: embedded ? 'transparent' : '#f5f5ee', fontFamily: '"Inter", sans-serif', paddingBottom: embedded ? '2rem' : '4rem' }}>
+        <div style={{ minHeight: embedded ? 'auto' : '100vh', backgroundColor: embedded ? 'transparent' : '#f5f5ee', paddingBottom: embedded ? '2rem' : '4rem' }}>
             <style>{`
                 .directory-page { max-width: 1300px; margin: 0 auto; padding: ${embedded ? '2rem 0' : '5rem 2rem 2rem'}; }
+                .main-layout { display: flex; gap: 2rem; }
 
                 .sidebar { width: 300px; background: #fff; border: 1px solid #e5e5e0; border-radius: 16px; padding: 1.5rem; height: fit-content; box-shadow: 0 4px 20px rgba(0,0,0,0.02); }
                 .filter-section { margin-bottom: 2rem; border-bottom: 1px solid #f0f0ed; padding-bottom: 1.5rem; }
@@ -315,21 +379,20 @@ const Directory = ({ embedded }) => {
                 .checkbox-custom { width: 22px; height: 22px; border: 2px solid #d1d1ca; border-radius: 4px; display: flex; align-items: center; justify-content: center; transition: all 0.2s; flex-shrink: 0; }
                 .checkbox-custom.active { background: #2563eb; border-color: #2563eb; }
                 .filter-title-icon { background: #f0f0ed; border-radius: 4px; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; }
-            `}</style>
 
+                @media (max-width: 900px) {
+                    .main-layout { flex-direction: column; }
+                    .sidebar { width: 100%; }
+                    .startup-card { flex-direction: column; gap: 1rem; padding: 1.5rem; }
+                    .startup-card img { width: 60px; height: 60px; }
+                    .directory-page { padding: 2rem 1.5rem; }
+                }
+            `}</style>
 
             <div className="directory-page">
                 {!embedded && (
                     <div style={{ textAlign: 'center', marginBottom: '5rem' }}>
-                        <h1 style={{ 
-                            fontFamily: '"Georgia", serif', 
-                            fontStyle: 'italic', 
-                            fontSize: '4.5rem', 
-                            fontWeight: 400, 
-                            color: '#1a1a1a', 
-                            marginBottom: '1rem',
-                            letterSpacing: '-0.02em'
-                        }}>Startup Directory</h1>
+                        <h1 className="responsive-h1" style={{ marginBottom: '1rem' }}>Startup Directory</h1>
                     </div>
                 )}
 
@@ -338,7 +401,7 @@ const Directory = ({ embedded }) => {
                     <SortDropdown selected={sortOption} setSelected={setSortOption} />
                 </div>
 
-                <div style={{ display: 'flex', gap: '2rem' }}>
+                <div className="main-layout" style={{ display: 'flex', gap: '2rem' }}>
                     <aside className="sidebar">
                         <div className="filter-section">
                             <div className="filter-item" onClick={() => handleFilterToggle('topCompanies')}>
@@ -464,34 +527,6 @@ const Directory = ({ embedded }) => {
                             )}
                         </div>
 
-                        {/* Company Size */}
-                        <div className="filter-section">
-                            <div className="filter-title" onClick={() => toggleSection('company-size')}>
-                                Company Size
-                                <div className="filter-title-icon">
-                                    {collapsedSections.includes('company-size') ? (
-                                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#999" strokeWidth="4"><path d="M12 5v14M5 12h14"/></svg>
-                                    ) : (
-                                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#999" strokeWidth="4"><path d="M5 12h14"/></svg>
-                                    )}
-                                </div>
-                            </div>
-                            {!collapsedSections.includes('company-size') && (
-                                <div style={{ padding: '0 4px' }}>
-                                    <div style={{ fontSize: '13px', color: '#666', marginBottom: '10px', fontWeight: 500 }}>
-                                        {companySize[0]} – {companySize[1] >= 1000 ? '1,000+' : companySize[1]}
-                                    </div>
-                                    <input
-                                        type="range"
-                                        min={1}
-                                        max={1000}
-                                        value={companySize[1]}
-                                        onChange={e => setCompanySize([companySize[0], parseInt(e.target.value)])}
-                                        style={{ width: '100%', accentColor: '#2563eb' }}
-                                    />
-                                </div>
-                            )}
-                        </div>
 
                         {/* Extra flags */}
                         <div className="filter-section" style={{ borderBottom: 'none', marginBottom: 0 }}>

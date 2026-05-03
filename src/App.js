@@ -40,6 +40,8 @@ import ComingSoon from './pages/ComingSoon';
 const Header = () => {
   const [isScrolled, setIsScrolled] = useState(false);
   const [user, setUser] = useState(null);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [activeMobileDropdown, setActiveMobileDropdown] = useState(null);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -107,9 +109,102 @@ const Header = () => {
     }
   };
 
+  const toggleMobileMenu = () => setIsMobileMenuOpen(!isMobileMenuOpen);
+  const closeMobileMenu = () => setIsMobileMenuOpen(false);
+
   return (
     <header className="header-wrapper">
       <div className={`header-inner ${isScrolled ? 'scrolled' : ''}`}>
+        <div className="mobile-header-row">
+            <div className="mobile-header-left" style={{ width: '40px' }} />
+            <Link to="/" className="mobile-logo" onClick={closeMobileMenu}>
+                <div className="yc-logo">X</div>
+            </Link>
+            <button className="hamburger-btn" onClick={toggleMobileMenu} style={{ width: '40px' }}>
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    {isMobileMenuOpen ? (
+                        <><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></>
+                    ) : (
+                        <><line x1="3" y1="9" x2="21" y2="9"></line><line x1="3" y1="15" x2="21" y2="15"></line></>
+                    )}
+                </svg>
+            </button>
+        </div>
+
+        {isMobileMenuOpen && (
+            <div className="mobile-menu-overlay">
+                <button className="mobile-menu-close" onClick={closeMobileMenu}>
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </button>
+                <nav className="mobile-nav-links">
+                    <div className="mobile-nav-item-wrap">
+                        <div className="mobile-nav-header" onClick={() => setActiveMobileDropdown(activeMobileDropdown === 'about' ? null : 'about')}>
+                            About <svg className={`mobile-arrow ${activeMobileDropdown === 'about' ? 'active' : ''}`} width="10" height="6" viewBox="0 0 10 6" fill="none"><path d="M1 1L5 5L9 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                        </div>
+                        {activeMobileDropdown === 'about' && (
+                            <div className="mobile-sub-links">
+                                <Link to="/what-happens" onClick={closeMobileMenu}>What Happens at X?</Link>
+                                <Link to="/faq" onClick={closeMobileMenu}>FAQ</Link>
+                                <Link to="/people" onClick={closeMobileMenu}>People</Link>
+                                <Link to="/blog" onClick={closeMobileMenu}>X Blog</Link>
+                            </div>
+                        )}
+                    </div>
+                    
+                    <div className="mobile-nav-item-wrap">
+                        <div className="mobile-nav-header" onClick={() => setActiveMobileDropdown(activeMobileDropdown === 'companies' ? null : 'companies')}>
+                            Companies <svg className={`mobile-arrow ${activeMobileDropdown === 'companies' ? 'active' : ''}`} width="10" height="6" viewBox="0 0 10 6" fill="none"><path d="M1 1L5 5L9 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                        </div>
+                        {activeMobileDropdown === 'companies' && (
+                            <div className="mobile-sub-links">
+                                <Link to="/directory" onClick={closeMobileMenu}>Startup Directory</Link>
+                                <Link to="/founder-directory" onClick={closeMobileMenu}>Founder Directory</Link>
+                                <Link to="/launch-xf" onClick={closeMobileMenu}>Launch XF</Link>
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="mobile-nav-item-wrap">
+                        <Link to="/library" onClick={closeMobileMenu}>Library</Link>
+                    </div>
+                    
+                    <div className="mobile-nav-item-wrap">
+                        <div className="mobile-nav-header" onClick={() => setActiveMobileDropdown(activeMobileDropdown === 'resources' ? null : 'resources')}>
+                            Resources <svg className={`mobile-arrow ${activeMobileDropdown === 'resources' ? 'active' : ''}`} width="10" height="6" viewBox="0 0 10 6" fill="none"><path d="M1 1L5 5L9 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                        </div>
+                        {activeMobileDropdown === 'resources' && (
+                            <div className="mobile-sub-links">
+                                <Link to="/newsletter" onClick={closeMobileMenu}>Newsletter</Link>
+                                <Link to="/verify-founders" onClick={closeMobileMenu}>Verify Founders</Link>
+                                <Link to="/find-co-founder" onClick={closeMobileMenu}>Find a Co-Founder</Link>
+                                <a href="https://news.ycombinator.com/news" target="_blank" rel="noopener noreferrer" onClick={closeMobileMenu}>Hacker News</a>
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="mobile-nav-item-wrap">
+                        <Link to="/jobs" onClick={closeMobileMenu}>Startup Jobs</Link>
+                    </div>
+                    
+                    <div className="mobile-nav-item-wrap">
+                        {user ? (
+                            <button onClick={() => { handleLogout(); closeMobileMenu(); }} className="mobile-nav-logout-btn">Log out</button>
+                        ) : (
+                            <Link to="/login" onClick={closeMobileMenu}>Log in</Link>
+                        )}
+                    </div>
+                    
+                    <div className="mobile-apply-container">
+                        {(!userRole || userRole === 'user') && (
+                            <Link to="/apply" onClick={closeMobileMenu} className="mobile-pill-apply">
+                                <em>Apply</em>
+                            </Link>
+                        )}
+                    </div>
+                </nav>
+            </div>
+        )}
+
         <div className="header-left-empty" />
         <nav className="nav-links-centered">
           <div className="nav-item has-dropdown">

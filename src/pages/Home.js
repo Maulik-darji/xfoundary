@@ -3,12 +3,11 @@ import { onAuthStateChanged } from 'firebase/auth';
 import { auth, db } from '../firebase';
 import { doc, getDoc } from 'firebase/firestore';
 
-const Hero = () => {
+const Hero = ({ userRole }) => {
   return (
     <section className="hero">
       <h1>
-        XF Helps founders<br/>
-        <em>feature their startup<br/>globally</em>
+        XF Helps founders <em>feature their startup globally</em>
       </h1>
       <p>Four times a year we invest in a large number of startups.</p>
       <div className="hero-footer">

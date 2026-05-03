@@ -150,6 +150,160 @@ a {
   justify-content: flex-start;
 }
 
+.mobile-header-row {
+    display: none;
+    width: 100%;
+    align-items: center;
+    justify-content: space-between;
+    z-index: 3000;
+    position: relative;
+}
+
+.mobile-logo {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.hamburger-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--text-main);
+    padding: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.mobile-menu-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #000;
+    z-index: 5000;
+    display: flex;
+    flex-direction: column;
+    padding: 6rem 2rem 2rem;
+    overflow-y: auto;
+    color: #fff;
+    animation: slideDown 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes slideDown {
+    from { transform: translateY(-100%); }
+    to { transform: translateY(0); }
+}
+
+.mobile-menu-close {
+    position: absolute;
+    top: 1rem;
+    right: 1.5rem;
+    background: none;
+    border: none;
+    color: #fff;
+    cursor: pointer;
+    padding: 8px;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.mobile-nav-links {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.mobile-nav-item-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+}
+
+.mobile-nav-header {
+    font-size: 1.25rem;
+    font-weight: 500;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    width: 100%;
+    padding: 0.5rem 0;
+}
+
+.mobile-nav-item-wrap a, .mobile-nav-logout-btn {
+    font-size: 1.25rem;
+    font-weight: 500;
+    color: #fff;
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: none;
+    border: none;
+    padding: 0.5rem 0;
+    font-family: inherit;
+    width: 100%;
+}
+
+.mobile-sub-links {
+    display: flex;
+    flex-direction: column;
+    gap: 1.2rem;
+    padding-left: 1.5rem;
+    padding-top: 1rem;
+    width: 100%;
+}
+
+.mobile-sub-links a {
+    font-size: 1.1rem !important;
+    font-weight: 400 !important;
+    color: #ccc !important;
+}
+
+.mobile-arrow {
+    opacity: 0.7;
+    width: 12px;
+    transition: transform 0.3s ease;
+}
+
+.mobile-arrow.active {
+    transform: rotate(180deg);
+}
+
+.mobile-apply-container {
+    margin-top: auto;
+    padding: 2rem 0;
+    display: flex;
+    justify-content: center;
+}
+
+.mobile-pill-apply {
+    background-color: #fff;
+    color: #000 !important;
+    width: 100%;
+    padding: 1rem;
+    border-radius: 50px;
+    text-align: center;
+    font-size: 1.25rem;
+    font-weight: 500;
+    text-decoration: none;
+}
+
+.mobile-pill-apply em {
+    font-family: 'Newsreader', Georgia, serif;
+    font-style: italic;
+}
+
 .nav-item {
   position: relative;
   padding: 0.5rem 0;
@@ -457,7 +611,6 @@ a {
 .funding-details {
   background-color: var(--bg-white);
   padding: 6rem 2rem;
-  border-top: 1px solid var(--border-color);
   border-bottom: 1px solid var(--border-color);
 }
 
@@ -662,4 +815,138 @@ a {
 
 @keyframes spin {
   to { transform: rotate(360deg); }
+}
+
+/* Global Responsive Utilities */
+.page-container {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 10rem 2rem;
+    display: flex;
+    gap: 4rem;
+}
+
+.main-content {
+    flex: 1;
+    max-width: 750px;
+}
+
+.responsive-h1 {
+    font-family: 'Newsreader', Georgia, serif;
+    font-size: 4.5rem;
+    font-weight: 400;
+    font-style: italic;
+    margin-bottom: 2.5rem;
+    letter-spacing: -0.02em;
+    line-height: 1.1;
+}
+
+.responsive-h2 {
+    font-family: 'Newsreader', Georgia, serif;
+    font-size: 2.2rem;
+    margin: 3rem 0 1.5rem 0;
+    font-weight: 400;
+}
+
+.responsive-p {
+    font-size: 1.125rem;
+    line-height: 1.6;
+    color: #333;
+    margin-bottom: 1.5rem;
+}
+
+.responsive-grid-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2rem;
+}
+
+@media (max-width: 900px) {
+    .page-container {
+        flex-direction: column !important;
+        padding: 6rem 1.5rem !important;
+        gap: 2rem !important;
+    }
+    .main-content {
+        max-width: 100% !important;
+    }
+    .responsive-h1 {
+        font-size: 2.8rem !important;
+        margin-bottom: 1.5rem !important;
+    }
+    .responsive-h2 {
+        font-size: 1.8rem !important;
+        margin: 2rem 0 1rem 0 !important;
+    }
+    .responsive-p {
+        font-size: 1rem !important;
+    }
+    .responsive-grid-2 {
+        grid-template-columns: 1fr !important;
+        gap: 1.5rem !important;
+    }
+    .mobile-hide {
+        display: none !important;
+    }
+    .mobile-padding-top {
+        padding-top: 5rem !important;
+    }
+}
+
+@media (max-width: 900px) {
+    .header-inner {
+        padding: 1rem 1.5rem;
+        display: flex !important;
+        grid-template-columns: none !important;
+        border-bottom: none !important;
+    }
+    .header-inner.scrolled {
+        width: 100%;
+        margin-top: 0;
+        border-radius: 0;
+    }
+    .nav-links-centered, .nav-actions, .header-left-empty {
+        display: none !important;
+    }
+    .mobile-header-row {
+        display: flex !important;
+    }
+    .hero {
+        padding: 4rem 1.5rem;
+        min-height: 85vh !important;
+    }
+    .hero h1 {
+        font-size: 3.2rem !important;
+        margin-bottom: 1.5rem;
+    }
+    .hero p {
+        font-size: 1.1rem !important;
+        margin-bottom: 2rem;
+    }
+    .hero-actions {
+        flex-direction: column;
+        width: 100%;
+        gap: 1rem;
+    }
+    .btn-primary-large {
+        width: 100%;
+        justify-content: center;
+    }
+    .footer-v2-main {
+        gap: 2rem;
+    }
+    .footer-v2-brand {
+        margin-bottom: 1rem;
+    }
+    .footer-v2-links {
+        gap: 2rem;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+    }
+    .yc-logo {
+        width: 36px;
+        height: 36px;
+        font-size: 1.4rem;
+        transform: none;
+    }
 }

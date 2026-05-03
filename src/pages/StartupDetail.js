@@ -2,14 +2,18 @@ import React, { useEffect, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { db } from '../firebase';
 import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
+import { hardcodedStartups } from '../data/hardcodedStartups';
+import { hardcodedFounders } from '../data/hardcodedFounders';
 
 const industryHierarchy = {
     'B2B': ['Analytics', 'Engineering, Product and Design', 'Finance and Accounting', 'Human Resources', 'Infrastructure', 'Legal', 'Marketing', 'Office Management', 'Operations', 'Productivity', 'Recruiting and Talent', 'Retail', 'Sales', 'Security', 'Supply Chain and Logistics'],
-    'Consumer': ['Apparel and Cosmetics', 'Consumer Electronics', 'Content', 'Food and Beverage', 'Gaming', 'Home and Personal', 'Job and Career Services', 'Social', 'Transportation Services', 'Travel, Leisure and Tourism', 'Virtual and Augmented Reality'],
-    'Fintech': ['Asset Management', 'Banking and Exchange', 'Consumer Finance', 'Credit and Lending', 'Insurance', 'Payments'],
+    'Consumer': ['Apparel and Cosmetics', 'Consumer Electronics', 'Content', 'Food and Beverage', 'Gaming', 'Home and Personal', 'Job and Career Services', 'Social', 'Transportation Services', 'Travel, Leisure and Tourism', 'Virtual and Augmented Reality', 'Social Media', 'Quick Commerce', 'Spiritual Tech', 'Social Commerce'],
+    'Fintech': ['Asset Management', 'Banking and Exchange', 'Consumer Finance', 'Credit and Lending', 'Insurance', 'Payments', 'Savings', 'Banking'],
     'Healthcare': ['Consumer Health and Wellness', 'Diagnostics', 'Drug Discovery and Delivery', 'Healthcare IT', 'Healthcare Services', 'Industrial Bio', 'Medical Devices', 'Therapeutics'],
-    'Industrials': ['Agriculture', 'Automotive', 'Aviation and Space', 'Climate', 'Defense', 'Drones', 'Energy', 'Manufacturing and Robotics'],
-    'Real Estate and Construction': ['Construction', 'Housing and Real Estate']
+    'Industrials': ['Agriculture', 'Automotive', 'Aviation and Space', 'Climate', 'Defense', 'Drones', 'Energy', 'Manufacturing and Robotics', 'Aerospace', 'EV', 'Energy Storage'],
+    'Real Estate and Construction': ['Construction', 'Housing and Real Estate'],
+    'AI': ['Generative AI', 'Deep Tech', 'Foundational Models', 'Retail Tech', 'Conversational AI'],
+    'SaaS': ['Developer Tools', 'CRM', 'Billing', 'Software Testing', 'Productivity']
 };
 
 const StartupDetail = () => {
@@ -23,6 +27,36 @@ const StartupDetail = () => {
     useEffect(() => {
         const fetchStartup = async () => {
             try {
+                if (id?.startsWith('hc-')) {
+                    const hc = hardcodedStartups.find(s => s.id === id);
+                    if (hc) {
+                        const hf = hardcodedFounders.filter(f => f.company === hc.name);
+                        setStartup({
+                            ...hc,
+                            tagline: hc.desc.split('.')[0] + '.',
+                            fullDesc: hc.desc,
+                            status: 'Public',
+                            partner: 'X Foundary',
+                            founded: hc.founded || '2023',
+                            teamSize: hc.teamSize || '10',
+                            socials: hc.socials || { twitter: '', linkedin: '', github: '', facebook: '', crunchbase: '' },
+                            founders: hf.length > 0 ? hf.map(f => ({
+                                name: f.name,
+                                role: f.role,
+                                bio: `${f.name} is a founder of ${hc.name}.`,
+                                photo: f.image,
+                                linkedin: `https://linkedin.com/search/results/all/?keywords=${encodeURIComponent(f.name + ' ' + hc.name)}`
+                            })) : [
+                                { name: hc.founders.split(',')[0], role: 'Founder', bio: `${hc.founders} are the builders behind ${hc.name}.`, photo: `https://ui-avatars.com/api/?name=${encodeURIComponent(hc.founders)}&background=random` }
+                            ],
+                            url: `https://${hc.name.toLowerCase().replace(/\s+/g, '')}.com`
+                        });
+                        document.title = `${hc.name} | X Foundary`;
+                        setLoading(false);
+                        return;
+                    }
+                }
+
                 const docRef = doc(db, 'users', id);
                 const docSnap = await getDoc(docRef);
                 
@@ -208,11 +242,7 @@ const StartupDetail = () => {
                             <table style={{ width: '100%', fontSize: '14px', marginBottom: '2rem', borderCollapse: 'collapse' }}>
                                 <tbody>
                                     <tr>
-                                        <td style={{ color: '#444', padding: '10px 0', borderBottom: '1px solid transparent' }}>Founded:</td>
-                                        <td style={{ textAlign: 'right', fontWeight: '500', padding: '10px 0', color: '#111' }}>{startup.founded}</td>
-                                    </tr>
-                                    <tr>
-                                        <td style={{ color: '#444', padding: '10px 0' }}>Batch:</td>
+                                        <td style={{ color: '#444', padding: '10px 0' }}>Founded in:</td>
                                         <td style={{ textAlign: 'right', fontWeight: '500', padding: '10px 0', color: '#111' }}>{startup.batch}</td>
                                     </tr>
                                     <tr>

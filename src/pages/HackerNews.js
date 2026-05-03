@@ -18,19 +18,18 @@ const HackerNews = () => {
         <div style={{ backgroundColor: '#f6f6ef', minHeight: '100vh', padding: '0', fontFamily: 'Verdana, Geneva, sans-serif' }}>
             <div style={{ maxWidth: '1200px', margin: '0 auto', backgroundColor: '#f6f6ef' }}>
                 {/* HN Header */}
-                <header style={{ backgroundColor: '#ff6600', padding: '2px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <div style={{ border: '1px solid white', width: '18px', height: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center', marginLeft: '2px' }}>
+                <header className="hn-header" style={{ backgroundColor: '#ff6600', padding: '4px 8px', display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                    <div style={{ border: '1px solid white', width: '18px', height: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                         <span style={{ color: 'white', fontWeight: 'bold', fontSize: '12px' }}>Y</span>
                     </div>
-                    <div style={{ display: 'flex', gap: '10px', fontSize: '14px', fontWeight: 'bold' }}>
+                    <div style={{ display: 'flex', gap: '10px', fontSize: '13px', fontWeight: 'bold', flexWrap: 'wrap' }}>
                         <span style={{ color: '#000' }}>Hacker News</span>
-                        <nav style={{ fontWeight: 'normal', display: 'flex', gap: '5px' }}>
+                        <nav style={{ fontWeight: 'normal', display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
                             {['new', 'past', 'comments', 'ask', 'show', 'jobs', 'submit'].map(item => (
                                 <span key={item} style={{ cursor: 'pointer' }}>| {item}</span>
                             ))}
                         </nav>
                     </div>
-                    <div style={{ marginLeft: 'auto', fontSize: '14px', marginRight: '5px' }}>login</div>
                 </header>
 
                 {/* News List */}
@@ -40,18 +39,18 @@ const HackerNews = () => {
                             {news.map((item, index) => (
                                 <React.Fragment key={item.id}>
                                     <tr style={{ height: '22px' }}>
-                                        <td align="right" valign="top" style={{ paddingRight: '5px', color: '#828282', fontSize: '14px', width: '25px' }}>
+                                        <td align="right" valign="top" style={{ paddingRight: '5px', color: '#828282', fontSize: '13px', width: '25px' }}>
                                             {index + 1}.
                                         </td>
                                         <td valign="top">
-                                            <div style={{ cursor: 'pointer', display: 'inline-block', width: '10px', height: '10px', borderLeft: '4px solid transparent', borderRight: '4px solid transparent', borderBottom: '8px solid #828282', marginBottom: '2px', marginRight: '3px' }} />
-                                            <span style={{ fontSize: '14px', color: '#000' }}>{item.title}</span>
-                                            <span style={{ fontSize: '11px', color: '#828282', marginLeft: '5px' }}>({item.domain})</span>
+                                            <div className="mobile-hide" style={{ cursor: 'pointer', display: 'inline-block', width: '10px', height: '10px', borderLeft: '4px solid transparent', borderRight: '4px solid transparent', borderBottom: '8px solid #828282', marginBottom: '2px', marginRight: '3px' }} />
+                                            <span style={{ fontSize: '13px', color: '#000' }}>{item.title}</span>
+                                            <span style={{ fontSize: '10px', color: '#828282', marginLeft: '5px' }}>({item.domain})</span>
                                         </td>
                                     </tr>
                                     <tr>
                                         <td colSpan="1"></td>
-                                        <td style={{ fontSize: '10px', color: '#828282', paddingBottom: '8px', paddingLeft: '15px' }}>
+                                        <td style={{ fontSize: '9px', color: '#828282', paddingBottom: '8px', paddingLeft: '2px' }}>
                                             {item.points} points by {item.user} {item.time} | hide | {item.comments} comments
                                         </td>
                                     </tr>
@@ -59,7 +58,7 @@ const HackerNews = () => {
                             ))}
                             <tr>
                                 <td colSpan="1"></td>
-                                <td style={{ padding: '10px 15px', fontSize: '14px', fontWeight: 'bold', color: '#000', cursor: 'pointer' }}>
+                                <td style={{ padding: '10px 5px', fontSize: '13px', fontWeight: 'bold', color: '#000', cursor: 'pointer' }}>
                                     More
                                 </td>
                             </tr>
@@ -68,16 +67,19 @@ const HackerNews = () => {
                 </main>
 
                 <footer style={{ borderTop: '2px solid #ff6600', padding: '20px', textAlign: 'center', fontSize: '12px', color: '#828282' }}>
-                    <div style={{ marginBottom: '10px', display: 'flex', justifyContent: 'center', gap: '10px', color: '#000' }}>
+                    <div style={{ marginBottom: '10px', display: 'flex', justifyContent: 'center', gap: '10px', color: '#000', flexWrap: 'wrap' }}>
                         {['Guidelines', 'FAQ', 'Lists', 'API', 'Security', 'Legal', 'Apply to YC', 'Contact'].map(item => (
                             <span key={item} style={{ cursor: 'pointer' }}>{item}</span>
                         ))}
                     </div>
-                    <form style={{ marginBottom: '20px' }}>
-                        Search: <input type="text" style={{ border: '1px solid #828282' }} />
-                    </form>
                 </footer>
             </div>
+            <style>{`
+                @media (max-width: 600px) {
+                    .hn-header { padding: 8px !important; }
+                    main { padding: 10px 5px !important; }
+                }
+            `}</style>
         </div>
     );
 };

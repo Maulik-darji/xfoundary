@@ -10,17 +10,17 @@ const Library = () => {
       alignItems: 'center', 
       justifyContent: 'center', 
       backgroundColor: '#f5f5ee',
-      padding: '2rem'
+      padding: '6rem 1.5rem'
     }}>
       <div style={{ 
         textAlign: 'center', 
-        maxWidth: '600px',
+        maxWidth: '800px',
         animation: 'fadeIn 0.8s ease-out'
       }}>
         <div style={{ 
           display: 'inline-block',
-          backgroundColor: 'rgba(255, 102, 0, 0.1)',
-          color: '#ff6600',
+          backgroundColor: 'rgba(99, 0, 221, 0.1)',
+          color: '#6300dd',
           padding: '8px 16px',
           borderRadius: '20px',
           fontSize: '14px',
@@ -32,23 +32,11 @@ const Library = () => {
           Knowledge Base
         </div>
         
-        <h1 style={{ 
-          fontSize: '4rem', 
-          fontWeight: '900', 
-          color: '#111', 
-          margin: '0 0 1.5rem 0',
-          lineHeight: '1.1',
-          letterSpacing: '-2px'
-        }}>
+        <h1 className="responsive-h1" style={{ margin: '0 0 1.5rem 0' }}>
           Startup Library
         </h1>
         
-        <p style={{ 
-          fontSize: '1.25rem', 
-          color: '#666', 
-          lineHeight: '1.6',
-          marginBottom: '3rem'
-        }}>
+        <p className="responsive-p" style={{ fontSize: '1.25rem', color: '#666' }}>
           We're curating the world's best resources for founders. 
           A massive collection of essays, videos, and guides is coming soon.
         </p>
@@ -66,15 +54,15 @@ const Library = () => {
             color: '#999',
             fontSize: '15px'
           }}>
-            <div style={{ width: '8px', height: '8px', backgroundColor: '#ff6600', borderRadius: '50%', animation: 'pulse 2s infinite' }} />
+            <div style={{ width: '8px', height: '8px', backgroundColor: '#6300dd', borderRadius: '50%', animation: 'pulse 2s infinite' }} />
             Currently indexing 5,000+ resources
           </div>
 
           <Link to="/" style={{ 
             backgroundColor: '#111', 
             color: '#fff', 
-            padding: '16px 32px', 
-            borderRadius: '8px', 
+            padding: '16px 48px', 
+            borderRadius: '50px', 
             textDecoration: 'none', 
             fontWeight: '700',
             fontSize: '16px',

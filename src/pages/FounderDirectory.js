@@ -1,7 +1,8 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { db } from '../firebase';
-import { collection, query, getDocs } from 'firebase/firestore';
+import { collection, query, getDocs, doc, getDoc } from 'firebase/firestore';
+import { hardcodedFounders } from '../data/hardcodedFounders';
 
 const FilterChip = ({ label, onRemove, icon }) => (
     <div style={{ 
@@ -39,16 +40,24 @@ const FilterChip = ({ label, onRemove, icon }) => (
 
 const SortDropdown = ({ selected, setSelected }) => {
     const [isOpen, setIsOpen] = useState(false);
+    const wrapperRef = useRef(null);
+
+    useEffect(() => {
+        const handleClickOutside = (e) => {
+            if (wrapperRef.current && !wrapperRef.current.contains(e.target)) {
+                setIsOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
     return (
-        <div 
-            style={{ position: 'relative' }}
-            onMouseEnter={() => setIsOpen(true)}
-            onMouseLeave={() => setIsOpen(false)}
-        >
-            <div 
-                className="sort-dropdown"
+        <div ref={wrapperRef} style={{ position: 'relative' }}>
+            <div
+                onClick={() => setIsOpen(prev => !prev)}
                 style={{ 
-                    borderColor: isOpen ? '#6300dd' : '#e5e5e0',
+                    border: `1px solid ${isOpen ? '#6300dd' : '#e5e5e0'}`,
                     width: '200px',
                     justifyContent: 'space-between',
                     padding: '12px 20px',
@@ -60,49 +69,48 @@ const SortDropdown = ({ selected, setSelected }) => {
                     fontSize: '15px',
                     fontWeight: '500',
                     userSelect: 'none',
-                    transition: 'all 0.2s',
-                    boxShadow: '0 2px 8px rgba(0,0,0,0.02)',
-                    border: '1px solid #e5e5e0'
+                    transition: 'border-color 0.2s',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.02)'
                 }}
             >
                 {selected}
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ transition: 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)', transform: isOpen ? 'rotate(180deg)' : 'none' }}>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ transition: 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)', transform: isOpen ? 'rotate(180deg)' : 'none', flexShrink: 0 }}>
                     <path d="m6 9 6 6 6-6"/>
                 </svg>
             </div>
             {isOpen && (
                 <div style={{ 
                     position: 'absolute', 
-                    top: 'calc(100% + 5px)', 
+                    top: 'calc(100% + 8px)', 
                     right: 0, 
                     width: '240px', 
                     background: 'rgba(255, 255, 252, 0.98)', 
                     backdropFilter: 'blur(20px)',
-                    border: '1px solid rgba(0,0,0,0.05)', 
-                    borderRadius: '20px', 
-                    padding: '12px',
-                    boxShadow: '0 20px 40px rgba(0,0,0,0.1)', 
+                    border: '1px solid rgba(0,0,0,0.08)', 
+                    borderRadius: '16px', 
+                    padding: '8px',
+                    boxShadow: '0 20px 40px rgba(0,0,0,0.12)', 
                     zIndex: 1000,
                     display: 'flex',
                     flexDirection: 'column',
-                    gap: '4px'
+                    gap: '2px'
                 }}>
                     {['Default', 'Recently Added'].map(option => (
                         <div 
                             key={option}
-                            onClick={() => { setSelected(option); setIsOpen(false); }}
+                            onMouseDown={(e) => { e.preventDefault(); setSelected(option); setIsOpen(false); }}
                             style={{ 
-                                padding: '12px 16px', 
+                                padding: '10px 16px', 
                                 cursor: 'pointer', 
-                                fontSize: '15px', 
-                                borderRadius: '12px',
+                                fontSize: '14px', 
+                                borderRadius: '10px',
                                 backgroundColor: selected === option ? 'rgba(99, 0, 221, 0.08)' : 'transparent',
                                 color: selected === option ? '#6300dd' : '#444',
                                 fontWeight: selected === option ? 700 : 400,
-                                transition: 'all 0.2s',
-                                border: selected === option ? '1px solid rgba(99, 0, 221, 0.1)' : '1px solid transparent'
+                                transition: 'background-color 0.15s',
+                                border: selected === option ? '1px solid rgba(99, 0, 221, 0.12)' : '1px solid transparent'
                             }}
-                            onMouseEnter={e => { if (selected !== option) e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.03)'; }}
+                            onMouseEnter={e => { if (selected !== option) e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.04)'; }}
                             onMouseLeave={e => { if (selected !== option) e.currentTarget.style.backgroundColor = 'transparent'; }}
                         >
                             {option}
@@ -138,11 +146,13 @@ const FounderDirectory = ({ embedded }) => {
 
     const industryHierarchy = {
         'B2B': ['Analytics', 'Engineering, Product and Design', 'Finance and Accounting', 'Human Resources', 'Infrastructure', 'Legal', 'Marketing', 'Office Management', 'Operations', 'Productivity', 'Recruiting and Talent', 'Retail', 'Sales', 'Security', 'Supply Chain and Logistics'],
-        'Consumer': ['Apparel and Cosmetics', 'Consumer Electronics', 'Content', 'Food and Beverage', 'Gaming', 'Home and Personal', 'Job and Career Services', 'Social', 'Transportation Services', 'Travel, Leisure and Tourism', 'Virtual and Augmented Reality'],
-        'Fintech': ['Asset Management', 'Banking and Exchange', 'Consumer Finance', 'Credit and Lending', 'Insurance', 'Payments'],
+        'Consumer': ['Apparel and Cosmetics', 'Consumer Electronics', 'Content', 'Food and Beverage', 'Gaming', 'Home and Personal', 'Job and Career Services', 'Social', 'Transportation Services', 'Travel, Leisure and Tourism', 'Virtual and Augmented Reality', 'Social Media', 'Quick Commerce', 'Spiritual Tech', 'Social Commerce'],
+        'Fintech': ['Asset Management', 'Banking and Exchange', 'Consumer Finance', 'Credit and Lending', 'Insurance', 'Payments', 'Savings', 'Banking'],
         'Healthcare': ['Consumer Health and Wellness', 'Diagnostics', 'Drug Discovery and Delivery', 'Healthcare IT', 'Healthcare Services', 'Industrial Bio', 'Medical Devices', 'Therapeutics'],
-        'Industrials': ['Agriculture', 'Automotive', 'Aviation and Space', 'Climate', 'Defense', 'Drones', 'Energy', 'Manufacturing and Robotics'],
-        'Real Estate and Construction': ['Construction', 'Housing and Real Estate']
+        'Industrials': ['Agriculture', 'Automotive', 'Aviation and Space', 'Climate', 'Defense', 'Drones', 'Energy', 'Manufacturing and Robotics', 'Aerospace', 'EV', 'Energy Storage'],
+        'Real Estate and Construction': ['Construction', 'Housing and Real Estate'],
+        'AI': ['Generative AI', 'Deep Tech', 'Foundational Models', 'Retail Tech', 'Conversational AI'],
+        'SaaS': ['Developer Tools', 'CRM', 'Billing', 'Software Testing', 'Productivity']
     };
 
     const roles = ['Founder', 'CEO', 'CTO', 'Co-Founder', 'COO'];
@@ -207,6 +217,13 @@ const FounderDirectory = ({ embedded }) => {
                         });
                     }
                 });
+
+                // Always include hardcoded founders
+                fetched.push(...hardcodedFounders.map(f => ({
+                    ...f,
+                    isHardcoded: true
+                })));
+
                 setFounders(fetched);
                 setFilteredFounders(fetched);
             } catch (error) {
@@ -262,7 +279,15 @@ const FounderDirectory = ({ embedded }) => {
         setFilteredFounders(filtered);
     }, [searchQuery, activeFilters, founders]);
 
-    const batchList = ['S26', 'P26', 'W26', 'F25', 'S25', 'P25', 'W25'];
+    const batchList = useMemo(() => {
+        const batches = [...new Set(founders.map(f => f.batch))].filter(b => b && b !== 'Upcoming');
+        return batches.sort((a, b) => {
+            const yearA = parseInt(a.slice(1)) || 0;
+            const yearB = parseInt(b.slice(1)) || 0;
+            if (yearA !== yearB) return yearB - yearA;
+            return b.localeCompare(a);
+        });
+    }, [founders]);
 
     if (loading) return (
         <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', backgroundColor: '#f6f6ef' }}>
@@ -272,9 +297,10 @@ const FounderDirectory = ({ embedded }) => {
     );
 
     return (
-        <div style={{ backgroundColor: '#f5f5ee', minHeight: '100vh', fontFamily: 'Inter, sans-serif', color: '#111' }}>
+        <div style={{ backgroundColor: '#f5f5ee', minHeight: '100vh', color: '#111' }}>
             <style>{`
                 .founder-directory-page { max-width: 1300px; margin: 0 auto; padding: ${embedded ? '2rem 0' : '5rem 2rem 2rem'}; }
+                .main-layout { display: flex; gap: 2rem; }
                 .sidebar { width: 300px; background: #fff; border: 1px solid #e5e5e0; border-radius: 16px; padding: 1.5rem; height: fit-content; box-shadow: 0 4px 20px rgba(0,0,0,0.02); }
                 .filter-section { margin-bottom: 2rem; border-bottom: 1px solid #f0f0ed; padding-bottom: 1.5rem; }
                 .filter-title { font-size: 14px; font-weight: 700; margin-bottom: 1.25rem; color: #1a1a1a; display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
@@ -287,6 +313,13 @@ const FounderDirectory = ({ embedded }) => {
                 .search-input { width: 100%; padding: 16px 24px; border: 1px solid #e5e5e0; border-radius: 12px; font-size: 16px; outline: none; margin-bottom: 0; }
                 .founder-card { background: #fff; border: 1px solid #e5e5e0; border-radius: 16px; padding: 1.5rem; margin-bottom: -1px; display: flex; gap: 1.5rem; transition: all 0.3s; text-decoration: none; color: inherit; }
                 .founder-card:hover { background: #fafafa; border-color: #d1d1ca; }
+
+                @media (max-width: 900px) {
+                    .main-layout { flex-direction: column; }
+                    .sidebar { width: 100%; }
+                    .founder-card { flex-direction: column; align-items: center; text-align: center; gap: 1rem; }
+                    .founder-directory-page { padding: 2rem 1.5rem; }
+                }
             `}</style>
 
             <div className="founder-directory-page">
@@ -296,16 +329,7 @@ const FounderDirectory = ({ embedded }) => {
                     </div>
                 ) : (
                     <div style={{ textAlign: 'center', marginBottom: '4rem' }}>
-                        <h1 style={{ 
-                            fontSize: '3.5rem', 
-                            fontWeight: '800', 
-                            color: '#1a1a1a', 
-                            marginBottom: '1rem',
-                            letterSpacing: '-0.02em'
-                        }}>Founder Directory</h1>
-                        <p style={{ fontSize: '1.1rem', color: '#333', maxWidth: '800px', margin: '0 auto' }}>
-                            Since 2005, we have invested in over 9,000 founders. Discover XF founders by batch, industry, region, and background.
-                        </p>
+                        <h1 className="responsive-h1" style={{ marginBottom: '1rem' }}>Founder Directory</h1>
                     </div>
                 )}
 
@@ -314,7 +338,7 @@ const FounderDirectory = ({ embedded }) => {
                     <SortDropdown selected={sortOption} setSelected={setSortOption} />
                 </div>
 
-                <div style={{ display: 'flex', gap: '2rem' }}>
+                <div className="main-layout" style={{ display: 'flex', gap: '2rem' }}>
                     {/* Sidebar Filters */}
                     <aside className="sidebar">
                         <div className="filter-section">
@@ -330,7 +354,7 @@ const FounderDirectory = ({ embedded }) => {
                         {/* Batch Filter */}
                         <div className="filter-section">
                             <div className="filter-title" onClick={() => toggleSection('batch')}>
-                                Batch
+                                Founded in
                                 <div className="filter-title-icon">
                                     {collapsedSections.includes('batch') ? (
                                         <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#999" strokeWidth="4"><path d="M12 5v14M5 12h14"/></svg>
@@ -345,7 +369,7 @@ const FounderDirectory = ({ embedded }) => {
                                         <div className={`checkbox-custom ${activeFilters.batches.includes('All') ? 'active' : ''}`}>
                                             {activeFilters.batches.includes('All') && <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="4"><polyline points="20 6 9 17 4 12"/></svg>}
                                         </div>
-                                        <span style={{ fontWeight: activeFilters.batches.includes('All') ? 600 : 400 }}>All batches</span> 
+                                        <span style={{ fontWeight: activeFilters.batches.includes('All') ? 600 : 400 }}>All years</span> 
                                         <span className="count-pill">{founders.length}</span>
                                     </div>
                                     {batchList.map(batch => (

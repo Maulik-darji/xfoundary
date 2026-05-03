@@ -13,7 +13,7 @@ import Blog from './Blog';
 // Standardized Toggle Switch Component
 const ToggleSwitch = ({ checked, onChange, label }) => (
     <div style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }} onClick={() => onChange(!checked)}>
-        {label && <span style={{ fontSize: '12px', fontWeight: '800', color: '#000', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</span>}
+        {label && <span style={{ fontSize: '12px', fontWeight: '600', color: '#000', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</span>}
         <div style={{ 
             width: '44px', height: '24px', backgroundColor: checked ? '#000' : '#e5e5ea', 
             borderRadius: '12px', position: 'relative', transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
@@ -75,6 +75,14 @@ const MailEditor = ({
     const [subject, setSubject] = useState(initialSubject || '');
     const [text, setText] = useState(initialText || '');
     const textareaRef = useRef(null);
+    
+    useEffect(() => {
+        if (textareaRef.current) {
+            textareaRef.current.style.height = 'auto';
+            const nextHeight = Math.min(textareaRef.current.scrollHeight, 400);
+            textareaRef.current.style.height = nextHeight + 'px';
+        }
+    }, [text]);
 
     useEffect(() => {
         setSubject(initialSubject || '');
@@ -127,7 +135,7 @@ const MailEditor = ({
                     value={text}
                     onChange={handleTextChange}
                     placeholder="Type your message here... (HTML supported)"
-                    style={{ flex: 1, minHeight: '120px', padding: '14px 120px 14px 14px', border: 'none', fontSize: '14px', fontFamily: 'Inter, sans-serif', resize: 'vertical', outline: 'none', overflow: 'hidden' }}
+                    style={{ flex: 1, minHeight: '80px', maxHeight: '400px', padding: '14px 120px 14px 14px', border: 'none', fontSize: '14px', fontFamily: 'Inter, sans-serif', lineHeight: '1.6', resize: 'none', outline: 'none', overflowY: 'auto' }}
                     onFocus={e => e.currentTarget.parentElement.style.borderColor = '#000'}
                     onBlur={e => e.currentTarget.parentElement.style.borderColor = 'rgba(0,0,0,0.1)'}
                 />
@@ -414,6 +422,7 @@ const Admin = () => {
         fetchData();
         setToastMessage(`Deleted ${selectedFounders.length} accounts.`);
         setShowToast(true);
+        await logSystemActivity('Delete Founders', `Deleted ${selectedFounders.length} founders from the system.`);
     };
 
     setConfirmConfig({
@@ -450,7 +459,7 @@ const Admin = () => {
   const renderSearchHeader = (title, query, setQuery, onExport, extraButtons = null) => (
     <div style={{ padding: '1.5rem', borderBottom: '1px solid rgba(0,0,0,0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-            <h3 style={{ margin: 0, fontWeight: '800', fontSize: '1.25rem' }}>{title}</h3>
+            <h3 style={{ margin: 0, fontWeight: '600', fontSize: '1.25rem' }}>{title}</h3>
             {extraButtons}
         </div>
         <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
@@ -585,16 +594,38 @@ const Admin = () => {
   const [selectedBlogs, setSelectedBlogs] = useState([]);
   const [showCoFoundersOnly, setShowCoFoundersOnly] = useState(false);
   const [weeklyChartType, setWeeklyChartType] = useState('Area');
-  const [chartFont, setChartFont] = useState('Inter');
+  const [chartFont, setChartFont] = useState('Outfit');
   const [distFilterStatus, setDistFilterStatus] = useState('all');
   const [distFilterBatch, setDistFilterBatch] = useState('all');
   const [distGrouping, setDistGrouping] = useState('Category'); // 'Category' or 'Industry'
+  const [systemLogs, setSystemLogs] = useState([]);
+  const [logTypeFilter, setLogTypeFilter] = useState('admin');
+  const [logDateFilter, setLogDateFilter] = useState(new Date().toISOString().split('T')[0]);
+  const [logSearchQuery, setLogSearchQuery] = useState('');
+  const [settingsSearchQuery, setSettingsSearchQuery] = useState('');
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [showHardcodedStartups, setShowHardcodedStartups] = useState(false);
+
+  const logSystemActivity = async (action, details, type = 'admin') => {
+      try {
+          await addDoc(collection(db, 'systemLogs'), {
+              action,
+              details,
+              type,
+              userEmail: profile.email || 'unknown',
+              userName: profile.name || 'Admin',
+              timestamp: new Date().toISOString(),
+              day: new Date().toISOString().split('T')[0]
+          });
+          fetchData();
+      } catch (e) { console.error("Logging failed:", e); }
+  };
 
   const renderManagementHeader = (title, count, searchQuery, setSearchQuery, selectedItems, onBulkDelete, suggestion, additionalControls = null) => (
-      <div style={{ padding: '2rem 2.5rem 2.5rem', marginBottom: 0, borderBottom: '1px solid rgba(0,0,0,0.05)' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
+      <div className="management-header" style={{ padding: '2rem 2.5rem 2.5rem', marginBottom: 0, borderBottom: '1px solid rgba(0,0,0,0.05)' }}>
+          <div className="mobile-stack" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
               <div style={{ paddingLeft: '0.25rem' }}>
-                  <h2 style={{ margin: 0, fontWeight: '900', fontSize: '2.2rem', letterSpacing: '-0.03em' }}>{title}</h2>
+                  <h2 style={{ margin: 0, fontWeight: '700', fontSize: '2.2rem', letterSpacing: '-0.03em', fontFamily: "'Outfit', sans-serif" }}>{title}</h2>
                   <div style={{ fontSize: '14px', color: '#667777', fontWeight: '600', marginTop: '4px' }}>
                       {count} {title.toLowerCase()} recorded
                   </div>
@@ -606,7 +637,7 @@ const Admin = () => {
                           onClick={onBulkDelete}
                           style={{ 
                               padding: '10px 20px', borderRadius: '10px', background: '#ff3b30', color: '#fff', 
-                              border: 'none', fontWeight: '800', fontSize: '13px', cursor: 'pointer',
+                              border: 'none', fontWeight: '600', fontSize: '13px', cursor: 'pointer',
                               boxShadow: '0 8px 20px rgba(255,59,48,0.25)', animation: 'fadeInRight 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
                           }}
                       >
@@ -780,10 +811,10 @@ const Admin = () => {
             const renderToastContent = (c) => (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '16px', minWidth: '320px' }}>
                     <div style={{ flex: 1 }}>
-                        <div style={{ fontWeight: '800', color: '#000', fontSize: '12px', letterSpacing: '0.05em', marginBottom: '2px' }}>VERIFICATION SENT</div>
+                        <div style={{ fontWeight: '600', color: '#000', fontSize: '12px', letterSpacing: '0.05em', marginBottom: '2px' }}>VERIFICATION SENT</div>
                         <div style={{ fontSize: '13px', color: '#666', fontWeight: '500' }}>
                             Check {newAdminEmail} (and SPAM).<br/>
-                            Logging out in <span style={{ color: '#6300dd', fontWeight: '900', fontSize: '15px' }}>{c}</span>s...
+                            Logging out in <span style={{ color: '#000000', fontWeight: '700', fontSize: '15px' }}>{c}</span>s...
                         </div>
                     </div>
                     <a 
@@ -793,14 +824,14 @@ const Admin = () => {
                         title="Go to Gmail"
                         style={{ 
                             width: '42px', height: '42px', borderRadius: '12px', 
-                            backgroundColor: '#6300dd', color: '#fff', 
+                            backgroundColor: '#000000', color: '#fff', 
                             display: 'flex', alignItems: 'center', justifyContent: 'center',
                             transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)', 
-                            boxShadow: '0 8px 20px rgba(99, 0, 221, 0.25)',
+                            boxShadow: '0 8px 20px rgba(0, 0, 0, 0.25)',
                             textDecoration: 'none'
                         }}
                         onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.1) rotate(-5deg)'; e.currentTarget.style.backgroundColor = '#000'; }}
-                        onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1) rotate(0deg)'; e.currentTarget.style.backgroundColor = '#6300dd'; }}
+                        onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1) rotate(0deg)'; e.currentTarget.style.backgroundColor = '#000000'; }}
                     >
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="7" y1="17" x2="17" y2="7"></line><polyline points="7 7 17 7 17 17"></polyline></svg>
                     </a>
@@ -813,7 +844,7 @@ const Admin = () => {
                     <div style={{ 
                         fontSize: '11px', 
                         color: '#ff3b30', 
-                        fontWeight: '800', 
+                        fontWeight: '600', 
                         padding: '10px 14px', 
                         backgroundColor: 'rgba(255,59,48,0.08)', 
                         borderRadius: '10px', 
@@ -842,7 +873,7 @@ const Admin = () => {
                             <div style={{ 
                                 fontSize: '11px', 
                                 color: '#ff3b30', 
-                                fontWeight: '800', 
+                                fontWeight: '600', 
                                 padding: '10px 14px', 
                                 backgroundColor: 'rgba(255,59,48,0.08)', 
                                 borderRadius: '10px', 
@@ -1164,9 +1195,11 @@ const Admin = () => {
               to: selectedExternalFounder.email,
               message: {
                   subject: msgData.subject,
-                  html: text.replace(/\n/g, '<br/>') + (pendingImage ? `<br/><img src="${pendingImage}" style="max-width:300px;"/>` : '')
+                  html: `<div style="font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; color: #111; font-size: 15px;">${text.replace(/\n/g, '<br/>')}</div>` + (pendingImage ? `<br/><img src="${pendingImage}" style="max-width:300px;"/>` : '')
               }
           });
+          
+          await logSystemActivity('Sent Individual Email', `Sent to ${selectedExternalFounder.email}. Subject: ${msgData.subject}`);
           
           // Clear draft
           draftMemory.current[selectedExternalFounder.email] = { subject: '', text: '', image: null, isWriting: false };
@@ -1502,7 +1535,8 @@ const Admin = () => {
         adminsSnap,
         extSnap,
         logsSnap,
-        reportsSnap
+        reportsSnap,
+        systemLogsSnap
       ] = await Promise.all([
         readCollection('users'),
         readCollection('members'),
@@ -1511,7 +1545,8 @@ const Admin = () => {
         readCollection('admins'),
         readCollection('externalFounders'),
         readCollection('applicationLogs'),
-        readCollection('reports')
+        readCollection('reports'),
+        readCollection('systemLogs')
       ]);
 
       const uList = []; const aList = []; let p = 0; let apprv = 0; let wdrw = 0;
@@ -1540,6 +1575,11 @@ const Admin = () => {
 
       const logsList = [];
       logsSnap?.forEach(d => logsList.push({ id: d.id, ...d.data() }));
+
+      const sysLogsList = [];
+      systemLogsSnap?.forEach(d => sysLogsList.push({ id: d.id, ...d.data() }));
+      sysLogsList.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+      setSystemLogs(sysLogsList);
       logsList.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
 
       const reportsList = [];
@@ -1563,7 +1603,7 @@ const Admin = () => {
         adminsList
       });
 
-      // Load Gmail Config (Just IDs for now, auth handled by Firebase)
+      // Load Gmail Config
       try {
         const gmailDoc = await getDoc(doc(db, 'adminSettings', 'gmailConfig'));
         if (gmailDoc.exists()) {
@@ -1573,6 +1613,16 @@ const Admin = () => {
         }
       } catch (e) {
         console.error('Failed to load Gmail config:', e);
+      }
+
+      // Load Global Settings
+      try {
+        const globalDoc = await getDoc(doc(db, 'settings', 'global'));
+        if (globalDoc.exists()) {
+            setShowHardcodedStartups(globalDoc.data().showHardcodedStartups || false);
+        }
+      } catch (e) {
+        console.error('Failed to load global settings:', e);
       }
     } catch (e) { console.error(e); }
   };
@@ -1595,53 +1645,58 @@ const Admin = () => {
   };
 
   const handleSyncAllGmail = async () => {
-    if (!window.confirm("This will sync the last 50 emails for ALL 371+ founders. This may take a minute. Proceed?")) return;
-    
-    try {
-      setIsSyncingAll(true);
-      setSyncProgress(0);
-      setSyncEta('Calculating...');
+    setConfirmConfig({
+        title: "This will sync the last 50 emails for ALL founders. This may take a minute. Proceed?",
+        onConfirm: async () => {
+            try {
+                setIsSyncingAll(true);
+                setSyncProgress(0);
+                setSyncEta('Calculating...');
 
-      const token = await getGmailToken();
-      if (!token) {
-          setIsSyncingAll(false);
-          return;
-      }
+                const token = await getGmailToken();
+                if (!token) {
+                    setIsSyncingAll(false);
+                    return;
+                }
 
-      let totalNew = 0;
-      const totalFounders = externalFounders.length;
-      const startTime = Date.now();
+                let totalNew = 0;
+                const totalFounders = externalFounders.length;
+                const startTime = Date.now();
 
-      for (let i = 0; i < totalFounders; i++) {
-          const founder = externalFounders[i];
-          setSyncCurrentEmail(founder.email);
-          setSyncProgress(Math.round(((i + 1) / totalFounders) * 100));
-          
-          // Calculate ETA
-          const elapsed = Date.now() - startTime;
-          const avgTimePerFounder = elapsed / (i + 1);
-          const remainingFounders = totalFounders - (i + 1);
-          const etaMs = avgTimePerFounder * remainingFounders;
-          
-          if (i > 2) { // Give it 3 founders to get a stable average
-            const mins = Math.floor(etaMs / 60000);
-            const secs = Math.floor((etaMs % 60000) / 1000);
-            setSyncEta(mins > 0 ? `${mins}m ${secs}s` : `${secs}s`);
-          }
+                for (let i = 0; i < totalFounders; i++) {
+                    const founder = externalFounders[i];
+                    setSyncCurrentEmail(founder.email);
+                    setSyncProgress(Math.round(((i + 1) / totalFounders) * 100));
+                    
+                    // Calculate ETA
+                    const elapsed = Date.now() - startTime;
+                    const avgTimePerFounder = elapsed / (i + 1);
+                    const remainingFounders = totalFounders - (i + 1);
+                    const etaMs = avgTimePerFounder * remainingFounders;
+                    
+                    if (i > 2) { // Give it 3 founders to get a stable average
+                        const mins = Math.floor(etaMs / 60000);
+                        const secs = Math.floor((etaMs % 60000) / 1000);
+                        setSyncEta(mins > 0 ? `${mins}m ${secs}s` : `${secs}s`);
+                    }
 
-          const count = await performGmailSync(founder.email, token);
-          totalNew += (count || 0);
-      }
+                    const count = await performGmailSync(founder.email, token);
+                    totalNew += (count || 0);
+                }
 
-      setIsSyncingAll(false);
-      setToastMessage(`Full Sync complete! ${totalNew} messages added.`);
-      setShowToast(true);
-    } catch (e) {
-      console.error(e);
-      setIsSyncingAll(false);
-      setToastMessage("Full sync failed.");
-      setShowToast(true);
-    }
+                setIsSyncingAll(false);
+                setToastMessage(`Full Sync complete! ${totalNew} messages added.`);
+                setShowToast(true);
+                await logSystemActivity('Gmail Full Sync', `Synced messages for ${totalFounders} founders. Found ${totalNew} new messages.`);
+            } catch (e) {
+                console.error(e);
+                setIsSyncingAll(false);
+                setToastMessage("Full sync failed.");
+                setShowToast(true);
+            }
+        }
+    });
+    setShowConfirmModal(true);
   };
 
   const getGmailToken = async () => {
@@ -2126,6 +2181,28 @@ const Admin = () => {
     }
   };
 
+  const handleSaveGlobalSettings = async () => {
+    setIsSavingSettings(true);
+    try {
+        await setDoc(doc(db, 'settings', 'global'), {
+            showHardcodedStartups,
+            updatedAt: new Date().toISOString(),
+            updatedBy: profile.name || 'Admin'
+        }, { merge: true });
+        setToastMessage("Directory settings updated.");
+        setShowToast(true);
+        setSettingsSaved(true);
+        setTimeout(() => {
+            setShowToast(false);
+            setSettingsSaved(false);
+        }, 3000);
+    } catch (e) {
+        alert("Error saving global settings: " + e.message);
+    } finally {
+        setIsSavingSettings(false);
+    }
+  };
+
   const handleRemoveMember = async (uid) => {
       const action = async () => {
           try {
@@ -2190,7 +2267,7 @@ const Admin = () => {
       let recipients = [];
       if (sendToAll) {
           const manualRecipients = coldEmailsText.split(/[,\n]/).map(e => e.trim()).filter(e => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e));
-          const registryRecipients = externalFounders.map(f => f.email);
+          const registryRecipients = externalFounders.filter(f => selectedFounderIds.includes(f.id)).map(f => f.email);
           const combined = new Set([...manualRecipients, ...registryRecipients]);
           recipients = Array.from(combined);
       } else {
@@ -2202,12 +2279,26 @@ const Admin = () => {
           return;
       }
 
-      if (window.confirm(`Are you sure you want to send this email to ${recipients.length} recipients?`)) {
+      const sendAction = async () => {
           try {
               setIsWritingMail(false);
+              const startTime = Date.now();
               for (let i = 0; i < recipients.length; i++) {
                   const email = recipients[i];
-                  setSendingStatus({ current: email, count: i + 1, total: recipients.length });
+                  
+                  // Calculate ETA
+                  let eta = '';
+                  if (i > 1) {
+                      const elapsed = Date.now() - startTime;
+                      const avgTime = elapsed / (i + 1);
+                      const remaining = recipients.length - (i + 1);
+                      const etaMs = avgTime * remaining;
+                      const mins = Math.floor(etaMs / 60000);
+                      const secs = Math.floor((etaMs % 60000) / 1000);
+                      eta = mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
+                  }
+
+                  setSendingStatus({ current: email, count: i + 1, total: recipients.length, eta });
                   
                   const docId = email.replace(/[.#$[\]]/g, '_');
                   const msgData = {
@@ -2233,6 +2324,7 @@ const Admin = () => {
                   if (recipients.length < 50) await new Promise(r => setTimeout(r, 100));
               }
               
+              await logSystemActivity('Sent Bulk Email', `Sent to ${recipients.length} recipients. Subject: ${subject}`);
               setSendingStatus(null);
               setToastMessage("All emails sent successfully.");
               setShowToast(true);
@@ -2243,15 +2335,25 @@ const Admin = () => {
               setSendingStatus(null);
               alert("Error sending emails: " + e.message); 
           }
+      };
+
+      if (skipConfirm) {
+          sendAction();
+      } else {
+          setConfirmConfig({
+              title: `Are you sure you want to send this email to ${recipients.length} recipients?`,
+              onConfirm: sendAction
+          });
+          setShowConfirmModal(true);
       }
   };
 
   if (loading) return <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>Loading Admin Portal...</div>;
 
   if (!isAdminAuth) return (
-    <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f6f6ef', position: 'relative' }}>
-        <div style={{ position: 'absolute', top: '40px', left: '40px', backgroundColor: '#6300dd', width: '40px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: '900', borderRadius: '0', fontSize: '20px', boxShadow: '0 4px 12px rgba(99, 0, 221, 0.2)' }}>X</div>
-        <div style={{ width: '400px', backgroundColor: '#fff', padding: '3rem', borderRadius: '12px', border: '1px solid #eee' }}>
+    <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f6f6ef', position: 'relative', padding: '1rem' }}>
+        <div style={{ position: 'absolute', top: '20px', left: '20px', backgroundColor: '#6300dd', width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: '700', borderRadius: '0', fontSize: '16px', boxShadow: '0 4px 12px rgba(99, 0, 221, 0.2)' }}>X</div>
+        <div className="login-card" style={{ width: '400px', backgroundColor: '#fff', padding: '3rem', borderRadius: '12px', border: '1px solid #eee', boxShadow: '0 10px 30px rgba(0,0,0,0.05)' }}>
             <div style={{ backgroundColor: '#6300dd', width: '48px', height: '48px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 'bold', borderRadius: '0', margin: '0 auto 2rem', fontSize: '24px' }}>X</div>
             <h2 style={{ textAlign: 'center', marginBottom: '2rem' }}>
                 {authMode === 'login' ? 'Admin Login' : authMode === 'signup' ? 'Admin Signup' : 'Reset Password'}
@@ -2275,7 +2377,7 @@ const Admin = () => {
                         Send Reset Link
                     </button>
                     <div style={{ textAlign: 'center' }}>
-                        <button type="button" onClick={() => { setAuthMode('login'); setError(''); }} style={{ background: 'none', border: 'none', color: '#6300dd', fontSize: '13px', fontWeight: '600', cursor: 'pointer', padding: '0' }}>Back to Login</button>
+                        <button type="button" onClick={() => { setAuthMode('login'); setError(''); }} style={{ background: 'none', border: 'none', color: '#000000', fontSize: '13px', fontWeight: '600', cursor: 'pointer', padding: '0' }}>Back to Login</button>
                     </div>
                 </form>
             ) : (
@@ -2299,7 +2401,7 @@ const Admin = () => {
                             </button>
                         </div>
                         <div style={{ textAlign: 'right', marginTop: '-10px', marginBottom: '1.5rem' }}>
-                            <button type="button" onClick={() => { setAuthMode('forgot-password'); setError(''); }} style={{ background: 'none', border: 'none', color: '#6300dd', fontSize: '12px', fontWeight: '600', cursor: 'pointer', padding: '0' }}>Forgot Password?</button>
+                            <button type="button" onClick={() => { setAuthMode('forgot-password'); setError(''); }} style={{ background: 'none', border: 'none', color: '#000000', fontSize: '12px', fontWeight: '600', cursor: 'pointer', padding: '0' }}>Forgot Password?</button>
                         </div>
                         <button type="submit" style={{ width: '100%', padding: '12px', backgroundColor: '#000', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>
                             {authMode === 'login' ? 'Sign In' : 'Create Admin Account'}
@@ -2343,7 +2445,7 @@ const Admin = () => {
 
   if (!isAuthorized) return (
     <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f6f6ef', position: 'relative' }}>
-        <div style={{ position: 'absolute', top: '40px', left: '40px', backgroundColor: '#6300dd', width: '40px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: '900', borderRadius: '0', fontSize: '20px', boxShadow: '0 4px 12px rgba(99, 0, 221, 0.2)' }}>X</div>
+        <div style={{ position: 'absolute', top: '40px', left: '40px', backgroundColor: '#6300dd', width: '40px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: '700', borderRadius: '0', fontSize: '20px', boxShadow: '0 4px 12px rgba(99, 0, 221, 0.2)' }}>X</div>
         <form onSubmit={handlePinSubmit} style={{ width: '320px', textAlign: 'center' }}>
             <h2 style={{ marginBottom: '1rem' }}>Welcome, {profile.name}</h2>
             <p style={{ color: '#666', fontSize: '14px', marginBottom: '2rem' }}>Enter master PIN to unlock system.</p>
@@ -2360,7 +2462,7 @@ const Admin = () => {
     { name: 'Directory', tabs: ['Founders', 'Admins', 'Members'] },
     { name: 'Content', tabs: ['Blog Approvals', 'Manage Blog', 'XF Blog'] },
     { name: 'Tools', tabs: ['Cold Mail', 'Backup'] },
-    { name: 'System', tabs: ['Settings'] }
+    { name: 'System', tabs: ['Settings', 'System Logs'] }
   ];
 
   const TABS = TAB_GROUPS.flatMap(g => g.tabs);
@@ -2403,10 +2505,10 @@ const Admin = () => {
   return (
 
     <>
-    <div style={{ display: 'flex', height: '100vh', backgroundColor: '#f0f2f5', fontFamily: 'Inter, sans-serif', overflow: 'hidden', position: 'relative' }}>
+    <div style={{ display: 'flex', height: '100vh', backgroundColor: '#f5f5ee', fontFamily: 'Inter, sans-serif', overflow: 'hidden', position: 'relative' }}>
 
-      <div style={{ position: 'fixed', top: '-10%', left: '-10%', width: '40%', height: '40%', background: 'radial-gradient(circle, rgba(99, 0, 221, 0.08) 0%, transparent 70%)', filter: 'blur(60px)', zIndex: 0, animation: 'move 20s infinite alternate' }}></div>
-      <div style={{ position: 'fixed', bottom: '-10%', right: '-10%', width: '50%', height: '50%', background: 'radial-gradient(circle, rgba(99, 0, 221, 0.05) 0%, transparent 70%)', filter: 'blur(80px)', zIndex: 0, animation: 'move 25s infinite alternate-reverse' }}></div>
+      <div style={{ position: 'fixed', top: '-10%', left: '-10%', width: '40%', height: '40%', background: 'radial-gradient(circle, rgba(0, 0, 0, 0.08) 0%, transparent 70%)', filter: 'blur(60px)', zIndex: 0, animation: 'move 20s infinite alternate' }}></div>
+      <div style={{ position: 'fixed', bottom: '-10%', right: '-10%', width: '50%', height: '50%', background: 'radial-gradient(circle, rgba(0, 0, 0, 0.05) 0%, transparent 70%)', filter: 'blur(80px)', zIndex: 0, animation: 'move 25s infinite alternate-reverse' }}></div>
 
       <style>{`
         @keyframes move { from { transform: translate(0, 0); } to { transform: translate(10%, 10%); } }
@@ -2429,7 +2531,7 @@ const Admin = () => {
             border-radius: 12px;
             border: 1px solid rgba(255, 255, 255, 0.4);
             box-shadow: 
-                0 8px 32px rgba(99, 0, 221, 0.1),
+                0 8px 32px rgba(0, 0, 0, 0.1),
                 inset 0 0 0 1px rgba(255,255,255,0.5);
             transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
             z-index: 0;
@@ -2480,7 +2582,7 @@ const Admin = () => {
         }
         .glass-card:hover {
             background: rgba(255, 255, 255, 0.85) !important;
-            box-shadow: 0 12px 40px rgba(99, 0, 221, 0.06) !important;
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.06) !important;
         }
         .profile-glass {
             background: rgba(255, 255, 255, 0.5) !important;
@@ -2494,11 +2596,150 @@ const Admin = () => {
         .profile-glass:hover {
             background: rgba(255, 255, 255, 0.7) !important;
         }
+        body {
+            font-family: 'Outfit', sans-serif !important;
+        }
+        h1, h2, h3, h4, h5, h6 {
+            font-family: 'Outfit', sans-serif !important;
+            letter-spacing: -0.02em !important;
+        }
+        .sidebar-group-content {
+            overflow: hidden;
+            max-height: 0;
+            opacity: 0;
+            transition: max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease;
+        }
+        .sidebar-group-content.expanded {
+            max-height: 1000px;
+            opacity: 1;
+        }
+
+        @media (max-width: 900px) {
+            .desktop-sidebar {
+                position: fixed !important;
+                left: -100% !important;
+                width: 100% !important;
+                top: 0;
+                bottom: 0;
+                z-index: 2000 !important;
+                background-color: #f5f5ee !important;
+                transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1) !important;
+                padding: 2rem !important;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                text-align: center;
+            }
+            .desktop-sidebar.mobile-open {
+                left: 0 !important;
+            }
+            .mobile-close-sidebar {
+                display: block !important;
+                position: absolute;
+                top: 2rem;
+                right: 2rem;
+                background: none;
+                border: none;
+                cursor: pointer;
+                padding: 10px;
+            }
+            .sidebar-logo-container {
+                margin-bottom: 4rem !important;
+                justify-content: center !important;
+            }
+            .sidebar-nav-container {
+                width: 100%;
+                max-width: 400px;
+            }
+            .sidebar-nav-item {
+                font-size: 1.5rem !important;
+                padding: 1.5rem !important;
+                justify-content: center !important;
+            }
+            .sidebar-group-label {
+                font-size: 1rem !important;
+                margin-top: 2rem !important;
+                text-align: center !important;
+            }
+            .mobile-overlay {
+                display: block !important;
+                position: fixed;
+                top: 0; left: 0; right: 0; bottom: 0;
+                background: rgba(245, 245, 238, 0.8);
+                backdrop-filter: blur(10px);
+                z-index: 1999;
+                animation: fadeIn 0.3s ease;
+            }
+            main {
+                padding: 1.25rem !important;
+                padding-top: 5rem !important;
+                margin-left: 0 !important;
+            }
+            .glass-card {
+                padding: 1.25rem !important;
+                margin-bottom: 1.5rem !important;
+            }
+            .expanding-chart-overlay {
+                left: 0 !important;
+                padding: 1rem !important;
+            }
+            .settings-container {
+                flex-direction: column !important;
+                gap: 1.5rem !important;
+            }
+            .settings-sidebar {
+                width: 100% !important;
+                position: relative !important;
+                top: 0 !important;
+            }
+            .mobile-header {
+                display: flex !important;
+            }
+            .management-header {
+                padding: 1.25rem !important;
+            }
+            .management-header h2 {
+                font-size: 1.8rem !important;
+            }
+            .mobile-stack {
+                flex-direction: column !important;
+                align-items: stretch !important;
+                gap: 1rem !important;
+            }
+            .stats-grid {
+                grid-template-columns: 1fr !important;
+            }
+            .charts-grid {
+                grid-template-columns: 1fr !important;
+                gap: 1rem !important;
+            }
+            .table-container {
+                overflow-x: auto !important;
+                -webkit-overflow-scrolling: touch;
+            }
+            .login-card {
+                width: 92% !important;
+                padding: 2rem !important;
+            }
+            .modal-content {
+                width: 92% !important;
+                max-height: 85vh !important;
+            }
+            .expanded-chart-content {
+                height: 300px !important;
+            }
+            .sidebar-logo-text {
+                display: none;
+            }
+        }
       `}</style>
 
-      <aside style={{ 
+      {isMobileMenuOpen && <div className="mobile-overlay" onClick={() => setIsMobileMenuOpen(false)} style={{ display: 'none' }}></div>}
+
+      <aside className={`desktop-sidebar ${isMobileMenuOpen ? 'mobile-open' : ''}`} style={{ 
         width: '300px', 
-        backgroundColor: 'rgba(223, 234, 234, 0.8)', 
+        backgroundColor: 'rgba(245, 245, 238, 0.9)', 
         backdropFilter: 'blur(30px)', 
         color: '#000', 
         borderRight: '1px solid rgba(201, 218, 218, 0.5)', 
@@ -2511,35 +2752,44 @@ const Admin = () => {
         flexDirection: 'column', 
         zIndex: 10 
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '3rem', paddingRight: '1.5rem' }}>
-          <div style={{ backgroundColor: '#6300dd', width: '40px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: '900', borderRadius: '0', fontSize: '20px' }}>X</div>
-          <span style={{ fontWeight: '800', color: '#000', fontSize: '20px', letterSpacing: '-0.02em' }}>X Foundary</span>
+        <button 
+            className="mobile-close-sidebar" 
+            onClick={() => setIsMobileMenuOpen(false)}
+            style={{ display: 'none' }}
+        >
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#000" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        </button>
+        <div className="sidebar-logo-container" style={{ display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '3rem', paddingRight: '1.5rem' }}>
+          <div style={{ backgroundColor: '#6300dd', width: '40px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: '700', borderRadius: '0', fontSize: '20px' }}>X</div>
+          <span className="sidebar-logo-text" style={{ fontWeight: '600', color: '#000', fontSize: '20px', letterSpacing: '-0.02em' }}>X Foundary</span>
         </div>
-        <nav style={{ flex: 1, position: 'relative', overflowY: 'auto', paddingRight: '0' }}>
+        <nav className="sidebar-nav-container" style={{ flex: 1, position: 'relative', overflowY: 'auto', paddingRight: '0' }}>
           {TAB_GROUPS.map((group) => {
             const isExpanded = expandedGroups.includes(group.name);
             return (
               <div key={group.name} style={{ marginBottom: '1.25rem', paddingRight: '1.5rem' }}>
                 <div 
+                  className="sidebar-group-label"
                   onClick={() => setExpandedGroups(prev => prev.includes(group.name) ? prev.filter(g => g !== group.name) : [...prev, group.name])}
                   style={{ 
-                    padding: '0 8px', fontSize: '11px', fontWeight: '900', color: '#000', letterSpacing: '0.12em', 
+                    padding: '0 8px', fontSize: '11px', fontWeight: '700', color: '#000', letterSpacing: '0.12em', 
                     marginBottom: '0.75rem', textTransform: 'uppercase', opacity: 0.8, cursor: 'pointer',
                     display: 'flex', alignItems: 'center', justifyContent: 'space-between', userSelect: 'none'
                   }}
                 >
                   <span>{group.name}</span>
-                  <div style={{ width: '18px', height: '18px', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.04)', transition: 'all 0.2s' }}>
-                    {isExpanded ? (
-                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-                    ) : (
-                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-                    )}
+                  <div className={isExpanded ? 'expanded' : ''} style={{ width: '18px', height: '18px', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.04)' }}>
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round">
+                        {isExpanded ? (
+                            <line x1="5" y1="12" x2="19" y2="12"></line>
+                        ) : (
+                            <><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></>
+                        )}
+                    </svg>
                   </div>
                 </div>
                 
-                {isExpanded && (
-                  <div style={{ animation: 'fadeInDown 0.3s ease-out' }}>
+                <div className={`sidebar-group-content ${isExpanded ? 'expanded' : ''}`}>
                     {group.tabs.map((tab) => {
                       let badgeCount = 0;
                       if (tab === 'Pending Apps') badgeCount = stats.pending;
@@ -2549,7 +2799,7 @@ const Admin = () => {
                       
                       const isActive = activeTab === tab;
                       return (
-                          <div key={tab} onClick={() => setActiveTab(tab)} style={{ 
+                          <div key={tab} className="sidebar-nav-item" onClick={() => { setActiveTab(tab); setIsMobileMenuOpen(false); }} style={{ 
                               position: 'relative', 
                               zIndex: 1, 
                               padding: '10px 18px', 
@@ -2593,7 +2843,6 @@ const Admin = () => {
                       );
                     })}
                   </div>
-                )}
               </div>
             );
           })}
@@ -2627,6 +2876,19 @@ const Admin = () => {
         </div>
       </aside>
 
+      <div className="mobile-header" style={{ display: 'none', position: 'fixed', top: 0, left: 0, right: 0, height: '64px', backgroundColor: 'rgba(245, 245, 238, 0.95)', backdropFilter: 'blur(10px)', borderBottom: '1px solid rgba(0,0,0,0.05)', zIndex: 900, alignItems: 'center', padding: '0 1.5rem', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <div style={{ backgroundColor: '#6300dd', width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: '700', fontSize: '16px' }}>X</div>
+              <span style={{ fontWeight: '700', fontSize: '16px' }}>X Foundary</span>
+          </div>
+          <button 
+              onClick={() => setIsMobileMenuOpen(true)}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '8px' }}
+          >
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#000" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+          </button>
+      </div>
+
       <main style={{ 
         flex: 1, 
         marginLeft: '300px',
@@ -2638,43 +2900,43 @@ const Admin = () => {
       }}>
         {activeTab === 'Overview' && (
             <>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '1.5rem' }}>
+                <div className="stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '1.5rem' }}>
                  <div onClick={() => setActiveTab('Pending Apps')} className="glass-card" style={{ padding: '1.5rem', borderRadius: '10px', cursor: 'pointer', background: 'linear-gradient(135deg, rgba(0, 122, 255, 0.15) 0%, rgba(0, 122, 255, 0.05) 100%)', border: '1px solid rgba(0, 122, 255, 0.2)' }}>
-                    <div style={{ color: '#000', fontSize: '11px', marginBottom: '10px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Applications written</div>
-                    <div style={{ fontSize: '2.5rem', fontWeight: '800', color: '#000' }}>{stats.pending}</div>
+                    <div style={{ color: '#000', fontSize: '11px', marginBottom: '10px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Applications written</div>
+                    <div style={{ fontSize: '2.5rem', fontWeight: '600', color: '#000' }}>{stats.pending}</div>
                 </div>
                 <div onClick={() => setActiveTab('Applications')} className="glass-card" style={{ padding: '1.5rem', borderRadius: '10px', cursor: 'pointer', background: 'linear-gradient(135deg, rgba(52, 199, 89, 0.15) 0%, rgba(52, 199, 89, 0.05) 100%)', border: '1px solid rgba(52, 199, 89, 0.2)' }}>
-                    <div style={{ color: '#000', fontSize: '11px', marginBottom: '10px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Applications</div>
-                    <div style={{ fontSize: '2.5rem', fontWeight: '800', color: '#000' }}>{stats.pending + stats.approved + applications.filter(a => a.status === 'hold' || a.status === 'rejected').length}</div>
+                    <div style={{ color: '#000', fontSize: '11px', marginBottom: '10px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Applications</div>
+                    <div style={{ fontSize: '2.5rem', fontWeight: '600', color: '#000' }}>{stats.pending + stats.approved + applications.filter(a => a.status === 'hold' || a.status === 'rejected').length}</div>
                 </div>
                 <div onClick={() => setActiveTab('Founders')} className="glass-card" style={{ padding: '1.5rem', borderRadius: '10px', cursor: 'pointer', background: 'linear-gradient(135deg, rgba(255, 149, 0, 0.15) 0%, rgba(255, 149, 0, 0.05) 100%)', border: '1px solid rgba(255, 149, 0, 0.2)' }}>
-                    <div style={{ color: '#000', fontSize: '11px', marginBottom: '10px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Total Founders</div>
-                    <div style={{ fontSize: '2.5rem', fontWeight: '800', color: '#000' }}>{stats.totalUsers}</div>
+                    <div style={{ color: '#000', fontSize: '11px', marginBottom: '10px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Total Founders</div>
+                    <div style={{ fontSize: '2.5rem', fontWeight: '600', color: '#000' }}>{stats.totalUsers}</div>
                 </div>
                 <div onClick={() => setActiveTab('Members')} className="glass-card" style={{ padding: '1.5rem', borderRadius: '10px', cursor: 'pointer', background: 'linear-gradient(135deg, rgba(88, 86, 214, 0.15) 0%, rgba(88, 86, 214, 0.05) 100%)', border: '1px solid rgba(88, 86, 214, 0.2)' }}>
-                    <div style={{ color: '#000', fontSize: '11px', marginBottom: '10px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Total Members</div>
-                    <div style={{ fontSize: '2.5rem', fontWeight: '800', color: '#000' }}>{stats.totalMembers}</div>
+                    <div style={{ color: '#000', fontSize: '11px', marginBottom: '10px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Total Members</div>
+                    <div style={{ fontSize: '2.5rem', fontWeight: '600', color: '#000' }}>{stats.totalMembers}</div>
                 </div>
                 <div onClick={() => setActiveTab('Admins')} className="glass-card" style={{ padding: '1.5rem', borderRadius: '10px', cursor: 'pointer', background: 'linear-gradient(135deg, rgba(142, 142, 147, 0.15) 0%, rgba(142, 142, 147, 0.05) 100%)', border: '1px solid rgba(142, 142, 147, 0.2)' }}>
-                    <div style={{ color: '#000', fontSize: '11px', marginBottom: '10px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Total Admins</div>
-                    <div style={{ fontSize: '2.5rem', fontWeight: '800', color: '#000' }}>{stats.totalAdmins}</div>
+                    <div style={{ color: '#000', fontSize: '11px', marginBottom: '10px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Total Admins</div>
+                    <div style={{ fontSize: '2.5rem', fontWeight: '600', color: '#000' }}>{stats.totalAdmins}</div>
                 </div>
                 <div onClick={() => setActiveTab('Member Requests')} className="glass-card" style={{ padding: '1.5rem', borderRadius: '10px', cursor: 'pointer', background: 'linear-gradient(135deg, rgba(255, 59, 48, 0.15) 0%, rgba(255, 59, 48, 0.05) 100%)', border: '1px solid rgba(255, 59, 48, 0.2)' }}>
-                    <div style={{ color: '#000', fontSize: '11px', marginBottom: '10px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Pending Members</div>
-                    <div style={{ fontSize: '2.5rem', fontWeight: '800', color: '#000' }}>{stats.pendingMembers}</div>
+                    <div style={{ color: '#000', fontSize: '11px', marginBottom: '10px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Pending Members</div>
+                    <div style={{ fontSize: '2.5rem', fontWeight: '600', color: '#000' }}>{stats.pendingMembers}</div>
                 </div>
             </div>
 
             {/* Charts Section */}
-            <div style={{ marginTop: '2.5rem', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(450px, 1fr))', gap: '2rem' }}>
+            <div className="charts-grid" style={{ marginTop: '2.5rem', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(450px, 1fr))', gap: '2rem' }}>
                 {/* Category Distribution Chart */}
                 <div className="glass-card" style={{ padding: '2rem', borderRadius: '12px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-                        <h4 style={{ margin: 0, fontWeight: '800', fontSize: '1.1rem' }}>Category Distribution</h4>
+                        <h4 style={{ margin: 0, fontWeight: '600', fontSize: '1.1rem', fontFamily: "'Outfit', sans-serif" }}>Category Distribution</h4>
                         <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
                             <div style={{ display: 'flex', background: 'rgba(0,0,0,0.05)', borderRadius: '8px', padding: '2px' }}>
-                                <button onClick={() => setChartType('Bar')} style={{ padding: '4px 10px', border: 'none', borderRadius: '6px', background: chartType === 'Bar' ? '#fff' : 'transparent', fontSize: '10px', fontWeight: '800', cursor: 'pointer', boxShadow: chartType === 'Bar' ? '0 2px 4px rgba(0,0,0,0.1)' : 'none' }}>BAR</button>
-                                <button onClick={() => setChartType('Line')} style={{ padding: '4px 10px', border: 'none', borderRadius: '6px', background: chartType === 'Line' ? '#fff' : 'transparent', fontSize: '10px', fontWeight: '800', cursor: 'pointer', boxShadow: chartType === 'Line' ? '0 2px 4px rgba(0,0,0,0.1)' : 'none' }}>LINE</button>
+                                <button onClick={() => setChartType('Bar')} style={{ padding: '4px 10px', border: 'none', borderRadius: '6px', background: chartType === 'Bar' ? '#fff' : 'transparent', fontSize: '10px', fontWeight: '600', cursor: 'pointer', boxShadow: chartType === 'Bar' ? '0 2px 4px rgba(0,0,0,0.1)' : 'none' }}>BAR</button>
+                                <button onClick={() => setChartType('Line')} style={{ padding: '4px 10px', border: 'none', borderRadius: '6px', background: chartType === 'Line' ? '#fff' : 'transparent', fontSize: '10px', fontWeight: '600', cursor: 'pointer', boxShadow: chartType === 'Line' ? '0 2px 4px rgba(0,0,0,0.1)' : 'none' }}>LINE</button>
                             </div>
                             <button onClick={() => setExpandingChart('Category')} style={{ background: 'none', border: 'none', color: '#007aff', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}>View All</button>
                         </div>
@@ -2709,7 +2971,7 @@ const Admin = () => {
                 {/* Application Growth Chart */}
                 <div className="glass-card" style={{ padding: '2rem', borderRadius: '12px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-                        <h4 style={{ margin: 0, fontWeight: '800', fontSize: '1.1rem' }}>Weekly Submissions</h4>
+                        <h4 style={{ margin: 0, fontWeight: '600', fontSize: '1.1rem', fontFamily: "'Outfit', sans-serif" }}>Weekly Submissions</h4>
                         <button onClick={() => setExpandingChart('Weekly')} style={{ background: 'none', border: 'none', color: '#007aff', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}>View All</button>
                     </div>
                     <div style={{ height: '220px' }}>
@@ -2738,7 +3000,7 @@ const Admin = () => {
                 {/* Recent Activity Feed */}
                 <div className="glass-card" style={{ padding: '2rem', borderRadius: '12px', gridColumn: 'span 2' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-                        <h4 style={{ margin: 0, fontWeight: '800', fontSize: '1.1rem' }}>Recent Activity</h4>
+                        <h4 style={{ margin: 0, fontWeight: '600', fontSize: '1.1rem', fontFamily: "'Outfit', sans-serif" }}>Recent Activity</h4>
                         <button onClick={() => setActiveTab('Recent Activity')} style={{ background: 'none', border: 'none', color: '#007aff', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}>View All</button>
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -2750,14 +3012,14 @@ const Admin = () => {
                                 onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.05)'}
                                 onMouseLeave={e => e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.02)'}
                             >
-                                <div style={{ width: '40px', height: '40px', backgroundColor: '#fff', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '800', fontSize: '14px', border: '1px solid rgba(0,0,0,0.05)' }}>
+                                <div style={{ width: '40px', height: '40px', backgroundColor: '#fff', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '600', fontSize: '14px', border: '1px solid rgba(0,0,0,0.05)' }}>
                                     {app.companyName.charAt(0)}
                                 </div>
                                 <div style={{ flex: 1 }}>
                                     <div style={{ fontSize: '14px', fontWeight: '700' }}>{app.userName} submitted application for <span style={{ color: '#007aff' }}>{app.companyName}</span></div>
                                     <div style={{ fontSize: '12px', color: '#888' }}>{app.submittedAt ? new Date(app.submittedAt).toLocaleString() : 'Recently'}</div>
                                 </div>
-                                <span style={{ padding: '4px 10px', borderRadius: '6px', fontSize: '10px', fontWeight: '800', backgroundColor: app.status === 'approved' ? 'rgba(52,199,89,0.1)' : 'rgba(0,0,0,0.05)', color: app.status === 'approved' ? '#34c759' : '#000' }}>
+                                <span style={{ padding: '4px 10px', borderRadius: '6px', fontSize: '10px', fontWeight: '600', backgroundColor: app.status === 'approved' ? 'rgba(52,199,89,0.1)' : 'rgba(0,0,0,0.05)', color: app.status === 'approved' ? '#34c759' : '#000' }}>
                                     {app.status?.toUpperCase() || 'PENDING'}
                                 </span>
                             </div>
@@ -2780,10 +3042,11 @@ const Admin = () => {
                         >
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
                         </button>
-                        <h3 style={{ margin: 0, fontWeight: '800', fontSize: '1.25rem' }}>Recent Activity</h3>
+                        <h3 style={{ margin: 0, fontWeight: '600', fontSize: '1.25rem' }}>Recent Activity</h3>
                     </div>
                 </div>
-                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                <div className="table-container">
+                    <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
                     <thead style={{ backgroundColor: 'rgba(0,0,0,0.02)' }}>
                         <tr>
                             <th style={{ padding: '1.25rem', color: '#667777', fontSize: '12px', textTransform: 'uppercase', width: '40px' }}>#</th>
@@ -2798,7 +3061,7 @@ const Admin = () => {
                                 <td style={{ padding: '1.25rem', fontWeight: '700', color: '#888', fontSize: '13px' }}>{i + 1}</td>
                                 <td style={{ padding: '1.25rem' }}>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                        <div style={{ width: '32px', height: '32px', backgroundColor: 'rgba(0,0,0,0.03)', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '800', fontSize: '12px' }}>
+                                        <div style={{ width: '32px', height: '32px', backgroundColor: 'rgba(0,0,0,0.03)', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '600', fontSize: '12px' }}>
                                             {app.companyName.charAt(0)}
                                         </div>
                                         <div style={{ fontSize: '14px', fontWeight: '600' }}>
@@ -2810,7 +3073,7 @@ const Admin = () => {
                                     {app.submittedAt ? new Date(app.submittedAt).toLocaleString() : 'Recently'}
                                 </td>
                                 <td style={{ padding: '1.25rem' }}>
-                                    <span style={{ padding: '4px 10px', borderRadius: '6px', fontSize: '10px', fontWeight: '800', backgroundColor: app.status === 'approved' ? 'rgba(52,199,89,0.1)' : 'rgba(0,0,0,0.05)', color: app.status === 'approved' ? '#34c759' : '#000' }}>
+                                    <span style={{ padding: '4px 10px', borderRadius: '6px', fontSize: '10px', fontWeight: '600', backgroundColor: app.status === 'approved' ? 'rgba(52,199,89,0.1)' : 'rgba(0,0,0,0.05)', color: app.status === 'approved' ? '#34c759' : '#000' }}>
                                         {app.status?.toUpperCase() || 'PENDING'}
                                     </span>
                                 </td>
@@ -2818,6 +3081,7 @@ const Admin = () => {
                         ))}
                     </tbody>
                 </table>
+                </div>
             </div>
         )}
 
@@ -2834,7 +3098,7 @@ const Admin = () => {
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
                         </button>
                         <div>
-                            <h3 style={{ margin: 0, fontWeight: '900', fontSize: '1.8rem', letterSpacing: '-0.02em' }}>{distGrouping} Distribution</h3>
+                            <h3 style={{ margin: 0, fontWeight: '700', fontSize: '1.8rem', letterSpacing: '-0.02em', fontFamily: "'Outfit', sans-serif" }}>{distGrouping} Distribution</h3>
                             <p style={{ margin: '4px 0 0', fontSize: '13px', color: '#667777', fontWeight: '600' }}>Breakdown of startups by {distGrouping.toLowerCase()}</p>
                         </div>
                     </div>
@@ -2845,7 +3109,7 @@ const Admin = () => {
                                 <button 
                                     key={g}
                                     onClick={() => setDistGrouping(g)}
-                                    style={{ padding: '6px 16px', border: 'none', borderRadius: '8px', background: distGrouping === g ? '#fff' : 'transparent', fontSize: '11px', fontWeight: '800', cursor: 'pointer', boxShadow: distGrouping === g ? '0 2px 6px rgba(0,0,0,0.08)' : 'none', transition: 'all 0.2s' }}
+                                    style={{ padding: '6px 16px', border: 'none', borderRadius: '8px', background: distGrouping === g ? '#fff' : 'transparent', fontSize: '11px', fontWeight: '600', cursor: 'pointer', boxShadow: distGrouping === g ? '0 2px 6px rgba(0,0,0,0.08)' : 'none', transition: 'all 0.2s' }}
                                 >{g.toUpperCase()}</button>
                             ))}
                         </div>
@@ -2864,7 +3128,7 @@ const Admin = () => {
                             onChange={e => setDistFilterBatch(e.target.value)}
                             style={{ padding: '8px 16px', borderRadius: '10px', border: '1px solid rgba(0,0,0,0.1)', background: '#fff', fontSize: '12px', fontWeight: '700', cursor: 'pointer' }}
                         >
-                            <option value="all">All Batches</option>
+                            <option value="all">All Cohorts</option>
                             {[...new Set(applications.map(a => a.batch || 'Upcoming'))].sort().map(b => (
                                 <option key={b} value={b}>{b}</option>
                             ))}
@@ -2931,50 +3195,73 @@ const Admin = () => {
 
         {activeTab === 'Weekly Submissions' && (
             <div className="glass-card" style={{ padding: '2.5rem', borderRadius: '12px', animation: 'fadeInUp 0.4s ease-out' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '2rem' }}>
-                    <button 
-                        onClick={() => setActiveTab('Overview')} 
-                        style={{ background: 'rgba(0,0,0,0.03)', border: 'none', width: '32px', height: '32px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'all 0.2s' }}
-                        onMouseEnter={e => e.currentTarget.style.background = 'rgba(0,0,0,0.08)'}
-                        onMouseLeave={e => e.currentTarget.style.background = 'rgba(0,0,0,0.03)'}
-                    >
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
-                    </button>
-                    <h3 style={{ margin: 0, fontWeight: '900', fontSize: '1.8rem' }}>Weekly Submissions</h3>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                        <button 
+                            onClick={() => setActiveTab('Overview')} 
+                            style={{ background: 'rgba(0,0,0,0.03)', border: 'none', width: '32px', height: '32px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'all 0.2s' }}
+                            onMouseEnter={e => e.currentTarget.style.background = 'rgba(0,0,0,0.08)'}
+                            onMouseLeave={e => e.currentTarget.style.background = 'rgba(0,0,0,0.03)'}
+                        >
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+                        </button>
+                        <h3 style={{ margin: 0, fontWeight: '700', fontSize: '1.8rem', fontFamily: "'Outfit', sans-serif" }}>Weekly Submissions</h3>
+                    </div>
+                    
+                    <div style={{ display: 'flex', background: 'rgba(0,0,0,0.05)', padding: '4px', borderRadius: '10px' }}>
+                        {['Area', 'Line', 'Bar'].map(type => (
+                            <button 
+                                key={type}
+                                onClick={() => setWeeklyChartType(type)}
+                                style={{ padding: '6px 12px', border: 'none', borderRadius: '8px', background: weeklyChartType === type ? '#000' : 'transparent', color: weeklyChartType === type ? '#fff' : '#666', fontSize: '12px', fontWeight: '600', cursor: 'pointer', transition: '0.2s' }}
+                            >{type}</button>
+                        ))}
+                    </div>
                 </div>
-                <div style={{ height: '400px', display: 'flex', alignItems: 'flex-end', gap: '30px', padding: '40px 0', borderBottom: '1px solid rgba(0,0,0,0.05)' }}>
-                    {[...Array(14)].map((_, i) => {
-                        const date = new Date();
-                        date.setDate(date.getDate() - (13 - i));
-                        const dayName = date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
-                        const count = applications.filter(app => {
-                            const appDate = new Date(app.submittedAt);
-                            return appDate.toDateString() === date.toDateString();
-                        }).length;
-                        const max = Math.max(...[...Array(14)].map((_, j) => {
-                            const d = new Date(); d.setDate(d.getDate() - (13 - j));
-                            return applications.filter(a => new Date(a.submittedAt).toDateString() === d.toDateString()).length;
-                        })) || 1;
-                        
-                        return (
-                            <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '15px', height: '100%' }}>
-                                <div style={{ width: '100%', position: 'relative', height: '100%', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
-                                    <div style={{ 
-                                        width: '100%', 
-                                        height: `${(count/max)*100}%`, 
-                                        backgroundColor: i === 13 ? '#007aff' : '#000', 
-                                        borderRadius: '8px 8px 2px 2px',
-                                        minHeight: count > 0 ? '4px' : '0',
-                                        transition: 'height 1s cubic-bezier(0.34, 1.56, 0.64, 1)',
-                                        boxShadow: i === 13 ? '0 4px 12px rgba(0,122,255,0.2)' : 'none'
-                                    }}>
-                                        {count > 0 && <div style={{ position: 'absolute', top: '-30px', left: '50%', transform: 'translateX(-50%)', fontSize: '12px', fontWeight: '900' }}>{count}</div>}
-                                    </div>
-                                </div>
-                                <span style={{ fontSize: '10px', fontWeight: '700', color: '#888', transform: 'rotate(-45deg)', whiteSpace: 'nowrap' }}>{dayName}</span>
-                            </div>
-                        );
-                    })}
+                
+                <div style={{ height: '400px', padding: '20px 0' }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                        {(() => {
+                            const data = [...Array(14)].map((_, i) => {
+                                const date = new Date();
+                                date.setDate(date.getDate() - (13 - i));
+                                const count = applications.filter(app => new Date(app.submittedAt).toDateString() === date.toDateString()).length;
+                                return { date: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), count };
+                            });
+
+                            const ChartComp = weeklyChartType === 'Bar' ? BarChart : (weeklyChartType === 'Line' ? LineChart : AreaChart);
+                            const DataComp = weeklyChartType === 'Bar' ? Bar : (weeklyChartType === 'Line' ? Line : Area);
+
+                            return (
+                                <ChartComp data={data}>
+                                    <defs>
+                                        <linearGradient id="colorSub" x1="0" y1="0" x2="0" y2="1">
+                                            <stop offset="5%" stopColor="#000000" stopOpacity={0.3}/>
+                                            <stop offset="95%" stopColor="#000000" stopOpacity={0}/>
+                                        </linearGradient>
+                                    </defs>
+                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(0,0,0,0.05)" />
+                                    <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fontSize: 11, fontWeight: 500, fill: '#888' }} dy={10} />
+                                    <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fontWeight: 500, fill: '#888' }} />
+                                    <Tooltip 
+                                        contentStyle={{ borderRadius: '14px', border: 'none', boxShadow: '0 12px 30px rgba(0,0,0,0.1)', padding: '12px' }}
+                                        itemStyle={{ fontWeight: 600, fontSize: '13px' }}
+                                        labelStyle={{ fontWeight: 600, fontSize: '11px', color: '#888', marginBottom: '4px' }}
+                                    />
+                                    <DataComp 
+                                        type="monotone" 
+                                        dataKey="count" 
+                                        stroke="#000000" 
+                                        fillOpacity={1} 
+                                        fill="url(#colorSub)" 
+                                        strokeWidth={4} 
+                                        dot={{ r: 4, strokeWidth: 2, fill: '#fff' }}
+                                        activeDot={{ r: 6, strokeWidth: 0 }}
+                                    />
+                                </ChartComp>
+                            );
+                        })()}
+                    </ResponsiveContainer>
                 </div>
             </div>
         )}
@@ -2983,9 +3270,9 @@ const Admin = () => {
         {(activeTab === 'Pending Apps' || activeTab === 'Applications') && (
             <>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-                    <h3 style={{ margin: 0, fontWeight: '800', fontSize: '1.25rem', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <h3 style={{ margin: 0, fontWeight: '600', fontSize: '1.25rem', display: 'flex', alignItems: 'center', gap: '10px' }}>
                         {activeTab}
-                        <span style={{ fontSize: '13px', color: '#666', backgroundColor: 'rgba(0,0,0,0.05)', padding: '2px 10px', borderRadius: '10px', fontWeight: '700' }}>
+                        <span style={{ fontSize: '13px', color: '#666', backgroundColor: 'rgba(0,0,0,0.05)', padding: '2px 10px', borderRadius: '10px', fontWeight: '600' }}>
                             {activeTab === 'Pending Apps' ? applications.filter(a => !a.status || a.status === 'pending').length : applications.filter(a => a.status === appFilter).length}
                         </span>
                     </h3>
@@ -3020,7 +3307,7 @@ const Admin = () => {
                                             borderRadius: '8px', 
                                             border: 'none', 
                                             fontSize: '11px', 
-                                            fontWeight: '800', 
+                                            fontWeight: '600', 
                                             cursor: 'pointer',
                                             backgroundColor: appFilter === f ? '#000' : 'transparent',
                                             color: appFilter === f ? '#fff' : '#666',
@@ -3037,13 +3324,13 @@ const Admin = () => {
 
                 {activeTab === 'Applications' && showLogs && applicationLogs.length > 0 && (
                     <div className="glass-card" style={{ padding: '1.5rem', borderRadius: '10px', marginBottom: '1.5rem', animation: 'fadeInDown 0.3s ease-out' }}>
-                        <h4 style={{ margin: '0 0 15px 0', fontSize: '12px', color: '#666', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: '800' }}>Recent Application Logs</h4>
+                        <h4 style={{ margin: '0 0 15px 0', fontSize: '12px', color: '#666', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: '600' }}>Recent Application Logs</h4>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '300px', overflowY: 'auto' }}>
                             {applicationLogs.map((log, i) => (
                                 <div key={i} style={{ fontSize: '13px', display: 'flex', alignItems: 'flex-start', gap: '12px', padding: '12px', backgroundColor: 'rgba(0,0,0,0.02)', borderRadius: '12px' }}>
-                                    <span style={{ fontWeight: '800', color: '#bbb', fontSize: '11px', width: '20px', flexShrink: 0 }}>{i + 1}.</span>
+                                    <span style={{ fontWeight: '600', color: '#bbb', fontSize: '11px', width: '20px', flexShrink: 0 }}>{i + 1}.</span>
                                     <span style={{ 
-                                        padding: '3px 10px', borderRadius: '6px', fontSize: '10px', fontWeight: '800', flexShrink: 0,
+                                        padding: '3px 10px', borderRadius: '6px', fontSize: '10px', fontWeight: '600', flexShrink: 0,
                                         backgroundColor: log.action === 'approved' ? 'rgba(52,199,89,0.1)' : log.action === 'hold' ? 'rgba(0,122,255,0.1)' : 'rgba(255,59,48,0.1)',
                                         color: log.action === 'approved' ? '#34c759' : log.action === 'hold' ? '#007aff' : '#ff3b30'
                                     }}>
@@ -3061,6 +3348,7 @@ const Admin = () => {
                 )}
                 
                 <div className="glass-card" style={{ borderRadius: '10px', overflow: 'hidden', animation: 'fadeInUp 0.4s ease-out' }}>
+                    <div className="table-container">
                     <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
                         <thead style={{ backgroundColor: 'rgba(0,0,0,0.02)' }}>
                             <tr>
@@ -3114,7 +3402,7 @@ const Admin = () => {
                                         {app.companyLogo ? (
                                             <CacheImage src={app.companyLogo} style={{ width: '38px', height: '38px', borderRadius: '10px', objectFit: 'cover', border: '1px solid rgba(0,0,0,0.05)' }} alt="" />
                                         ) : (
-                                            <div style={{ width: '38px', height: '38px', borderRadius: '10px', backgroundColor: 'rgba(0,0,0,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', fontWeight: '800', color: '#888' }}>
+                                            <div style={{ width: '38px', height: '38px', borderRadius: '10px', backgroundColor: 'rgba(0,0,0,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', fontWeight: '600', color: '#888' }}>
                                                 {app.companyName.charAt(0).toUpperCase()}
                                             </div>
                                         )}
@@ -3171,7 +3459,7 @@ const Admin = () => {
                                             )}
                                             <button 
                                                 onClick={() => handleAppStatus(app.id, 'pending')} 
-                                                style={{ padding: '6px 12px', backgroundColor: 'rgba(0,0,0,0.05)', color: '#000', border: 'none', borderRadius: '6px', fontSize: '11px', fontWeight: '800', cursor: 'pointer', transition: 'all 0.2s' }}
+                                                style={{ padding: '6px 12px', backgroundColor: 'rgba(0,0,0,0.05)', color: '#000', border: 'none', borderRadius: '6px', fontSize: '11px', fontWeight: '600', cursor: 'pointer', transition: 'all 0.2s' }}
                                                 onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.1)'}
                                                 onMouseLeave={e => e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.05)'}
                                             >REVERT TO PENDING</button>
@@ -3182,6 +3470,7 @@ const Admin = () => {
                         ))}
                     </tbody>
                 </table>
+                </div>
                 </div>
             </>
         )}
@@ -3200,7 +3489,7 @@ const Admin = () => {
                         <>
                             <button 
                                 onClick={() => setShowCoFounders(!showCoFounders)}
-                                style={{ padding: '10px 16px', backgroundColor: showCoFounders ? '#000' : 'rgba(0,0,0,0.05)', color: showCoFounders ? '#fff' : '#000', border: 'none', borderRadius: '10px', fontSize: '12px', fontWeight: '800', cursor: 'pointer' }}
+                                style={{ padding: '10px 16px', backgroundColor: showCoFounders ? '#000' : 'rgba(0,0,0,0.05)', color: showCoFounders ? '#fff' : '#000', border: 'none', borderRadius: '10px', fontSize: '12px', fontWeight: '600', cursor: 'pointer' }}
                             >
                                 {showCoFounders ? 'Hide Co-founders' : 'Show Co-founders'}
                             </button>
@@ -3208,7 +3497,8 @@ const Admin = () => {
                         </>
                     ) : null
                 )}
-                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                <div className="table-container">
+                    <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
                     <thead style={{ backgroundColor: 'rgba(0,0,0,0.02)' }}>
                         <tr>
                             <th style={{ padding: '1.25rem', width: '40px' }}>
@@ -3256,7 +3546,7 @@ const Admin = () => {
                                             {u.profile?.profileImage || u.photoURL ? (
                                                 <CacheImage src={u.profile?.profileImage || u.photoURL} style={{ width: '40px', height: '40px', borderRadius: '12px', objectFit: 'cover', border: '1px solid rgba(0,0,0,0.05)' }} alt="" />
                                             ) : (
-                                                <div style={{ width: '40px', height: '40px', borderRadius: '12px', backgroundColor: 'rgba(0,0,0,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', fontWeight: '800', color: '#888' }}>
+                                                <div style={{ width: '40px', height: '40px', borderRadius: '12px', backgroundColor: 'rgba(0,0,0,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', fontWeight: '600', color: '#888' }}>
                                                     {(u.profile?.name || u.name || 'U').charAt(0).toUpperCase()}
                                                 </div>
                                             )}
@@ -3300,7 +3590,7 @@ const Admin = () => {
                                     <tr style={{ backgroundColor: 'rgba(0,0,0,0.01)' }}>
                                         <td colSpan="7" style={{ padding: '0 1.25rem 1.25rem 5rem' }}>
                                             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', borderLeft: '2px solid rgba(0,0,0,0.05)', paddingLeft: '20px', marginTop: '8px' }}>
-                                                <div style={{ fontSize: '11px', fontWeight: '800', color: '#888', textTransform: 'uppercase', marginBottom: '4px' }}>Co-Founders</div>
+                                                <div style={{ fontSize: '11px', fontWeight: '600', color: '#888', textTransform: 'uppercase', marginBottom: '4px' }}>Co-Founders</div>
                                                 {u.application.coFounders.map((cf, idx) => (
                                                     <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 15px', background: '#fff', borderRadius: '10px', border: '1px solid rgba(0,0,0,0.03)' }}>
                                                         <div>
@@ -3318,9 +3608,10 @@ const Admin = () => {
                         ))}
                     </tbody>
                 </table>
+                </div>
                 {filteredFoundersList.length > founderLimit && (
                     <div style={{ padding: '1.5rem', textAlign: 'center', borderTop: '1px solid rgba(0,0,0,0.05)' }}>
-                        <button onClick={() => setFounderLimit(prev => prev + 30)} style={{ padding: '10px 32px', backgroundColor: '#000', color: '#fff', border: 'none', borderRadius: '12px', fontSize: '13px', fontWeight: '800', cursor: 'pointer', transition: 'all 0.2s' }}>
+                        <button onClick={() => setFounderLimit(prev => prev + 30)} style={{ padding: '10px 32px', backgroundColor: '#000', color: '#fff', border: 'none', borderRadius: '12px', fontSize: '13px', fontWeight: '600', cursor: 'pointer', transition: 'all 0.2s' }}>
                             Load More Founders
                         </button>
                     </div>
@@ -3342,7 +3633,8 @@ const Admin = () => {
                         ['name', 'email']
                     )
                 )}
-                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                <div className="table-container">
+                    <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
                     <thead style={{ backgroundColor: 'rgba(0,0,0,0.02)' }}>
                         <tr>
                             <th style={{ padding: '1.25rem 2rem', color: '#667777', fontSize: '12px', textTransform: 'uppercase' }}>Name & Email</th>
@@ -3354,7 +3646,7 @@ const Admin = () => {
                             <tr key={u.id} style={{ borderBottom: '1px solid rgba(0,0,0,0.03)' }}>
                                 <td style={{ padding: '1.25rem 2rem' }}>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                        <div style={{ width: '40px', height: '40px', borderRadius: '12px', backgroundColor: 'rgba(0,0,0,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', fontWeight: '800', color: '#888' }}>
+                                        <div style={{ width: '40px', height: '40px', borderRadius: '12px', backgroundColor: 'rgba(0,0,0,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', fontWeight: '600', color: '#888' }}>
                                             {(u.profile?.name || u.name || u.email || 'U').charAt(0).toUpperCase()}
                                         </div>
                                         <div>
@@ -3364,7 +3656,7 @@ const Admin = () => {
                                     </div>
                                 </td>
                                 <td style={{ padding: '1.25rem 2rem', textAlign: 'right' }}>
-                                    <span style={{ padding: '6px 12px', backgroundColor: 'rgba(0,0,0,0.05)', borderRadius: '8px', fontSize: '11px', fontWeight: '800', textTransform: 'uppercase' }}>
+                                    <span style={{ padding: '6px 12px', backgroundColor: 'rgba(0,0,0,0.05)', borderRadius: '8px', fontSize: '11px', fontWeight: '600', textTransform: 'uppercase' }}>
                                         {activeTab === 'Admins' ? (u.role || 'Admin') : 'Member'}
                                     </span>
                                 </td>
@@ -3372,6 +3664,7 @@ const Admin = () => {
                         ))}
                     </tbody>
                 </table>
+                </div>
             </div>
         )}
         {activeTab === 'Reports & Bugs' && (
@@ -3393,7 +3686,8 @@ const Admin = () => {
                     },
                     getFuzzySuggestion(reportSearchQuery, reports, ['email', 'content', 'subject'])
                 )}
-                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                <div className="table-container">
+                    <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
                     <thead style={{ backgroundColor: 'rgba(0,0,0,0.02)' }}>
                         <tr>
                             <th style={{ padding: '1.25rem', width: '40px' }}>
@@ -3454,6 +3748,7 @@ const Admin = () => {
                         ))}
                     </tbody>
                 </table>
+                </div>
             </div>
         )}
 
@@ -3474,7 +3769,8 @@ const Admin = () => {
                     },
                     getFuzzySuggestion(blogSearchQuery, blogs, ['title', 'author'])
                 )}
-                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                <div className="table-container">
+                    <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
                     <thead style={{ backgroundColor: 'rgba(0,0,0,0.02)' }}>
                         <tr>
                             <th style={{ padding: '1.25rem', width: '40px' }}>
@@ -3562,6 +3858,7 @@ const Admin = () => {
                         ))}
                     </tbody>
                 </table>
+                </div>
             </div>
         )}
 
@@ -3571,7 +3868,7 @@ const Admin = () => {
                 {/* Header */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
                     <div>
-                        <h2 style={{ margin: 0, fontWeight: '800', fontSize: '1.5rem' }}>Manage Blog</h2>
+                        <h2 style={{ margin: 0, fontWeight: '600', fontSize: '1.5rem' }}>Manage Blog</h2>
                         <p style={{ margin: '4px 0 0', fontSize: '13px', color: '#667777' }}>{blogs.length} total posts &bull; {blogs.filter(b => b.status === 'approved').length} published</p>
                     </div>
                     <button
@@ -3614,7 +3911,7 @@ const Admin = () => {
                                     e.currentTarget.style.transform = 'scale(1)';
                                 }}
                             >
-                                <div style={{ fontSize: '13px', fontWeight: '800', color: '#888', minWidth: '30px', marginTop: '4px' }}>{idx + 1}</div>
+                                <div style={{ fontSize: '13px', fontWeight: '600', color: '#888', minWidth: '30px', marginTop: '4px' }}>{idx + 1}</div>
                                 {/* Content */}
                                 <div style={{ flex: 1, minWidth: 0 }}>
 
@@ -3645,11 +3942,21 @@ const Admin = () => {
                                         >Unpublish</button>
                                     )}
                                     <button
-                                        onClick={async () => {
-                                            if (window.confirm(`Delete "${blog.title || 'this post'}"? This cannot be undone.`)) {
-                                                await deleteDoc(doc(db, 'blog', blog.id));
-                                                fetchData();
-                                            }
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setConfirmConfig({
+                                                title: `Delete "${blog.title || 'this post'}"? This cannot be undone.`,
+                                                onConfirm: async () => {
+                                                    try {
+                                                        await deleteDoc(doc(db, 'blog', blog.id));
+                                                        setToastMessage("Blog post deleted");
+                                                        setShowToast(true);
+                                                        fetchData();
+                                                        await logSystemActivity('Delete Blog Post', `Deleted blog post: "${blog.title}" by ${blog.author}`);
+                                                    } catch (e) { alert(e.message); }
+                                                }
+                                            });
+                                            setShowConfirmModal(true);
                                         }}
                                         style={{ padding: '7px 14px', backgroundColor: 'rgba(255,59,48,0.1)', color: '#ff3b30', border: '1px solid rgba(255,59,48,0.2)', borderRadius: '8px', fontSize: '12px', fontWeight: '700', cursor: 'pointer' }}
                                     >Delete</button>
@@ -3671,7 +3978,8 @@ const Admin = () => {
             <div className="glass-card" style={{ borderRadius: '10px', overflow: 'hidden', animation: 'fadeInUp 0.4s ease-out' }}>
                 {renderSearchHeader("Member Requests", memberRequestSearchQuery, setMemberRequestSearchQuery)}
 
-                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                <div className="table-container">
+                    <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
                     <thead style={{ backgroundColor: 'rgba(0,0,0,0.02)' }}>
                         <tr>
                             <th style={{ width: '50px', padding: '1.25rem' }}>
@@ -3730,12 +4038,13 @@ const Admin = () => {
                                                 onMouseLeave={e => e.currentTarget.style.backgroundColor = 'rgba(255, 59, 48, 0.1)'}
                                             >Reject</button>
                                         </div>
-                                    ) : <span style={{ padding: '4px 10px', borderRadius: '4px', backgroundColor: app.status === 'approved' ? 'rgba(52, 199, 89, 0.1)' : 'rgba(255, 59, 48, 0.1)', color: app.status === 'approved' ? '#34c759' : '#ff3b30', fontSize: '11px', fontWeight: '800' }}>{app.status?.toUpperCase()}</span>}
+                                    ) : <span style={{ padding: '4px 10px', borderRadius: '4px', backgroundColor: app.status === 'approved' ? 'rgba(52, 199, 89, 0.1)' : 'rgba(255, 59, 48, 0.1)', color: app.status === 'approved' ? '#34c759' : '#ff3b30', fontSize: '11px', fontWeight: '600' }}>{app.status?.toUpperCase()}</span>}
                                 </td>
                             </tr>
                         ))}
                     </tbody>
                 </table>
+                </div>
             </div>
         )}
 
@@ -3743,7 +4052,8 @@ const Admin = () => {
         {activeTab === 'Withdrawn Apps' && (
             <div className="glass-card" style={{ borderRadius: '10px', overflow: 'hidden', animation: 'fadeInUp 0.4s ease-out' }}>
                 {renderSearchHeader("Withdrawn Apps", withdrawnSearchQuery, setWithdrawnSearchQuery, handleExportWithdrawn)}
-                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                <div className="table-container">
+                    <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
                     <thead style={{ backgroundColor: 'rgba(0,0,0,0.02)' }}>
                         <tr>
                             <th style={{ padding: '1.25rem', color: '#667777', fontSize: '12px', textTransform: 'uppercase', width: '50px' }}>#</th>
@@ -3766,12 +4076,13 @@ const Admin = () => {
                                     <span style={{ fontSize: '13px', fontWeight: '600' }}>{app.displayType}</span>
                                 </td>
                                 <td style={{ padding: '1.25rem' }}>
-                                    <span style={{ padding: '4px 10px', borderRadius: '4px', backgroundColor: 'rgba(255, 149, 0, 0.1)', color: '#ff9500', fontSize: '11px', fontWeight: '800' }}>WITHDRAWN</span>
+                                    <span style={{ padding: '4px 10px', borderRadius: '4px', backgroundColor: 'rgba(255, 149, 0, 0.1)', color: '#ff9500', fontSize: '11px', fontWeight: '600' }}>WITHDRAWN</span>
                                 </td>
                             </tr>
                         ))}
                     </tbody>
                 </table>
+                </div>
             </div>
         )}
 
@@ -3779,12 +4090,12 @@ const Admin = () => {
             <div className="glass-card" style={{ flex: 1, padding: '2.5rem', borderRadius: '0', height: 'calc(100vh - 20px)', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
                     <div>
-                        <h3 style={{ margin: 0, fontWeight: '900', fontSize: '1.8rem', letterSpacing: '-0.02em' }}>Cloud Backups</h3>
+                        <h3 style={{ margin: 0, fontWeight: '700', fontSize: '1.8rem', letterSpacing: '-0.02em' }}>Cloud Backups</h3>
                         <p style={{ margin: '4px 0 0 0', opacity: 0.5, fontSize: '14px', fontWeight: 600 }}>Manage your startup registry archives</p>
                     </div>
                     <button 
                         onClick={fetchData}
-                        style={{ background: '#000', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: '12px', fontWeight: '800', fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}
+                        style={{ background: '#000', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: '12px', fontWeight: '600', fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}
                     >
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M23 4v6h-6"></path><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>
                         REFRESH BACKUPS
@@ -3799,17 +4110,17 @@ const Admin = () => {
                                     <div style={{ padding: '8px', backgroundColor: '#000', borderRadius: '10px', color: '#fff', display: 'flex' }}>
                                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
                                     </div>
-                                    <span style={{ fontWeight: '900', fontSize: '1.2rem' }}>External Founders Registry Backup</span>
+                                    <span style={{ fontWeight: '700', fontSize: '1.2rem' }}>External Founders Registry Backup</span>
                                 </div>
                                 <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
-                                    <span style={{ fontSize: '12px', fontWeight: '800', opacity: 0.4 }}>PRIMARY CLOUD STORAGE</span>
+                                    <span style={{ fontSize: '12px', fontWeight: '600', opacity: 0.4 }}>PRIMARY CLOUD STORAGE</span>
                                     <div style={{ width: '4px', height: '4px', backgroundColor: '#ccc', borderRadius: '50%' }}></div>
-                                    <span style={{ fontSize: '12px', fontWeight: '800', color: '#34c759' }}>PROTECTED</span>
+                                    <span style={{ fontSize: '12px', fontWeight: '600', color: '#34c759' }}>PROTECTED</span>
                                 </div>
                             </div>
                             <button 
                                 onClick={handleRestoreRegistry}
-                                style={{ background: '#000', color: '#fff', border: 'none', padding: '12px 24px', borderRadius: '14px', fontWeight: '900', fontSize: '13px', cursor: 'pointer', transition: 'all 0.2s', boxShadow: '0 4px 15px rgba(0,0,0,0.1)' }}
+                                style={{ background: '#000', color: '#fff', border: 'none', padding: '12px 24px', borderRadius: '14px', fontWeight: '700', fontSize: '13px', cursor: 'pointer', transition: 'all 0.2s', boxShadow: '0 4px 15px rgba(0,0,0,0.1)' }}
                                 onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.02)'}
                                 onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
                             >
@@ -3819,7 +4130,7 @@ const Admin = () => {
 
                         <div style={{ backgroundColor: '#fff', borderRadius: '16px', padding: '1.5rem', border: '1px solid rgba(0,0,0,0.05)' }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-                                <h4 style={{ margin: 0, fontSize: '11px', fontWeight: '900', letterSpacing: '0.1em', opacity: 0.4, textTransform: 'uppercase' }}>BACKUP CONTENT ({externalFounders.length} EMAILS)</h4>
+                                <h4 style={{ margin: 0, fontSize: '11px', fontWeight: '700', letterSpacing: '0.1em', opacity: 0.4, textTransform: 'uppercase' }}>BACKUP CONTENT ({externalFounders.length} EMAILS)</h4>
                                 <div style={{ position: 'relative', width: '350px' }}>
                                     <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
                                         <input 
@@ -3857,7 +4168,7 @@ const Admin = () => {
                                                     position: 'absolute', top: '100%', left: 0, right: 0, 
                                                     backgroundColor: '#fff', border: '1px solid rgba(0,0,0,0.1)', 
                                                     borderRadius: '12px', padding: '10px 14px', marginTop: '8px', 
-                                                    fontSize: '12px', fontWeight: '800', cursor: 'pointer', zIndex: 100,
+                                                    fontSize: '12px', fontWeight: '600', cursor: 'pointer', zIndex: 100,
                                                     boxShadow: '0 10px 25px rgba(0,0,0,0.1)', animation: 'fadeInDown 0.2s ease-out',
                                                     display: 'flex', alignItems: 'center', gap: '8px'
                                                 }}
@@ -3876,12 +4187,12 @@ const Admin = () => {
                             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '12px', maxHeight: '400px', overflowY: 'auto', paddingRight: '10px' }}>
                                 {externalFounders.filter(f => f.email.toLowerCase().includes(backupSearch.toLowerCase())).map((f, i) => (
                                     <div key={i} style={{ padding: '12px 16px', backgroundColor: 'rgba(0,0,0,0.02)', borderRadius: '12px', fontSize: '13px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '12px', border: '1px solid rgba(0,0,0,0.02)' }}>
-                                        <span style={{ opacity: 0.3, fontSize: '11px', fontWeight: '800', width: '20px' }}>{i + 1}.</span>
+                                        <span style={{ opacity: 0.3, fontSize: '11px', fontWeight: '600', width: '20px' }}>{i + 1}.</span>
                                         <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: '#000' }}>{f.email}</span>
                                     </div>
                                 ))}
                                 {externalFounders.filter(f => f.email.toLowerCase().includes(backupSearch.toLowerCase())).length === 0 && (
-                                    <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: '6rem 2rem', opacity: 0.6, fontWeight: 700 }}>
+                                    <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: '6rem 2rem', opacity: 0.6, fontWeight: 500 }}>
                                         <div style={{ fontSize: '64px', marginBottom: '1.5rem', filter: 'grayscale(1)' }}>🔍</div>
                                         <div style={{ fontSize: '1.1rem', color: '#000' }}>No matching emails found in backup</div>
                                         <div style={{ fontSize: '13px', color: '#666', marginTop: '8px', fontWeight: '500' }}>Try a different search term or check for typos</div>
@@ -3930,7 +4241,7 @@ const Admin = () => {
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '1.25rem' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                             <div>
-                                <h4 style={{ margin: 0, fontWeight: '900', fontSize: '1.1rem', letterSpacing: '-0.02em' }}>External Founders ({externalFounders.length})</h4>
+                                <h4 style={{ margin: 0, fontWeight: '700', fontSize: '1.1rem', letterSpacing: '-0.02em' }}>External Founders ({externalFounders.length})</h4>
                                 <div style={{ fontSize: '10px', color: '#888', fontWeight: '700', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '4px' }}>
                                     <div style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#34c759' }}></div>
                                     CLOUD REGISTRY ACTIVE
@@ -4047,7 +4358,7 @@ const Admin = () => {
                                     {selectedFounderIds.length > 0 && (
                                         <button 
                                             onClick={handleRemoveSelectedFounders}
-                                            style={{ background: '#ff3b30', border: 'none', color: '#fff', fontSize: '10px', fontWeight: '800', cursor: 'pointer', padding: '6px 10px', borderRadius: '8px', animation: 'fadeInRight 0.3s' }}
+                                            style={{ background: '#ff3b30', border: 'none', color: '#fff', fontSize: '10px', fontWeight: '600', cursor: 'pointer', padding: '6px 10px', borderRadius: '8px', animation: 'fadeInRight 0.3s' }}
                                         >
                                             Delete ({selectedFounderIds.length})
                                         </button>
@@ -4113,7 +4424,7 @@ const Admin = () => {
                                     backgroundColor: sidebarFilter === filter.id ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.04)', 
                                     borderRadius: '5px',
                                     fontSize: '9px',
-                                    fontWeight: '900',
+                                    fontWeight: '700',
                                     opacity: 0.9,
                                     minWidth: '20px',
                                     textAlign: 'center'
@@ -4188,14 +4499,14 @@ const Admin = () => {
                                         {selectedFounderIds.includes(u.id) && <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>}
                                     </div>
                                 </div>
-                                <div style={{ fontSize: '11px', fontWeight: '800', color: '#888', width: '22px', flexShrink: 0, marginTop: '4px' }}>
+                                <div style={{ fontSize: '11px', fontWeight: '600', color: '#888', width: '22px', flexShrink: 0, marginTop: '4px' }}>
                                     {i + 1}.
                                 </div>
                                 <div style={{ flex: 1, overflow: 'hidden' }}>
                                     <div style={{ fontSize: '14px', fontWeight: '700', color: '#000', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                         {u.name || 'External Founder'}
                                     </div>
-                                    <div style={{ fontSize: '12px', color: '#6300dd', fontWeight: '600', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                    <div style={{ fontSize: '12px', color: '#000000', fontWeight: '600', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                         {u.email}
                                     </div>
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px' }}>
@@ -4215,7 +4526,7 @@ const Admin = () => {
                                                 <div style={{ 
                                                     position: 'absolute', top: '-18px', right: '20px', 
                                                     backgroundColor: '#ff3b30', color: '#fff', 
-                                                    fontSize: '9px', fontWeight: '900', 
+                                                    fontSize: '9px', fontWeight: '700', 
                                                     minWidth: '16px', height: '16px', borderRadius: '8px', 
                                                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                                                     padding: '0 4px', boxShadow: '0 2px 5px rgba(255,59,48,0.4)',
@@ -4235,7 +4546,7 @@ const Admin = () => {
                 </div>
                 {selectedExternalFounder ? (
                     /* Individual Chat Interface */
-                    <div className="glass-card" style={{ flex: 1, padding: '1.25rem 2.5rem 1rem 2.5rem', borderRadius: '0', height: 'calc(100vh - 20px)', display: 'flex', flexDirection: 'column', position: 'relative' }}>
+                    <div className="glass-card" style={{ flex: 1, padding: isWritingMail ? '1.25rem 2.5rem 10px 2.5rem' : '1.25rem 2.5rem 1rem 2.5rem', borderRadius: '0', height: 'calc(100vh - 20px)', display: 'flex', flexDirection: 'column', position: 'relative' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '0.75rem' }}>
                             <button 
                                 onClick={() => {
@@ -4247,12 +4558,12 @@ const Admin = () => {
                                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
                             </button>
                             <div style={{ flex: 1 }}>
-                                <h3 style={{ margin: 0, fontWeight: '800', fontSize: '1.25rem' }}>{selectedExternalFounder.name}</h3>
+                                <h3 style={{ margin: 0, fontWeight: '600', fontSize: '1.25rem' }}>{selectedExternalFounder.name}</h3>
                                 <div style={{ fontSize: '13px', color: '#666' }}>{selectedExternalFounder.email}</div>
                             </div>
                             <button 
                                 onClick={handleClearMessages}
-                                style={{ background: 'transparent', border: '1px solid #ddd', color: '#666', fontSize: '10px', padding: '6px 12px', borderRadius: '8px', cursor: 'pointer', fontWeight: '800' }}
+                                style={{ background: 'transparent', border: '1px solid #ddd', color: '#666', fontSize: '10px', padding: '6px 12px', borderRadius: '8px', cursor: 'pointer', fontWeight: '600' }}
                             >
                                 CLEAR SYNC
                             </button>
@@ -4278,11 +4589,11 @@ const Admin = () => {
                                         maxWidth: '80%', 
                                         padding: '16px', 
                                         borderRadius: '12px', 
-                                        backgroundColor: m.sender === 'admin' ? 'rgba(99, 0, 221, 0.08)' : '#f5f5f7', 
+                                        backgroundColor: m.sender === 'admin' ? 'rgba(0, 0, 0, 0.08)' : '#f5f5f7', 
                                         backdropFilter: m.sender === 'admin' ? 'blur(10px)' : 'none',
                                         color: '#000',
-                                        border: m.sender === 'admin' ? '1px solid rgba(99, 0, 221, 0.15)' : '1px solid rgba(0,0,0,0.05)',
-                                        boxShadow: m.sender === 'admin' ? '0 4px 12px rgba(99, 0, 221, 0.05)' : '0 2px 8px rgba(0,0,0,0.05)',
+                                        border: m.sender === 'admin' ? '1px solid rgba(0, 0, 0, 0.15)' : '1px solid rgba(0,0,0,0.05)',
+                                        boxShadow: m.sender === 'admin' ? '0 4px 12px rgba(0, 0, 0, 0.05)' : '0 2px 8px rgba(0,0,0,0.05)',
                                         position: 'relative'
                                     }}
                                     onMouseEnter={e => {
@@ -4324,7 +4635,7 @@ const Admin = () => {
                                                     {m.gmailId ? (
                                                         <button 
                                                             onClick={(e) => { e.stopPropagation(); handleDeleteMessage(m.gmailId); }}
-                                                            style={{ display: 'block', width: '100%', padding: '12px 16px', background: 'transparent', border: 'none', color: '#ff3b30', fontSize: '12px', fontWeight: '800', cursor: 'pointer', textAlign: 'left', whiteSpace: 'nowrap', transition: 'background 0.2s' }}
+                                                            style={{ display: 'block', width: '100%', padding: '12px 16px', background: 'transparent', border: 'none', color: '#ff3b30', fontSize: '12px', fontWeight: '600', cursor: 'pointer', textAlign: 'left', whiteSpace: 'nowrap', transition: 'background 0.2s' }}
                                                             onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgba(255,59,48,0.08)'}
                                                             onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
                                                         >
@@ -4333,7 +4644,7 @@ const Admin = () => {
                                                     ) : (
                                                         <button 
                                                             onClick={(e) => { e.stopPropagation(); handleLocalDeleteMessage(m.id); }}
-                                                            style={{ display: 'block', width: '100%', padding: '12px 16px', background: 'transparent', border: 'none', color: '#ff3b30', fontSize: '12px', fontWeight: '800', cursor: 'pointer', textAlign: 'left', whiteSpace: 'nowrap', transition: 'background 0.2s' }}
+                                                            style={{ display: 'block', width: '100%', padding: '12px 16px', background: 'transparent', border: 'none', color: '#ff3b30', fontSize: '12px', fontWeight: '600', cursor: 'pointer', textAlign: 'left', whiteSpace: 'nowrap', transition: 'background 0.2s' }}
                                                             onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgba(255,59,48,0.08)'}
                                                             onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
                                                         >
@@ -4345,7 +4656,7 @@ const Admin = () => {
                                         </div>
                                     </div>
 
-                                    {m.subject && <div style={{ fontSize: '11px', fontWeight: '800', marginBottom: '4px', textTransform: 'uppercase', opacity: 0.7 }}>{m.subject}</div>}
+                                    {m.subject && <div style={{ fontSize: '11px', fontWeight: '600', marginBottom: '4px', textTransform: 'uppercase', opacity: 0.7 }}>{m.subject}</div>}
                                     {m.imageUrl && (
                                         <CacheImage 
                                             src={m.imageUrl} 
@@ -4354,10 +4665,10 @@ const Admin = () => {
                                             onClick={() => window.open(m.imageUrl, '_blank')}
                                         />
                                     )}
-                                    <div style={{ fontSize: '14px', fontWeight: '500', lineHeight: '1.5', wordBreak: 'break-word' }}>
+                                    <div style={{ fontSize: '14px', fontWeight: '500', lineHeight: '1.6', wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}>
                                         {m.text.split(/(https?:\/\/[^\s]+)/g).map((part, i) => {
                                             if (part.match(/https?:\/\/[^\s]+/)) {
-                                                return <a key={i} href={part} target="_blank" rel="noopener noreferrer" style={{ color: m.sender === 'admin' ? '#6300dd' : '#007aff', textDecoration: 'underline', fontWeight: '700' }}>{part}</a>;
+                                                return <a key={i} href={part} target="_blank" rel="noopener noreferrer" style={{ color: m.sender === 'admin' ? '#000000' : '#007aff', textDecoration: 'underline', fontWeight: '700' }}>{part}</a>;
                                             }
                                             return part;
                                         })}
@@ -4406,7 +4717,7 @@ const Admin = () => {
                                             transition: 'all 0.2s ease',
                                             textAlign: 'left',
                                         }}
-                                        onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'rgba(99, 0, 221, 0.08)'; e.currentTarget.style.color = '#ff6600'; e.currentTarget.style.boxShadow = '0 4px 15px rgba(99, 0, 221, 0.05)'; }}
+                                        onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'rgba(0, 0, 0, 0.08)'; e.currentTarget.style.color = '#ff6600'; e.currentTarget.style.boxShadow = '0 4px 15px rgba(0, 0, 0, 0.05)'; }}
                                         onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = '#444'; e.currentTarget.style.boxShadow = 'none'; }}
                                     >
                                         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
@@ -4430,16 +4741,16 @@ const Admin = () => {
                                             transition: 'all 0.2s ease',
                                             textAlign: 'left',
                                         }}
-                                        onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'rgba(99, 0, 221, 0.08)'; e.currentTarget.style.color = '#ff6600'; e.currentTarget.style.boxShadow = '0 4px 15px rgba(99, 0, 221, 0.05)'; }}
+                                        onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'rgba(0, 0, 0, 0.08)'; e.currentTarget.style.color = '#ff6600'; e.currentTarget.style.boxShadow = '0 4px 15px rgba(0, 0, 0, 0.05)'; }}
                                         onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = '#444'; e.currentTarget.style.boxShadow = 'none'; }}
                                     >
                                         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v14a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
                                         Saved Draft
                                         {draftMemory.current[selectedExternalFounder?.email]?.text && (
                                             <span style={{ 
-                                                background: '#6300dd', color: '#fff', 
+                                                background: '#000000', color: '#fff', 
                                                 borderRadius: '50%', width: '18px', height: '18px', 
-                                                fontSize: '10px', fontWeight: '900', 
+                                                fontSize: '10px', fontWeight: '700', 
                                                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                                                 marginLeft: 'auto', flexShrink: 0
                                             }}>1</span>
@@ -4502,12 +4813,28 @@ const Admin = () => {
                         )}
                     </div>
                 ) : (
-                    <div className="glass-card" style={{ flex: 1, padding: '2rem', borderRadius: '0', position: 'relative', height: 'calc(100vh - 20px)', overflowY: 'auto' }}>
+                    <div className="glass-card" style={{ flex: 1, padding: isWritingMail ? '2rem 2rem 10px 2rem' : '2rem', borderRadius: '0', position: 'relative', height: 'calc(100vh - 20px)', overflowY: 'auto' }}>
                         <div style={{ marginBottom: '2rem' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '1.5rem', backgroundColor: 'rgba(0,0,0,0.02)', padding: '12px 16px', borderRadius: '12px', width: 'fit-content' }}>
-                                <label style={{ fontSize: '14px', fontWeight: '700', cursor: 'pointer' }} onClick={() => setSendToAll(!sendToAll)}>Send to all External Founders</label>
+                                <label style={{ fontSize: '14px', fontWeight: '700', cursor: 'pointer' }} onClick={() => {
+                                    const newState = !sendToAll;
+                                    setSendToAll(newState);
+                                    if (newState) {
+                                        setSelectedFounderIds(externalFounders.map(f => f.id));
+                                    } else {
+                                        setSelectedFounderIds([]);
+                                    }
+                                }}>Send to all External Founders</label>
                                 <div 
-                                    onClick={() => setSendToAll(!sendToAll)}
+                                    onClick={() => {
+                                        const newState = !sendToAll;
+                                        setSendToAll(newState);
+                                        if (newState) {
+                                            setSelectedFounderIds(externalFounders.map(f => f.id));
+                                        } else {
+                                            setSelectedFounderIds([]);
+                                        }
+                                    }}
                                     style={{ 
                                         width: '44px', height: '24px', 
                                         backgroundColor: sendToAll ? '#34c759' : '#e5e5ea', 
@@ -4538,7 +4865,7 @@ const Admin = () => {
                                         </div>
                                         <button 
                                             onClick={() => applyEmailSuggestion(getEmailSuggestion(coldEmailsText))} 
-                                            style={{ background: '#ff9500', color: '#fff', border: 'none', padding: '4px 12px', borderRadius: '6px', fontSize: '11px', fontWeight: '800', cursor: 'pointer', transition: 'transform 0.2s' }}
+                                            style={{ background: '#ff9500', color: '#fff', border: 'none', padding: '4px 12px', borderRadius: '6px', fontSize: '11px', fontWeight: '600', cursor: 'pointer', transition: 'transform 0.2s' }}
                                             onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.05)'}
                                             onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
                                         >Apply Correction</button>
@@ -4650,15 +4977,32 @@ const Admin = () => {
         )}
 
         {activeTab === 'Settings' && (
-            <div style={{ animation: 'fadeInUp 0.4s ease-out', maxWidth: '1200px', margin: '0 auto', display: 'flex', gap: '3rem', padding: '1rem 0' }}>
+            <div className="settings-container" style={{ animation: 'fadeInUp 0.4s ease-out', maxWidth: '1200px', margin: '0 auto', display: 'flex', gap: '3rem', padding: '1rem 0' }}>
                 {/* Internal Settings Sidebar */}
-                <div style={{ width: '240px', flexShrink: 0, position: 'sticky', top: '20px', height: 'fit-content' }}>
-                    <h2 style={{ margin: '0 0 0.5rem 0', fontWeight: '900', fontSize: '2rem', letterSpacing: '-0.02em' }}>Settings</h2>
-                    <p style={{ margin: '0 0 2rem 0', color: '#667777', fontSize: '14px', fontWeight: '500', lineHeight: '1.4' }}>Manage platform parameters and account security</p>
+                <div className="settings-sidebar" style={{ width: '240px', flexShrink: 0, position: 'sticky', top: '20px', height: 'fit-content' }}>
+                    <h2 style={{ margin: '0 0 0.5rem 0', fontWeight: '700', fontSize: '2rem', letterSpacing: '-0.02em', fontFamily: "'Outfit', sans-serif" }}>Settings</h2>
+                    <p style={{ margin: '0 0 1.5rem 0', color: '#667777', fontSize: '14px', fontWeight: '500', lineHeight: '1.4' }}>Manage platform parameters and account security</p>
+                    
+                    <div style={{ position: 'relative', marginBottom: '2rem' }}>
+                        <svg style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#999' }} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                        <input 
+                            value={settingsSearchQuery}
+                            onChange={e => setSettingsSearchQuery(e.target.value)}
+                            placeholder="Search settings..."
+                            style={{ 
+                                width: '100%', padding: '10px 10px 10px 38px', borderRadius: '10px', 
+                                border: '1px solid rgba(0,0,0,0.1)', fontSize: '13px', fontWeight: '600',
+                                outline: 'none', backgroundColor: 'rgba(0,0,0,0.02)', transition: 'all 0.2s'
+                            }}
+                            onFocus={e => { e.currentTarget.style.borderColor = '#000'; e.currentTarget.style.backgroundColor = '#fff'; }}
+                            onBlur={e => { e.currentTarget.style.borderColor = 'rgba(0,0,0,0.1)'; e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.02)'; }}
+                        />
+                    </div>
                     
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                         {[
                             { id: 'Account', icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>, label: 'Account Settings' },
+                            { id: 'Directory', icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>, label: 'Directory Config' },
                             { id: 'Integrations', icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>, label: 'Gmail API' }
                         ].map(sub => (
                             <div 
@@ -4684,27 +5028,28 @@ const Admin = () => {
                 {/* Settings Content */}
                 <div style={{ flex: 1 }}>
                     {settingsSubTab === 'Account' && (
-                        <div className="glass-card" style={{ padding: '2.5rem', borderRadius: '16px', marginBottom: '2rem', animation: 'fadeInDown 0.4s ease-out' }}>
+                        (!settingsSearchQuery || "account credentials email address password logout".includes(settingsSearchQuery.toLowerCase())) && (
+                            <div className="glass-card" style={{ padding: '2.5rem', borderRadius: '16px', marginBottom: '2rem', animation: 'fadeInDown 0.4s ease-out' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '2rem' }}>
-                                <div style={{ width: '40px', height: '40px', backgroundColor: 'rgba(99, 0, 221, 0.1)', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#6300dd' }}>
+                                <div style={{ width: '40px', height: '40px', backgroundColor: 'rgba(0, 0, 0, 0.1)', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#000000' }}>
                                     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
                                 </div>
                                 <div>
-                                    <h3 style={{ margin: 0, fontWeight: '800', fontSize: '1.25rem' }}>Account Credentials</h3>
+                                    <h3 style={{ margin: 0, fontWeight: '600', fontSize: '1.25rem', fontFamily: "'Outfit', sans-serif" }}>Account Credentials</h3>
                                     <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#667777', fontWeight: '600' }}>Update your administrative email and password</p>
                                 </div>
                             </div>
 
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
                                 <div>
-                                    <label style={{ display: 'block', marginBottom: '8px', fontSize: '13px', fontWeight: '800', color: '#1a1a1a', letterSpacing: '0.02em' }}>ADMIN EMAIL ADDRESS</label>
+                                    <label style={{ display: 'block', marginBottom: '8px', fontSize: '13px', fontWeight: '600', color: '#1a1a1a', letterSpacing: '0.02em' }}>ADMIN EMAIL ADDRESS</label>
                                     <input 
                                         type="email"
                                         value={newAdminEmail}
                                         onChange={e => setNewAdminEmail(e.target.value)}
                                         placeholder="admin@xfoundary.com"
                                         style={{ width: '100%', padding: '14px 18px', borderRadius: '14px', border: '1px solid rgba(0,0,0,0.1)', fontSize: '14px', fontWeight: '600', outline: 'none', transition: 'all 0.2s', backgroundColor: 'rgba(0,0,0,0.02)' }}
-                                        onFocus={e => { e.currentTarget.style.borderColor = '#6300dd'; e.currentTarget.style.backgroundColor = '#fff'; }}
+                                        onFocus={e => { e.currentTarget.style.borderColor = '#000000'; e.currentTarget.style.backgroundColor = '#fff'; }}
                                         onBlur={e => { e.currentTarget.style.borderColor = 'rgba(0,0,0,0.1)'; e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.02)'; }}
                                     />
                                     <p style={{ margin: '8px 0 0 0', fontSize: '11px', color: '#667777', fontWeight: '500' }}>Verification required for email changes.</p>
@@ -4712,7 +5057,7 @@ const Admin = () => {
 
                                 <div style={{ paddingTop: '2rem', borderTop: '1px solid rgba(0,0,0,0.05)', display: 'flex', gap: '1.5rem' }}>
                                     <div style={{ flex: 1 }}>
-                                        <label style={{ display: 'block', marginBottom: '8px', fontSize: '12px', fontWeight: '800', color: '#1a1a1a' }}>NEW PASSWORD (OPTIONAL)</label>
+                                        <label style={{ display: 'block', marginBottom: '8px', fontSize: '12px', fontWeight: '600', color: '#1a1a1a' }}>NEW PASSWORD (OPTIONAL)</label>
                                         <div style={{ position: 'relative' }}>
                                             <input 
                                                 type={showNewPassword ? "text" : "password"}
@@ -4737,7 +5082,7 @@ const Admin = () => {
                                         </div>
                                     </div>
                                     <div style={{ flex: 1 }}>
-                                        <label style={{ display: 'block', marginBottom: '8px', fontSize: '12px', fontWeight: '800', color: '#1a1a1a' }}>CONFIRM PASSWORD</label>
+                                        <label style={{ display: 'block', marginBottom: '8px', fontSize: '12px', fontWeight: '600', color: '#1a1a1a' }}>CONFIRM PASSWORD</label>
                                         <div style={{ position: 'relative' }}>
                                             <input 
                                                 type={showNewPassword ? "text" : "password"}
@@ -4770,7 +5115,7 @@ const Admin = () => {
                                             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
                                         </div>
                                         <div>
-                                            <h3 style={{ margin: 0, fontWeight: '800', fontSize: '1.25rem' }}>Dashboard Preferences</h3>
+                                            <h3 style={{ margin: 0, fontWeight: '600', fontSize: '1.25rem' }}>Dashboard Preferences</h3>
                                             <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#667777', fontWeight: '600' }}>Customize your admin experience and confirmation workflows</p>
                                         </div>
                                     </div>
@@ -4810,20 +5155,29 @@ const Admin = () => {
                                             </div>
                                         ))}
                                         
-                                        <div style={{ marginTop: '1rem', padding: '16px', borderRadius: '14px', backgroundColor: 'rgba(99, 0, 221, 0.05)', border: '1px solid rgba(99, 0, 221, 0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        <div style={{ marginTop: '1rem', padding: '16px', borderRadius: '14px', backgroundColor: 'rgba(0, 0, 0, 0.05)', border: '1px solid rgba(0, 0, 0, 0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                             <div>
-                                                <div style={{ fontWeight: '800', fontSize: '13px', color: '#6300dd', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Hard Reset</div>
+                                                <div style={{ fontWeight: '600', fontSize: '13px', color: '#000000', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Hard Reset</div>
                                                 <div style={{ fontSize: '12px', color: '#667', fontWeight: '500', marginTop: '2px' }}>Clear all remembered choices and restore default prompts</div>
                                             </div>
                                             <button 
-                                                onClick={() => {
-                                                    setPreferences({ skipDeleteConfirm: false, skipRemoveConfirm: false });
-                                                    setSkipConfirm(false);
-                                                    setToastMessage("All preferences have been reset to default.");
-                                                    setShowToast(true);
-                                                    setTimeout(() => setShowToast(false), 3000);
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setConfirmConfig({
+                                                        title: "Are you sure you want to reset all preferences to default?",
+                                                        onConfirm: async () => {
+                                                            try {
+                                                                setPreferences({ skipDeleteConfirm: false, skipRemoveConfirm: false });
+                                                                setSkipConfirm(false);
+                                                                setToastMessage("All preferences have been reset to default.");
+                                                                setShowToast(true);
+                                                                setTimeout(() => setShowToast(false), 3000);
+                                                            } catch (e) { alert(e.message); }
+                                                        }
+                                                    });
+                                                    setShowConfirmModal(true);
                                                 }}
-                                                style={{ padding: '8px 16px', borderRadius: '10px', background: '#000', color: '#fff', border: 'none', fontWeight: '800', fontSize: '11px', cursor: 'pointer', transition: 'all 0.2s' }}
+                                                style={{ padding: '8px 16px', borderRadius: '10px', background: '#000', color: '#fff', border: 'none', fontWeight: '600', fontSize: '11px', cursor: 'pointer', transition: 'all 0.2s' }}
                                                 onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.05)'}
                                                 onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
                                             >Reset to Default</button>
@@ -4831,7 +5185,7 @@ const Admin = () => {
                                     </div>
                                 </div>
 
-                                <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '12px', marginTop: '1rem' }}>
+                                <div className="mobile-stack" style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '12px', marginTop: '1rem' }}>
                                     <button 
                                         onClick={() => auth.signOut()}
                                         style={{ 
@@ -4869,16 +5223,82 @@ const Admin = () => {
                                 </div>
                             </div>
                         </div>
+                    )
+                )}
+
+                    {settingsSubTab === 'Directory' && (
+                        (!settingsSearchQuery || "directory startup hardcoded list visibility".includes(settingsSearchQuery.toLowerCase())) && (
+                            <div className="glass-card" style={{ padding: '2.5rem', borderRadius: '16px', marginBottom: '2rem', animation: 'fadeInDown 0.4s ease-out' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '2rem' }}>
+                                    <div style={{ width: '40px', height: '40px', backgroundColor: 'rgba(0, 0, 0, 0.1)', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#000000' }}>
+                                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+                                    </div>
+                                    <div>
+                                        <h3 style={{ margin: 0, fontWeight: '600', fontSize: '1.25rem' }}>Directory Configuration</h3>
+                                        <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#667777', fontWeight: '600' }}>Manage how startups are displayed to the public</p>
+                                    </div>
+                                </div>
+
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1.5rem', backgroundColor: 'rgba(0,0,0,0.02)', borderRadius: '16px', border: '1px solid rgba(0,0,0,0.03)' }}>
+                                    <div>
+                                        <div style={{ fontSize: '15px', fontWeight: '700', color: '#000', marginBottom: '4px' }}>Show Curated Indian Startups</div>
+                                        <div style={{ fontSize: '13px', color: '#666', fontWeight: '500' }}>Toggle visibility of the hardcoded list of prominent Indian startups in the directory.</div>
+                                    </div>
+                                    <div 
+                                        onClick={() => setShowHardcodedStartups(!showHardcodedStartups)}
+                                        style={{ 
+                                            width: '50px', height: '26px', 
+                                            backgroundColor: showHardcodedStartups ? '#34c759' : '#e5e5ea', 
+                                            borderRadius: '13px', 
+                                            position: 'relative', 
+                                            cursor: 'pointer',
+                                            transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                                            boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.05)'
+                                        }}
+                                    >
+                                        <div style={{
+                                            width: '22px', height: '22px',
+                                            backgroundColor: '#fff',
+                                            borderRadius: '50%',
+                                            position: 'absolute',
+                                            top: '2px',
+                                            left: showHardcodedStartups ? '26px' : '2px',
+                                            transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                                            boxShadow: '0 2px 8px rgba(0,0,0,0.15)'
+                                        }} />
+                                    </div>
+                                </div>
+
+                                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '2.5rem' }}>
+                                    <button 
+                                        onClick={handleSaveGlobalSettings}
+                                        disabled={isSavingSettings || settingsSaved}
+                                        style={{ 
+                                            padding: '14px 32px', borderRadius: '16px', border: 'none', 
+                                            background: settingsSaved ? '#8e8e93' : '#000', color: '#fff', 
+                                            fontWeight: '700', cursor: 'pointer',
+                                            boxShadow: settingsSaved ? 'none' : '0 8px 20px rgba(0,0,0,0.15)',
+                                            transition: 'all 0.2s'
+                                        }}
+                                        onMouseEnter={e => !settingsSaved && (e.currentTarget.style.transform = 'translateY(-2px)')}
+                                        onMouseLeave={e => !settingsSaved && (e.currentTarget.style.transform = 'translateY(0)')}
+                                    >
+                                        {isSavingSettings ? 'SAVING...' : settingsSaved ? 'SAVED' : 'SAVE DIRECTORY CONFIG'}
+                                    </button>
+                                </div>
+                            </div>
+                        )
                     )}
 
                     {settingsSubTab === 'Integrations' && (
-                        <div className="glass-card" style={{ padding: '2.5rem', borderRadius: '16px', marginBottom: '2rem', animation: 'fadeInDown 0.4s ease-out' }}>
+                        (!settingsSearchQuery || "integrations gmail api client id secret credentials sync individual".includes(settingsSearchQuery.toLowerCase())) && (
+                            <div className="glass-card" style={{ padding: '2.5rem', borderRadius: '16px', marginBottom: '2rem', animation: 'fadeInDown 0.4s ease-out' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '2rem' }}>
-                                <div style={{ width: '40px', height: '40px', backgroundColor: 'rgba(234, 67, 53, 0.1)', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ea4335' }}>
+                                <div style={{ width: '40px', height: '40px', backgroundColor: 'rgba(234, 67, 53, 0.1)', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ea4335', boxShadow: '0 4px 12px rgba(234, 67, 53, 0.2)' }}>
                                     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
                                 </div>
                                 <div>
-                                    <h3 style={{ margin: 0, fontWeight: '800', fontSize: '1.25rem' }}>Gmail API Integration</h3>
+                                    <h3 style={{ margin: 0, fontWeight: '600', fontSize: '1.25rem' }}>Gmail API Integration</h3>
                                     <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#667777', fontWeight: '600' }}>Required for synchronizing external email history</p>
                                 </div>
                             </div>
@@ -4888,20 +5308,20 @@ const Admin = () => {
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                                         <div style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: '#34c759' }}></div>
                                         <div>
-                                            <div style={{ fontSize: '10px', fontWeight: '800', color: '#34c759', letterSpacing: '0.05em' }}>AUTHORIZED GMAIL ACCOUNT</div>
+                                            <div style={{ fontSize: '10px', fontWeight: '600', color: '#34c759', letterSpacing: '0.05em' }}>AUTHORIZED GMAIL ACCOUNT</div>
                                             <div style={{ fontSize: '15px', fontWeight: '700', color: '#000' }}>{syncAccountEmail}</div>
                                         </div>
                                     </div>
                                     <div style={{ display: 'flex', gap: '8px' }}>
-                                        <a href="https://mail.google.com" target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'none', padding: '8px 16px', background: 'rgba(0,0,0,0.05)', color: '#000', borderRadius: '10px', fontSize: '12px', fontWeight: '800', cursor: 'pointer' }}>GO TO GMAIL</a>
-                                        <button onClick={handleDisconnectGmail} style={{ padding: '8px 16px', background: '#fff', border: '1px solid #ff3b30', color: '#ff3b30', borderRadius: '10px', fontSize: '12px', fontWeight: '800', cursor: 'pointer' }}>DISCONNECT</button>
+                                        <a href="https://mail.google.com" target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'none', padding: '8px 16px', background: 'rgba(0,0,0,0.05)', color: '#000', borderRadius: '10px', fontSize: '12px', fontWeight: '600', cursor: 'pointer' }}>GO TO GMAIL</a>
+                                        <button onClick={handleDisconnectGmail} style={{ padding: '8px 16px', background: '#fff', border: '1px solid #ff3b30', color: '#ff3b30', borderRadius: '10px', fontSize: '12px', fontWeight: '600', cursor: 'pointer' }}>DISCONNECT</button>
                                     </div>
                                 </div>
                             )}
 
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
                                 <div>
-                                    <label style={{ display: 'block', marginBottom: '8px', fontSize: '13px', fontWeight: '800', color: '#1a1a1a' }}>GMAIL CLIENT ID</label>
+                                    <label style={{ display: 'block', marginBottom: '8px', fontSize: '13px', fontWeight: '600', color: '#1a1a1a' }}>GMAIL CLIENT ID</label>
                                     <input 
                                         value={gmailClientId}
                                         onChange={e => setGmailClientId(e.target.value)}
@@ -4909,7 +5329,7 @@ const Admin = () => {
                                     />
                                 </div>
                                 <div>
-                                    <label style={{ display: 'block', marginBottom: '8px', fontSize: '13px', fontWeight: '800', color: '#1a1a1a' }}>GMAIL CLIENT SECRET</label>
+                                    <label style={{ display: 'block', marginBottom: '8px', fontSize: '13px', fontWeight: '600', color: '#1a1a1a' }}>GMAIL CLIENT SECRET</label>
                                     <input 
                                         type="password"
                                         value={gmailClientSecret}
@@ -4923,13 +5343,79 @@ const Admin = () => {
                                 <button 
                                     onClick={handleSaveSettings}
                                     disabled={isSavingSettings || settingsSaved}
-                                    style={{ padding: '14px 32px', borderRadius: '16px', border: 'none', background: settingsSaved ? '#8e8e93' : '#000', color: '#fff', fontWeight: '800', cursor: 'pointer' }}
+                                    style={{ padding: '14px 32px', borderRadius: '16px', border: 'none', background: settingsSaved ? '#8e8e93' : '#000', color: '#fff', fontWeight: '600', cursor: 'pointer' }}
                                 >
                                     {isSavingSettings ? 'SAVING...' : settingsSaved ? 'SAVED' : 'SAVE CONFIGURATION'}
                                 </button>
                             </div>
                         </div>
-                    )}
+                    )
+                )}
+                </div>
+            </div>
+        )}
+
+        {activeTab === 'System Logs' && (
+            <div className="glass-card" style={{ borderRadius: '10px', overflow: 'hidden', animation: 'fadeInUp 0.4s ease-out' }}>
+                {renderManagementHeader(
+                    'System Logs', 
+                    systemLogs.length, 
+                    logSearchQuery, 
+                    setLogSearchQuery, 
+                    null, 
+                    null, 
+                    null,
+                    <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                         <input 
+                            type="date" 
+                            value={logDateFilter} 
+                            onChange={e => setLogDateFilter(e.target.value)}
+                            style={{ padding: '8px 12px', borderRadius: '10px', border: '1px solid rgba(0,0,0,0.1)', fontSize: '13px', fontWeight: '700' }}
+                         />
+                         <div style={{ display: 'flex', background: 'rgba(0,0,0,0.05)', padding: '4px', borderRadius: '10px' }}>
+                            <button 
+                                onClick={() => setLogTypeFilter('admin')}
+                                style={{ padding: '6px 16px', border: 'none', borderRadius: '8px', background: logTypeFilter === 'admin' ? '#000' : 'transparent', color: logTypeFilter === 'admin' ? '#fff' : '#666', fontSize: '12px', fontWeight: '600', cursor: 'pointer', transition: '0.2s' }}
+                            >Admin</button>
+                            <button 
+                                onClick={() => setLogTypeFilter('member')}
+                                style={{ padding: '6px 16px', border: 'none', borderRadius: '8px', background: logTypeFilter === 'member' ? '#000' : 'transparent', color: logTypeFilter === 'member' ? '#fff' : '#666', fontSize: '12px', fontWeight: '600', cursor: 'pointer', transition: '0.2s' }}
+                            >Members</button>
+                         </div>
+                    </div>
+                )}
+                
+                <div style={{ padding: '2rem' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                        {systemLogs
+                            .filter(log => log.type === logTypeFilter && log.day === logDateFilter && (log.action.toLowerCase().includes(logSearchQuery.toLowerCase()) || log.details.toLowerCase().includes(logSearchQuery.toLowerCase())))
+                            .map((log, i) => (
+                                <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: '16px', padding: '16px', backgroundColor: 'rgba(0,0,0,0.02)', borderRadius: '14px', border: '1px solid rgba(0,0,0,0.03)' }}>
+                                    <div style={{ width: '40px', height: '40px', backgroundColor: '#fff', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '600', fontSize: '14px', flexShrink: 0, border: '1px solid rgba(0,0,0,0.05)' }}>
+                                        {log.userName.charAt(0)}
+                                    </div>
+                                    <div style={{ flex: 1 }}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                                            <span style={{ fontWeight: '600', fontSize: '14px' }}>{log.action}</span>
+                                            <span style={{ fontSize: '12px', color: '#999', fontWeight: '600' }}>{new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                        </div>
+                                        <div style={{ fontSize: '13px', color: '#666', lineHeight: '1.5', marginBottom: '8px' }}>{log.details}</div>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '11px', fontWeight: '700', color: '#aaa' }}>
+                                            <span>BY: {log.userName}</span>
+                                            <span>•</span>
+                                            <span>{log.userEmail}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))
+                        }
+                        {systemLogs.filter(log => log.type === logTypeFilter && log.day === logDateFilter).length === 0 && (
+                            <div style={{ textAlign: 'center', padding: '4rem 1rem' }}>
+                                <div style={{ fontSize: '40px', marginBottom: '1rem' }}>📋</div>
+                                <div style={{ color: '#888', fontSize: '14px', fontWeight: '600' }}>No activity logs for this day.</div>
+                            </div>
+                        )}
+                    </div>
                 </div>
             </div>
         )}
@@ -4946,9 +5432,12 @@ const Admin = () => {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                         <div style={{ width: '10px', height: '10px', backgroundColor: '#34c759', borderRadius: '50%', animation: 'pulse 1.5s infinite' }}></div>
-                        <span style={{ fontSize: '13px', fontWeight: '800', letterSpacing: '0.05em' }}>SENDING PROGRESS</span>
+                        <span style={{ fontSize: '13px', fontWeight: '600', letterSpacing: '0.05em' }}>SENDING PROGRESS</span>
                     </div>
-                    <span style={{ fontSize: '12px', fontWeight: '700', opacity: 0.7 }}>{sendingStatus.count} / {sendingStatus.total}</span>
+                    <span style={{ fontSize: '12px', fontWeight: '700', opacity: 0.7 }}>
+                        {sendingStatus.eta && <span style={{ marginRight: '8px', color: '#34c759' }}>{sendingStatus.eta} remaining</span>}
+                        {sendingStatus.count} / {sendingStatus.total}
+                    </span>
                 </div>
                 <div style={{ marginBottom: '14px', backgroundColor: 'rgba(255,255,255,0.1)', height: '6px', borderRadius: '3px', overflow: 'hidden' }}>
                     <div style={{ width: `${(sendingStatus.count / sendingStatus.total) * 100}%`, height: '100%', backgroundColor: '#fff', transition: 'width 0.3s ease-out' }}></div>
@@ -4956,7 +5445,7 @@ const Admin = () => {
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px', backgroundColor: 'rgba(255,255,255,0.05)', padding: '10px 14px', borderRadius: '12px' }}>
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M22 2L11 13"></path><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
                     <div style={{ overflow: 'hidden' }}>
-                        <div style={{ fontSize: '10px', fontWeight: '800', opacity: 0.5, marginBottom: '2px' }}>CURRENT RECIPIENT</div>
+                        <div style={{ fontSize: '10px', fontWeight: '600', opacity: 0.5, marginBottom: '2px' }}>CURRENT RECIPIENT</div>
                         <div style={{ fontSize: '13px', fontWeight: '600', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{sendingStatus.current}</div>
                     </div>
                 </div>
@@ -5018,9 +5507,9 @@ const Admin = () => {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', marginTop: '12px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#000" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
-                        <span style={{ fontSize: '14px', fontWeight: '800', color: '#000' }}>Cloud Syncing</span>
+                        <span style={{ fontSize: '14px', fontWeight: '600', color: '#000' }}>Cloud Syncing</span>
                     </div>
-                    <span style={{ fontSize: '14px', fontWeight: '900', color: '#000' }}>{syncProgress}%</span>
+                    <span style={{ fontSize: '14px', fontWeight: '700', color: '#000' }}>{syncProgress}%</span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                     <span style={{ fontSize: '11px', color: '#888', fontWeight: '700' }}>{syncEta ? `Est. time remaining: ${syncEta}` : 'Calculating...'}</span>
@@ -5037,13 +5526,20 @@ const Admin = () => {
             </div>
         )}
 
-        {/* Confirmation Modal */}
         {showConfirmModal && (
             <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000, animation: 'fadeIn 0.2s ease-out' }}>
-                <div className="glass-card" style={{ width: '400px', padding: '2.5rem', borderRadius: '14px', backgroundColor: '#fff', textAlign: 'center', boxShadow: '0 24px 80px rgba(0,0,0,0.25)', position: 'relative' }}>
-                    <div style={{ fontSize: '48px', marginBottom: '1rem' }}>⚠️</div>
-                    <h3 style={{ margin: '0 0 0.75rem 0', fontWeight: '900', fontSize: '1.5rem', color: '#000' }}>Wait! Are you sure?</h3>
-                    <p style={{ color: '#666', fontSize: '14px', lineHeight: '1.6', marginBottom: '2rem', padding: '0 10px' }}>{confirmConfig.title}</p>
+                <div style={{ width: '400px', padding: '2.5rem', borderRadius: '14px', backgroundColor: '#FFFFFF', textAlign: 'center', boxShadow: '0 24px 80px rgba(0,0,0,0.3)', position: 'relative', border: '1px solid rgba(0,0,0,0.1)' }}>
+                    <div style={{ marginBottom: '1.5rem', display: 'flex', justifyContent: 'center' }}>
+                        <div style={{ width: '64px', height: '64px', borderRadius: '50%', background: 'rgba(255, 179, 0, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#FFB300" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+                                <line x1="12" y1="9" x2="12" y2="13"></line>
+                                <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                            </svg>
+                        </div>
+                    </div>
+                    <h3 style={{ margin: '0 0 0.75rem 0', fontWeight: '700', fontSize: '1.5rem', color: '#000', fontFamily: "'Outfit', sans-serif" }}>Wait! Are you sure?</h3>
+                    <p style={{ color: '#444', fontSize: '14px', lineHeight: '1.6', marginBottom: '2rem', padding: '0 10px', fontWeight: '500' }}>{confirmConfig.title}</p>
                     
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', marginBottom: '2rem', cursor: 'pointer', userSelect: 'none' }} onClick={() => setSkipConfirm(!skipConfirm)}>
                         <div style={{ 
@@ -5061,13 +5557,13 @@ const Admin = () => {
                     <div style={{ display: 'flex', gap: '14px' }}>
                         <button 
                             onClick={() => setShowConfirmModal(false)} 
-                            style={{ flex: 1, padding: '14px', borderRadius: '14px', border: '1px solid rgba(0,0,0,0.1)', background: '#f5f5f7', color: '#000', fontWeight: '800', cursor: 'pointer', transition: 'all 0.2s' }}
+                            style={{ flex: 1, padding: '16px', borderRadius: '12px', border: '1px solid rgba(0,0,0,0.1)', background: '#f5f5f7', color: '#000', fontWeight: '700', cursor: 'pointer', transition: 'all 0.2s', fontFamily: "'Newsreader', serif", fontSize: '1.1rem', letterSpacing: '0.01em' }}
                             onMouseEnter={e => e.currentTarget.style.background = '#e5e5ea'}
                             onMouseLeave={e => e.currentTarget.style.background = '#f5f5f7'}
                         >Cancel</button>
                         <button 
                             onClick={() => { confirmConfig.onConfirm(); setShowConfirmModal(false); }} 
-                            style={{ flex: 1, padding: '14px', borderRadius: '14px', border: 'none', background: '#ff3b30', color: '#fff', fontWeight: '800', cursor: 'pointer', transition: 'all 0.2s', boxShadow: '0 4px 12px rgba(255, 59, 48, 0.2)' }}
+                            style={{ flex: 1, padding: '16px', borderRadius: '12px', border: 'none', background: '#ff3b30', color: '#fff', fontWeight: '700', cursor: 'pointer', transition: 'all 0.2s', boxShadow: '0 8px 24px rgba(255, 59, 48, 0.25)', fontFamily: "'Newsreader', serif", fontSize: '1.1rem', letterSpacing: '0.01em' }}
                             onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-2px)'}
                             onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}
                         >Confirm</button>
@@ -5097,9 +5593,9 @@ const Admin = () => {
                             <div style={{ width: '1px', height: '24px', backgroundColor: '#eee' }}></div>
                             <div>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                    <h2 style={{ margin: 0, fontWeight: '900', fontSize: '1.5rem', color: '#000', letterSpacing: '-0.02em' }}>{selectedApplication.companyName}</h2>
+                                    <h2 style={{ margin: 0, fontWeight: '700', fontSize: '1.5rem', color: '#000', letterSpacing: '-0.02em', fontFamily: "'Outfit', sans-serif" }}>{selectedApplication.companyName}</h2>
                                     <span style={{ 
-                                        padding: '4px 12px', borderRadius: '8px', fontSize: '11px', fontWeight: '800', 
+                                        padding: '4px 12px', borderRadius: '8px', fontSize: '11px', fontWeight: '600', 
                                         backgroundColor: selectedApplication.status === 'approved' ? 'rgba(52,199,89,0.1)' : selectedApplication.status === 'hold' ? 'rgba(255,159,10,0.1)' : 'rgba(0,0,0,0.05)',
                                         color: selectedApplication.status === 'approved' ? '#34c759' : selectedApplication.status === 'hold' ? '#ff9f0a' : '#000',
                                         textTransform: 'uppercase'
@@ -5130,7 +5626,7 @@ const Admin = () => {
 
                             return (
                                 <div key={key} style={{ animation: 'fadeInUp 0.4s ease-out' }}>
-                                    <h4 style={{ margin: '0 0 8px 0', fontSize: '11px', fontWeight: '900', color: '#667777', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</h4>
+                                    <h4 style={{ margin: '0 0 8px 0', fontSize: '11px', fontWeight: '700', color: '#667777', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</h4>
                                     <div style={{ fontSize: '15px', fontWeight: '600', color: '#111', lineHeight: '1.6', backgroundColor: 'rgba(0,0,0,0.02)', padding: '12px 16px', borderRadius: '12px', border: '1px solid rgba(0,0,0,0.02)' }}>
                                         {typeof value === 'string' && value.startsWith('http') && (value.match(/\.(jpeg|jpg|gif|png|webp)/i) || value.includes('firebasestorage')) ? (
                                             <CacheImage src={value} alt={label} style={{ maxWidth: '100%', maxHeight: '200px', borderRadius: '12px', marginTop: '4px' }} />
@@ -5145,7 +5641,7 @@ const Admin = () => {
                         {/* Special case for longer text fields if they weren't caught in the grid */}
                         {selectedApplication.description && (
                             <div style={{ gridColumn: 'span 2', marginTop: '1rem' }}>
-                                <h4 style={{ margin: '0 0 8px 0', fontSize: '11px', fontWeight: '900', color: '#667777', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Full Description</h4>
+                                <h4 style={{ margin: '0 0 8px 0', fontSize: '11px', fontWeight: '700', color: '#667777', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Full Description</h4>
                                 <div style={{ fontSize: '15px', fontWeight: '500', color: '#333', lineHeight: '1.8', backgroundColor: 'rgba(0,0,0,0.02)', padding: '20px', borderRadius: '16px', border: '1px solid rgba(0,0,0,0.02)', whiteSpace: 'pre-wrap' }}>
                                     {selectedApplication.description}
                                 </div>
@@ -5159,19 +5655,19 @@ const Admin = () => {
                         <div style={{ padding: '2.5rem 4rem', borderTop: '1px solid rgba(0,0,0,0.05)', display: 'flex', justifyContent: 'center', gap: '1.5rem', background: '#fff' }}>
                             <button 
                                 onClick={() => { handleAppStatus(selectedApplication.id, 'approved'); setShowAppDetail(false); }}
-                                style={{ padding: '16px 48px', borderRadius: '16px', background: '#007aff', color: '#fff', border: 'none', fontWeight: '800', fontSize: '15px', cursor: 'pointer', transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)', boxShadow: '0 8px 25px rgba(0, 122, 255, 0.2)' }}
+                                style={{ padding: '16px 48px', borderRadius: '16px', background: '#007aff', color: '#fff', border: 'none', fontWeight: '600', fontSize: '15px', cursor: 'pointer', transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)', boxShadow: '0 8px 25px rgba(0, 122, 255, 0.2)' }}
                                 onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-3px)'; e.currentTarget.style.boxShadow = '0 12px 30px rgba(0, 122, 255, 0.3)'; }}
                                 onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 8px 25px rgba(0, 122, 255, 0.2)'; }}
                             >Approve Application</button>
                             <button 
                                 onClick={() => { handleAppStatus(selectedApplication.id, 'hold'); setShowAppDetail(false); }}
-                                style={{ padding: '16px 32px', borderRadius: '16px', background: 'rgba(255,159,10,0.1)', color: '#ff9f0a', border: '1px solid rgba(255,159,10,0.2)', fontWeight: '800', fontSize: '15px', cursor: 'pointer', transition: 'all 0.2s' }}
+                                style={{ padding: '16px 32px', borderRadius: '16px', background: 'rgba(255,159,10,0.1)', color: '#ff9f0a', border: '1px solid rgba(255,159,10,0.2)', fontWeight: '600', fontSize: '15px', cursor: 'pointer', transition: 'all 0.2s' }}
                                 onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgba(255,159,10,0.2)'}
                                 onMouseLeave={e => e.currentTarget.style.backgroundColor = 'rgba(255,159,10,0.1)'}
                             >Hold</button>
                             <button 
                                 onClick={() => { handleAppStatus(selectedApplication.id, 'rejected'); setShowAppDetail(false); }}
-                                style={{ padding: '16px 32px', borderRadius: '16px', background: 'rgba(255,59,48,0.1)', color: '#ff3b30', border: '1px solid rgba(255,59,48,0.2)', fontWeight: '800', fontSize: '15px', cursor: 'pointer', transition: 'all 0.2s' }}
+                                style={{ padding: '16px 32px', borderRadius: '16px', background: 'rgba(255,59,48,0.1)', color: '#ff3b30', border: '1px solid rgba(255,59,48,0.2)', fontWeight: '600', fontSize: '15px', cursor: 'pointer', transition: 'all 0.2s' }}
                                 onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgba(255,59,48,0.2)'}
                                 onMouseLeave={e => e.currentTarget.style.backgroundColor = 'rgba(255,59,48,0.1)'}
                             >Reject</button>
@@ -5185,10 +5681,10 @@ const Admin = () => {
             <div style={{ position: 'fixed', top: 0, left: '300px', right: 0, bottom: 0, backgroundColor: '#f5f5ee', zIndex: 6000, display: 'flex', flexDirection: 'column', animation: 'fadeIn 0.3s ease-out', overflowY: 'auto' }}>
                 {/* Header/Nav */}
                 <div style={{ position: 'sticky', top: 0, background: 'rgba(245, 245, 238, 0.95)', backdropFilter: 'blur(20px)', zIndex: 10, padding: '1.5rem 4rem', borderBottom: '1px solid rgba(0,0,0,0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div style={{ fontWeight: '900', fontSize: '12px', color: '#000', letterSpacing: '0.1em', opacity: 0.5 }}>BLOG PREVIEW</div>
+                    <div style={{ fontWeight: '700', fontSize: '12px', color: '#000', letterSpacing: '0.1em', opacity: 0.5 }}>BLOG PREVIEW</div>
                     <div style={{ display: 'flex', gap: '1rem' }}>
                         <span style={{ 
-                            padding: '6px 16px', borderRadius: '10px', fontSize: '11px', fontWeight: '900', 
+                            padding: '6px 16px', borderRadius: '10px', fontSize: '11px', fontWeight: '700', 
                             backgroundColor: selectedBlog.status === 'approved' ? 'rgba(52,199,89,0.1)' : 'rgba(255,149,0,0.1)',
                             color: selectedBlog.status === 'approved' ? '#34c759' : '#ff9500',
                             textTransform: 'uppercase', letterSpacing: '0.05em'
@@ -5209,7 +5705,7 @@ const Admin = () => {
                             Back to All Posts
                         </button>
 
-                        <h1 style={{ fontSize: '3rem', fontWeight: '800', color: '#111', margin: '0 0 1rem 0', lineHeight: '1.1', letterSpacing: '-0.02em' }}>{selectedBlog.title}</h1>
+                        <h1 style={{ fontSize: '3rem', fontWeight: '600', color: '#111', margin: '0 0 1rem 0', lineHeight: '1.1', letterSpacing: '-0.02em' }}>{selectedBlog.title}</h1>
                         
                         <div style={{ display: 'flex', gap: '10px', fontSize: '15px', color: '#666', marginBottom: '2.5rem' }}>
                             <span>{new Date(selectedBlog.date || selectedBlog.createdAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</span>
@@ -5238,7 +5734,7 @@ const Admin = () => {
                     />
                     
                     <div style={{ margin: '5rem 0', padding: '3rem', borderRadius: '16px', backgroundColor: 'rgba(0,0,0,0.03)', textAlign: 'center' }}>
-                        <h3 style={{ fontWeight: '800', marginBottom: '1rem' }}>End of Preview</h3>
+                        <h3 style={{ fontWeight: '600', marginBottom: '1rem' }}>End of Preview</h3>
                         <p style={{ color: '#666', fontSize: '15px', fontWeight: '600' }}>This is how the blog post will appear to users on the main website.</p>
                     </div>
                 </article>
@@ -5252,7 +5748,7 @@ const Admin = () => {
                     .blog-content-preview h2 { font-size: 2.2rem; font-weight: 900; margin: 2rem 0 1rem; letter-spacing: -0.03em; color: #000; }
                     .blog-content-preview h3 { font-size: 1.8rem; font-weight: 800; margin: 1.5rem 0 1rem; color: #000; }
                     .blog-content-preview img { max-width: 100%; height: auto; borderRadius: 12px; margin: 2rem 0; box-shadow: 0 10px 30px rgba(0,0,0,0.05); }
-                    .blog-content-preview blockquote { border-left: 4px solid #6300dd; padding-left: 2rem; margin: 2rem 0; font-style: italic; color: #444; font-size: 1.3rem; }
+                    .blog-content-preview blockquote { border-left: 4px solid #000000; padding-left: 2rem; margin: 2rem 0; font-style: italic; color: #444; font-size: 1.3rem; }
                     .blog-content-preview ul, .blog-content-preview ol { margin-bottom: 1.5rem; padding-left: 1.5rem; }
                     .blog-content-preview li { margin-bottom: 0.5rem; }
                 `}</style>
@@ -5265,7 +5761,7 @@ const Admin = () => {
                     <div style={{ width: '50px', height: '50px', backgroundColor: 'rgba(255,59,48,0.1)', borderRadius: '15px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ff3b30', marginBottom: '1.5rem' }}>
                         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
                     </div>
-                    <h3 style={{ margin: '0 0 1rem 0', fontWeight: '900', fontSize: '1.4rem' }}>{confirmModal.title}</h3>
+                    <h3 style={{ margin: '0 0 1rem 0', fontWeight: '700', fontSize: '1.4rem' }}>{confirmModal.title}</h3>
                     <p style={{ margin: '0 0 2rem 0', color: '#666', lineHeight: '1.6', fontSize: '15px' }}>{confirmModal.message}</p>
                     
                     <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', marginBottom: '2rem' }}>
@@ -5280,7 +5776,7 @@ const Admin = () => {
                     <div style={{ display: 'flex', gap: '12px' }}>
                         <button 
                             onClick={() => setConfirmModal({ ...confirmModal, show: false })}
-                            style={{ flex: 1, padding: '14px', backgroundColor: 'rgba(0,0,0,0.05)', border: 'none', borderRadius: '14px', fontWeight: '800', cursor: 'pointer', transition: 'all 0.2s' }}
+                            style={{ flex: 1, padding: '14px', backgroundColor: 'rgba(0,0,0,0.05)', border: 'none', borderRadius: '14px', fontWeight: '600', cursor: 'pointer', transition: 'all 0.2s' }}
                             onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.08)'}
                             onMouseLeave={e => e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.05)'}
                         >Cancel</button>
@@ -5293,7 +5789,7 @@ const Admin = () => {
                                 confirmModal.onConfirm();
                                 setConfirmModal({ ...confirmModal, show: false });
                             }}
-                            style={{ flex: 1.5, padding: '14px', backgroundColor: '#ff3b30', color: '#fff', border: 'none', borderRadius: '14px', fontWeight: '800', cursor: 'pointer', transition: 'all 0.2s', boxShadow: '0 4px 12px rgba(255,59,48,0.2)' }}
+                            style={{ flex: 1.5, padding: '14px', backgroundColor: '#ff3b30', color: '#fff', border: 'none', borderRadius: '14px', fontWeight: '600', cursor: 'pointer', transition: 'all 0.2s', boxShadow: '0 4px 12px rgba(255,59,48,0.2)' }}
                             onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-2px)'}
                             onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}
                         >Confirm Action</button>
@@ -5301,66 +5797,66 @@ const Admin = () => {
                 </div>
             </div>
         )}
+
+        {/* Expanded Chart View */}
         {expandingChart && (
-            <div style={{ position: 'fixed', top: 0, left: '300px', right: 0, bottom: 0, backgroundColor: 'rgba(255,255,255,0.98)', zIndex: 9999, display: 'flex', flexDirection: 'column', padding: '5rem', animation: 'expandChart 0.4s cubic-bezier(0.16, 1, 0.3, 1)', fontFamily: chartFont }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4rem' }}>
-                    <div>
-                        <h2 style={{ margin: 0, fontWeight: '900', fontSize: '3rem', letterSpacing: '-0.04em' }}>{expandingChart} Distribution</h2>
-                        <p style={{ margin: '8px 0 0', fontSize: '16px', color: '#667777', fontWeight: '600' }}>In-depth metrics for the current startup batch</p>
+            <div className="expanding-chart-overlay" style={{ position: 'fixed', top: 0, left: '300px', right: 0, bottom: 0, backgroundColor: '#fff', zIndex: 9999, display: 'flex', flexDirection: 'column', padding: '2rem 3rem', animation: 'expandChart 0.4s cubic-bezier(0.16, 1, 0.3, 1)', fontFamily: chartFont }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                        <button 
+                            onClick={() => setExpandingChart(null)}
+                            style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(0,0,0,0.04)', border: 'none', color: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'all 0.2s' }}
+                            onMouseEnter={e => e.currentTarget.style.background = 'rgba(0,0,0,0.08)'}
+                            onMouseLeave={e => e.currentTarget.style.background = 'rgba(0,0,0,0.04)'}
+                        >
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+                        </button>
+                        <div>
+                            <h2 style={{ margin: 0, fontWeight: '700', fontSize: '1.8rem', letterSpacing: '-0.04em', color: '#000' }}>{expandingChart} Distribution</h2>
+                            <p style={{ margin: '2px 0 0', fontSize: '13px', color: '#667777', fontWeight: '500' }}>Performance metrics and batch analytics</p>
+                        </div>
                     </div>
-                    <div style={{ display: 'flex', gap: '20px', alignItems: 'center', flexWrap: 'wrap' }}>
-                        {expandingChart === 'Weekly' ? (
-                            <div style={{ display: 'flex', background: 'rgba(0,0,0,0.05)', borderRadius: '12px', padding: '4px' }}>
-                                {['Area', 'Line', 'Bar'].map(t => (
-                                    <button key={t} onClick={() => setWeeklyChartType(t)} style={{ padding: '8px 20px', border: 'none', borderRadius: '10px', background: weeklyChartType === t ? '#fff' : 'transparent', fontSize: '11px', fontWeight: '800', cursor: 'pointer', boxShadow: weeklyChartType === t ? '0 4px 10px rgba(0,0,0,0.1)' : 'none' }}>{t.toUpperCase()}</button>
-                                ))}
-                            </div>
-                        ) : (
+                    
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                        <div style={{ display: 'flex', background: 'rgba(0,0,0,0.05)', borderRadius: '8px', padding: '3px', marginRight: '5px' }}>
+                            {['Area', 'Line', 'Bar'].map(t => (
+                                <button 
+                                    key={t} 
+                                    onClick={() => expandingChart === 'Weekly' ? setWeeklyChartType(t) : setChartType(t)} 
+                                    style={{ padding: '6px 14px', border: 'none', borderRadius: '6px', background: (expandingChart === 'Weekly' ? weeklyChartType === t : chartType === t) ? '#000' : 'transparent', color: (expandingChart === 'Weekly' ? weeklyChartType === t : chartType === t) ? '#fff' : '#666', fontSize: '10px', fontWeight: '600', cursor: 'pointer', transition: '0.2s' }}
+                                >{t.toUpperCase()}</button>
+                            ))}
+                        </div>
+
+                        {expandingChart !== 'Weekly' && (
                             <>
-                                <div style={{ display: 'flex', background: 'rgba(0,0,0,0.05)', borderRadius: '12px', padding: '4px' }}>
+                                <div style={{ display: 'flex', background: 'rgba(0,0,0,0.05)', borderRadius: '8px', padding: '3px' }}>
                                     {['Category', 'Industry'].map(g => (
-                                        <button key={g} onClick={() => setDistGrouping(g)} style={{ padding: '8px 20px', border: 'none', borderRadius: '10px', background: distGrouping === g ? '#fff' : 'transparent', fontSize: '11px', fontWeight: '800', cursor: 'pointer', boxShadow: distGrouping === g ? '0 4px 10px rgba(0,0,0,0.1)' : 'none' }}>{g.toUpperCase()}</button>
+                                        <button key={g} onClick={() => setDistGrouping(g)} style={{ padding: '6px 12px', border: 'none', borderRadius: '6px', background: distGrouping === g ? '#fff' : 'transparent', fontSize: '10px', fontWeight: '600', cursor: 'pointer', boxShadow: distGrouping === g ? '0 2px 4px rgba(0,0,0,0.05)' : 'none', transition: '0.2s' }}>{g.toUpperCase()}</button>
                                     ))}
                                 </div>
                                 <select 
                                     value={distFilterStatus}
                                     onChange={e => setDistFilterStatus(e.target.value)}
-                                    style={{ padding: '10px 20px', borderRadius: '12px', border: '1px solid rgba(0,0,0,0.1)', background: '#fff', fontSize: '13px', fontWeight: '700', outline: 'none', cursor: 'pointer' }}
+                                    style={{ padding: '8px 12px', borderRadius: '8px', border: '1px solid rgba(0,0,0,0.08)', background: '#fff', fontSize: '11px', fontWeight: '600', outline: 'none', cursor: 'pointer' }}
                                 >
                                     <option value="all">All Status</option>
                                     <option value="pending">Pending</option>
                                     <option value="approved">Approved</option>
                                     <option value="rejected">Rejected</option>
                                 </select>
-                                <select 
-                                    value={distFilterBatch}
-                                    onChange={e => setDistFilterBatch(e.target.value)}
-                                    style={{ padding: '10px 20px', borderRadius: '12px', border: '1px solid rgba(0,0,0,0.1)', background: '#fff', fontSize: '13px', fontWeight: '700', outline: 'none', cursor: 'pointer' }}
-                                >
-                                    <option value="all">All Batches</option>
-                                    {[...new Set(applications.map(a => a.batch || 'Upcoming'))].sort().map(b => (
-                                        <option key={b} value={b}>{b}</option>
-                                    ))}
-                                </select>
                             </>
                         )}
+
                         <select 
                             value={chartFont} 
                             onChange={e => setChartFont(e.target.value)}
-                            style={{ padding: '10px 20px', borderRadius: '12px', border: '1px solid rgba(0,0,0,0.1)', background: '#fff', fontSize: '13px', fontWeight: '700', outline: 'none', cursor: 'pointer' }}
+                            style={{ padding: '10px 16px', borderRadius: '10px', border: '1px solid rgba(0,0,0,0.08)', background: '#fff', fontSize: '12px', fontWeight: '600', outline: 'none', cursor: 'pointer' }}
                         >
-                            <option value="Inter">Inter (Sans)</option>
+                            <option value="Outfit">Outfit (Classic)</option>
+                            <option value="Inter">Inter (Modern)</option>
                             <option value="'Roboto Mono', monospace">Roboto Mono (Code)</option>
-                            <option value="'Playfair Display', serif">Playfair (Serif)</option>
                         </select>
-                        <button 
-                            onClick={() => setExpandingChart(null)}
-                            style={{ width: '56px', height: '56px', borderRadius: '50%', background: '#000', border: 'none', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', boxShadow: '0 10px 30px rgba(0,0,0,0.2)', transition: 'transform 0.2s' }}
-                            onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.1)'}
-                            onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
-                        >
-                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-                        </button>
                     </div>
                 </div>
 
@@ -5388,68 +5884,86 @@ const Admin = () => {
 
                             const data = Object.entries(distribution).map(([name, value]) => ({ name, value })).sort((a,b) => b.value - a.value);
 
-                            return chartType === 'Bar' ? (
-                                <BarChart data={data}>
-                                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 11, fontWeight: 700, fill: '#667777' }} />
-                                    <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fontWeight: 700, fill: '#667777' }} />
-                                    <Tooltip cursor={{ fill: 'rgba(0,0,0,0.02)' }} contentStyle={{ borderRadius: '14px', border: 'none', boxShadow: '0 20px 50px rgba(0,0,0,0.1)' }} />
-                                    <Bar dataKey="value" fill="#000" radius={[8, 8, 0, 0]} barSize={60} />
-                                </BarChart>
-                            ) : (
-                                <LineChart data={data}>
-                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(0,0,0,0.05)" />
-                                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 11, fontWeight: 700, fill: '#667777' }} />
-                                    <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fontWeight: 700, fill: '#667777' }} />
-                                    <Tooltip contentStyle={{ borderRadius: '14px', border: 'none', boxShadow: '0 20px 50px rgba(0,0,0,0.1)' }} />
-                                    <Line type="monotone" dataKey="value" stroke="#000" strokeWidth={5} dot={{ r: 6, fill: '#000', strokeWidth: 3, stroke: '#fff' }} activeDot={{ r: 8 }} />
-                                </LineChart>
+                            const ChartComp = chartType === 'Bar' ? BarChart : (chartType === 'Line' ? LineChart : AreaChart);
+                            const DataComp = chartType === 'Bar' ? Bar : (chartType === 'Line' ? Line : Area);
+
+                            return (
+                                <div style={{ height: '450px', width: '100%', maxWidth: '1000px', margin: '0 auto' }}>
+                                    <ChartComp data={data} barCategoryGap="25%">
+                                        <defs>
+                                            <linearGradient id="colorExp" x1="0" y1="0" x2="0" y2="1">
+                                                <stop offset="5%" stopColor="#000" stopOpacity={0.15}/>
+                                                <stop offset="95%" stopColor="#000" stopOpacity={0}/>
+                                            </linearGradient>
+                                        </defs>
+                                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(0,0,0,0.05)" />
+                                        <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 500, fill: '#667777' }} padding={{ left: 40, right: 40 }} />
+                                        <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 500, fill: '#667777' }} />
+                                        <Tooltip 
+                                            cursor={{ fill: 'rgba(0,0,0,0.02)' }} 
+                                            contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 15px 40px rgba(0,0,0,0.08)', padding: '10px' }}
+                                            itemStyle={{ fontWeight: 600, fontSize: '12px' }}
+                                            labelStyle={{ fontWeight: 600, fontSize: '10px', color: '#888', marginBottom: '2px' }}
+                                        />
+                                        <DataComp 
+                                            type="monotone" 
+                                            dataKey="value" 
+                                            stroke="#000" 
+                                            strokeWidth={2.5} 
+                                            fillOpacity={1} 
+                                            fill="url(#colorExp)"
+                                            barSize={chartType === 'Bar' ? 50 : undefined}
+                                            radius={chartType === 'Bar' ? [6, 6, 0, 0] : undefined}
+                                            dot={{ r: 4, fill: '#000', strokeWidth: 2, stroke: '#fff' }} 
+                                            activeDot={{ r: 6 }} 
+                                        />
+                                    </ChartComp>
+                                </div>
                             );
-                        })() : weeklyChartType === 'Bar' ? (
-                            <BarChart data={Object.entries(applications.reduce((acc, app) => {
+                        })() : (() => {
+                            const data = Object.entries(applications.reduce((acc, app) => {
                                 const date = new Date(app.submittedAt || Date.now());
                                 const week = `W${Math.ceil(date.getDate() / 7)}`;
                                 acc[week] = (acc[week] || 0) + 1;
                                 return acc;
-                            }, {})).map(([name, value]) => ({ name, value }))}>
-                                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fontWeight: 700, fill: '#667777' }} />
-                                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fontWeight: 700, fill: '#667777' }} />
-                                <Tooltip cursor={{ fill: 'rgba(0,0,0,0.02)' }} contentStyle={{ borderRadius: '10px', border: 'none', boxShadow: '0 20px 40px rgba(0,0,0,0.1)' }} />
-                                <Bar dataKey="value" fill="#000" radius={[8, 8, 0, 0]} barSize={80} />
-                            </BarChart>
-                        ) : weeklyChartType === 'Line' ? (
-                            <LineChart data={Object.entries(applications.reduce((acc, app) => {
-                                const date = new Date(app.submittedAt || Date.now());
-                                const week = `W${Math.ceil(date.getDate() / 7)}`;
-                                acc[week] = (acc[week] || 0) + 1;
-                                return acc;
-                            }, {})).map(([name, value]) => ({ name, value }))}>
-                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(0,0,0,0.05)" />
-                                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fontWeight: 700, fill: '#667777' }} />
-                                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fontWeight: 700, fill: '#667777' }} />
-                                <Tooltip contentStyle={{ borderRadius: '10px', border: 'none', boxShadow: '0 20px 40px rgba(0,0,0,0.1)' }} />
-                                <Line type="monotone" dataKey="value" stroke="#000" strokeWidth={5} dot={{ r: 6, fill: '#000', strokeWidth: 3, stroke: '#fff' }} activeDot={{ r: 8 }} />
-                            </LineChart>
-                        ) : (
-                            <AreaChart data={Object.entries(applications.reduce((acc, app) => {
-                                const date = new Date(app.submittedAt || Date.now());
-                                const week = `W${Math.ceil(date.getDate() / 7)}`;
-                                acc[week] = (acc[week] || 0) + 1;
-                                return acc;
-                            }, {})).map(([name, value]) => ({ name, value }))}>
-                                <defs>
-                                    <linearGradient id="colorExp" x1="0" y1="0" x2="0" y2="1">
-                                        <stop offset="5%" stopColor="#000" stopOpacity={0.2}/>
-                                        <stop offset="95%" stopColor="#000" stopOpacity={0}/>
-                                    </linearGradient>
-                                </defs>
-                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(0,0,0,0.05)" />
-                                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fontWeight: 700, fill: '#667777' }} />
-                                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fontWeight: 700, fill: '#667777' }} />
-                                <Tooltip contentStyle={{ borderRadius: '10px', border: 'none', boxShadow: '0 20px 40px rgba(0,0,0,0.1)' }} />
-                                <Area type="monotone" dataKey="value" stroke="#000" strokeWidth={5} fillOpacity={1} fill="url(#colorExp)" />
-                            </AreaChart>
-                        )
-                        }
+                            }, {})).map(([name, value]) => ({ name, value }));
+
+                            const ChartComp = weeklyChartType === 'Bar' ? BarChart : (weeklyChartType === 'Line' ? LineChart : AreaChart);
+                            const DataComp = weeklyChartType === 'Bar' ? Bar : (weeklyChartType === 'Line' ? Line : Area);
+
+                            return (
+                                <div style={{ height: '450px', width: '100%', maxWidth: '1000px', margin: '0 auto' }}>
+                                    <ChartComp data={data} barCategoryGap="25%">
+                                        <defs>
+                                            <linearGradient id="colorExpWeekly" x1="0" y1="0" x2="0" y2="1">
+                                                <stop offset="5%" stopColor="#000000" stopOpacity={0.15}/>
+                                                <stop offset="95%" stopColor="#000000" stopOpacity={0}/>
+                                            </linearGradient>
+                                        </defs>
+                                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(0,0,0,0.05)" />
+                                        <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 11, fontWeight: 500, fill: '#667777' }} padding={{ left: 40, right: 40 }} />
+                                        <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fontWeight: 500, fill: '#667777' }} />
+                                        <Tooltip 
+                                            contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 15px 40px rgba(0,0,0,0.08)', padding: '10px' }}
+                                            itemStyle={{ fontWeight: 600, fontSize: '12px' }}
+                                            labelStyle={{ fontWeight: 600, fontSize: '10px', color: '#888', marginBottom: '2px' }}
+                                        />
+                                        <DataComp 
+                                            type="monotone" 
+                                            dataKey="value" 
+                                            stroke="#000000" 
+                                            strokeWidth={2.5} 
+                                            fillOpacity={1} 
+                                            fill="url(#colorExpWeekly)"
+                                            barSize={weeklyChartType === 'Bar' ? 50 : undefined}
+                                            radius={weeklyChartType === 'Bar' ? [6, 6, 0, 0] : undefined}
+                                            dot={{ r: 4, fill: '#000000', strokeWidth: 2, stroke: '#fff' }} 
+                                            activeDot={{ r: 6 }} 
+                                        />
+                                    </ChartComp>
+                                </div>
+                            );
+                        })()}
                     </ResponsiveContainer>
                 </div>
             </div>
@@ -5464,12 +5978,12 @@ const Admin = () => {
 
         {/* Founder Profile Editor Modal */}
         {showFounderEditor && selectedFounder && (
-            <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(10px)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', animation: 'fadeIn 0.2s ease-out' }}>
-                <div style={{ width: '600px', backgroundColor: '#fff', borderRadius: '16px', boxShadow: '0 30px 100px rgba(0,0,0,0.3)', display: 'flex', flexDirection: 'column', maxHeight: '90vh', overflow: 'hidden', animation: 'fadeInUp 0.3s cubic-bezier(0.16, 1, 0.3, 1)' }}>
+            <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(10px)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', animation: 'fadeIn 0.2s ease-out', padding: '1rem' }}>
+                <div className="modal-content" style={{ width: '600px', backgroundColor: '#fff', borderRadius: '16px', boxShadow: '0 30px 100px rgba(0,0,0,0.3)', display: 'flex', flexDirection: 'column', maxHeight: '90vh', overflow: 'hidden', animation: 'fadeInUp 0.3s cubic-bezier(0.16, 1, 0.3, 1)' }}>
                     {/* Header */}
                     <div style={{ padding: '24px 32px', borderBottom: '1px solid rgba(0,0,0,0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <div>
-                            <h3 style={{ margin: 0, fontWeight: '900', fontSize: '1.25rem' }}>Edit Founder Profile</h3>
+                            <h3 style={{ margin: 0, fontWeight: '700', fontSize: '1.25rem' }}>Edit Founder Profile</h3>
                             <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#667', fontWeight: '600' }}>Manage profile details and public identity</p>
                         </div>
                         <button 
@@ -5484,12 +5998,12 @@ const Admin = () => {
 
                     {/* Content */}
                     <div style={{ padding: '32px', overflowY: 'auto', flex: 1 }}>
-                        <div style={{ display: 'flex', gap: '24px', marginBottom: '32px' }}>
+                        <div className="mobile-stack" style={{ display: 'flex', gap: '24px', marginBottom: '32px' }}>
                             <div style={{ position: 'relative', width: '100px', height: '100px' }}>
                                 {selectedFounder.profile?.profileImage || selectedFounder.photoURL ? (
                                     <img src={selectedFounder.profile?.profileImage || selectedFounder.photoURL} style={{ width: '100%', height: '100%', borderRadius: '12px', objectFit: 'cover', border: '2px solid #fff', boxShadow: '0 4px 15px rgba(0,0,0,0.1)' }} alt="" />
                                 ) : (
-                                    <div style={{ width: '100%', height: '100%', borderRadius: '12px', backgroundColor: '#f0f0f5', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px', fontWeight: '900', color: '#ccc' }}>
+                                    <div style={{ width: '100%', height: '100%', borderRadius: '12px', backgroundColor: '#f0f0f5', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px', fontWeight: '700', color: '#ccc' }}>
                                         {(selectedFounder.profile?.name || selectedFounder.name || 'U').charAt(0).toUpperCase()}
                                     </div>
                                 )}
@@ -5516,7 +6030,7 @@ const Admin = () => {
                             </div>
                             <div style={{ flex: 1 }}>
                                 <div style={{ marginBottom: '20px' }}>
-                                    <label style={{ display: 'block', fontSize: '11px', fontWeight: '900', color: '#667', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '8px' }}>Display Name</label>
+                                    <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#667', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '8px' }}>Display Name</label>
                                     <input 
                                         type="text"
                                         value={selectedFounder.profile?.name || selectedFounder.name || ''}
@@ -5525,7 +6039,7 @@ const Admin = () => {
                                     />
                                 </div>
                                 <div style={{ marginBottom: '20px' }}>
-                                    <label style={{ display: 'block', fontSize: '11px', fontWeight: '900', color: '#667', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '8px' }}>Email Address</label>
+                                    <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#667', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '8px' }}>Email Address</label>
                                     <input 
                                         type="text"
                                         value={selectedFounder.email || ''}
@@ -5537,7 +6051,7 @@ const Admin = () => {
                         </div>
 
                         <div style={{ marginBottom: '24px' }}>
-                            <label style={{ display: 'block', fontSize: '11px', fontWeight: '900', color: '#667', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '8px' }}>Bio / Description</label>
+                            <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#667', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '8px' }}>Bio / Description</label>
                             <textarea 
                                 value={selectedFounder.profile?.bio || selectedFounder.profile?.description || ''}
                                 onChange={e => setSelectedFounder({...selectedFounder, profile: {...selectedFounder.profile, bio: e.target.value}})}
@@ -5548,7 +6062,7 @@ const Admin = () => {
 
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
                             <div>
-                                <label style={{ display: 'block', fontSize: '11px', fontWeight: '900', color: '#667', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '8px' }}>LinkedIn URL</label>
+                                <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#667', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '8px' }}>LinkedIn URL</label>
                                 <input 
                                     type="text"
                                     value={selectedFounder.profile?.linkedin || selectedFounder.linkedin || ''}
@@ -5558,7 +6072,7 @@ const Admin = () => {
                                 />
                             </div>
                             <div>
-                                <label style={{ display: 'block', fontSize: '11px', fontWeight: '900', color: '#667', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '8px' }}>Twitter / X URL</label>
+                                <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#667', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '8px' }}>Twitter / X URL</label>
                                 <input 
                                     type="text"
                                     value={selectedFounder.profile?.twitter || selectedFounder.twitter || ''}
@@ -5574,7 +6088,7 @@ const Admin = () => {
                     <div style={{ padding: '24px 32px', borderTop: '1px solid rgba(0,0,0,0.05)', backgroundColor: 'rgba(0,0,0,0.01)', display: 'flex', gap: '16px', justifyContent: 'flex-end' }}>
                         <button 
                             onClick={() => setShowFounderEditor(false)}
-                            style={{ padding: '12px 24px', borderRadius: '12px', border: '1px solid rgba(0,0,0,0.1)', background: '#fff', fontWeight: '800', fontSize: '14px', cursor: 'pointer' }}
+                            style={{ padding: '12px 24px', borderRadius: '12px', border: '1px solid rgba(0,0,0,0.1)', background: '#fff', fontWeight: '600', fontSize: '14px', cursor: 'pointer' }}
                         >Cancel</button>
                         <button 
                             onClick={async () => {
@@ -5594,7 +6108,7 @@ const Admin = () => {
                                 finally { setIsUploadingImage(false); }
                             }}
                             disabled={isUploadingImage}
-                            style={{ padding: '12px 32px', borderRadius: '12px', border: 'none', background: '#000', color: '#fff', fontWeight: '800', fontSize: '14px', cursor: 'pointer', boxShadow: '0 4px 15px rgba(0,0,0,0.2)', opacity: isUploadingImage ? 0.7 : 1 }}
+                            style={{ padding: '12px 32px', borderRadius: '12px', border: 'none', background: '#000', color: '#fff', fontWeight: '600', fontSize: '14px', cursor: 'pointer', boxShadow: '0 4px 15px rgba(0,0,0,0.2)', opacity: isUploadingImage ? 0.7 : 1 }}
                         >
                             {isUploadingImage ? 'Saving...' : 'Save Changes'}
                         </button>

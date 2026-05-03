@@ -249,11 +249,11 @@ const Blog = ({ embedded }) => {
 
   return (
     <div style={{ backgroundColor: embedded ? 'transparent' : '#f5f5ee', minHeight: '100%', paddingBottom: embedded ? '2rem' : '10rem' }}>
-      <div style={{ maxWidth: '1100px', margin: '0 auto', padding: embedded ? '2rem 0' : '2rem 2rem 0 2rem' }}>
+      <div className="blog-container" style={{ maxWidth: '1100px', margin: '0 auto', padding: embedded ? '2rem 0' : '2rem 1.5rem 0 1.5rem' }}>
         
         {selectedBlog ? (
           /* SINGLE BLOG VIEW */
-          <div style={{ padding: '6rem 0 10rem 0' }}>
+          <div className="blog-single-view" style={{ padding: '4rem 0 10rem 0' }}>
             <div style={{ maxWidth: '800px', margin: '0 auto' }}>
                 <button 
                     onClick={() => handleOpenBlog(null)} 
@@ -263,12 +263,12 @@ const Blog = ({ embedded }) => {
                     Back to All Posts
                 </button>
 
-                <h1 style={{ fontSize: '3rem', fontWeight: '800', color: '#111', margin: '0 0 1rem 0', lineHeight: '1.1', letterSpacing: '-0.02em' }}>{selectedBlog.title}</h1>
+                <h1 className="responsive-h1" style={{ margin: '0 0 1.5rem 0', textAlign: 'left' }}>{selectedBlog.title}</h1>
                 
-                <div style={{ display: 'flex', gap: '10px', fontSize: '15px', color: '#666', marginBottom: '2.5rem' }}>
+                <div style={{ display: 'flex', gap: '10px', fontSize: '15px', color: '#666', marginBottom: '2.5rem', flexWrap: 'wrap' }}>
                     <span>{new Date(selectedBlog.date || selectedBlog.createdAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</span>
                     <span>&bull;</span>
-                    <span>by <strong style={{ color: '#007bff' }}>{selectedBlog.author}</strong></span>
+                    <span>by <strong style={{ color: '#6300dd' }}>{selectedBlog.author}</strong></span>
                 </div>
 
                 {selectedBlog.image && (
@@ -278,10 +278,9 @@ const Blog = ({ embedded }) => {
                 )}
 
                 <div 
-                    className="blog-content-body"
+                    className="blog-content-body responsive-p"
                     style={{ 
-                        fontSize: '1.2rem', 
-                        lineHeight: '1.6', 
+                        lineHeight: '1.7', 
                         color: '#333', 
                         marginBottom: '5rem', 
                         whiteSpace: 'pre-wrap',
@@ -293,19 +292,23 @@ const Blog = ({ embedded }) => {
                 <style>{`
                     .blog-content-body p, 
                     .blog-content-body div { 
-                        margin: 0; 
-                        padding: 0;
+                        margin-bottom: 1.5rem; 
                     }
                     .blog-content-body h2 {
-                        margin-top: 1.5rem;
-                        margin-bottom: 1rem;
+                        margin-top: 2rem;
+                        margin-bottom: 1.25rem;
+                        font-size: 1.75rem;
+                    }
+                    @media (max-width: 768px) {
+                        .blog-content-body h2 { font-size: 1.5rem; }
+                        .blog-single-view { padding: 2rem 0 !important; }
                     }
                 `}</style>
 
                 <div style={{ borderTop: '1px solid #eee', paddingTop: '4rem', marginBottom: '6rem' }}>
                     <h4 style={{ fontSize: '12px', fontWeight: '700', color: '#999', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '2rem' }}>Author</h4>
-                    <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'flex-start' }}>
-                        <AuthorAvatar authorId={selectedBlog.userId} authorName={selectedBlog.author} existingImg={selectedBlog.authorImage || selectedBlog.authorPhoto || authorImageOverride} size="64px" />
+                    <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'center' }}>
+                        <AuthorAvatar authorId={selectedBlog.userId} authorName={selectedBlog.author} existingImg={selectedBlog.authorImage || selectedBlog.authorPhoto || authorImageOverride} size="60px" />
                         <div>
                             <h5 style={{ margin: '0 0 4px 0', fontSize: '18px', fontWeight: '700' }}>{selectedBlog.author}</h5>
                             <p style={{ margin: 0, fontSize: '14px', color: '#666', lineHeight: '1.5' }}>{selectedBlog.authorTitle || authorTitleOverride || 'X Foundary Contributor'}</p>
@@ -317,62 +320,44 @@ const Blog = ({ embedded }) => {
         ) : (
           /* BLOG LIST VIEW */
           <>
-            <div style={{ padding: '8rem 0 0 0' }} />
+            <div className="blog-list-header" style={{ paddingTop: '8rem' }}>
+                <h1 className="responsive-h1" style={{ textAlign: 'center', marginBottom: '4rem' }}>X Foundary Blog</h1>
+            </div>
             
             {/* Blog Nav & Search */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4.5rem', borderBottom: '1px solid rgba(0,0,0,0.06)', position: 'relative' }}>
-                <div style={{ display: 'flex', gap: '2rem', position: 'relative' }}>
+            <div className="blog-nav-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4rem', borderBottom: '1px solid rgba(0,0,0,0.06)', position: 'relative', flexWrap: 'wrap', gap: '1rem' }}>
+                <div style={{ display: 'flex', gap: '2rem', position: 'relative', overflowX: 'auto', paddingBottom: '0.5rem' }}>
                     {['All Posts', 'Startup Jobs', 'Startup School'].map(tab => (
                         <span 
                             key={tab} 
-                            id={`tab-${tab.replace(/\s+/g, '-')}`}
                             onClick={() => { setActiveTab(tab); setSelectedCategory(null); }} 
                             style={{
                                 padding: '1rem 0',
                                 cursor: 'pointer',
-                                fontSize: '15px',
+                                fontSize: '14px',
                                 fontWeight: '700',
                                 color: activeTab === tab ? '#111' : '#888',
                                 transition: 'color 0.2s ease',
-                                fontFamily: 'Inter, sans-serif'
+                                whiteSpace: 'nowrap',
+                                borderBottom: activeTab === tab ? '3px solid #ff6026' : '3px solid transparent'
                             }}
                         >
                             {tab}
                         </span>
                     ))}
-                    {/* Animated Indicator */}
-                    <div style={{
-                        position: 'absolute',
-                        bottom: '-1px',
-                        height: '3px',
-                        backgroundColor: '#ff6026',
-                        transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
-                        left: (() => {
-                            if (activeTab === 'All Posts') return '0';
-                            if (activeTab === 'Startup Jobs') return '95px';
-                            if (activeTab === 'Startup School') return '225px';
-                            return '0';
-                        })(),
-                        width: (() => {
-                            if (activeTab === 'All Posts') return '65px';
-                            if (activeTab === 'Startup Jobs') return '100px';
-                            if (activeTab === 'Startup School') return '110px';
-                            return '0';
-                        })()
-                    }} />
                 </div>
-                <div style={{ position: 'relative', display: 'flex', alignItems: 'center', marginBottom: '10px' }}>
-                    <div style={{ position: 'relative', display: 'flex', alignItems: 'center', backgroundColor: '#fff', border: '1px solid #e0e0e0', borderRadius: '6px', width: '320px', boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}>
+                <div style={{ position: 'relative', display: 'flex', alignItems: 'center', marginBottom: '10px', width: '100%', maxWidth: '320px' }}>
+                    <div style={{ position: 'relative', display: 'flex', alignItems: 'center', backgroundColor: '#fff', border: '1px solid #e0e0e0', borderRadius: '8px', width: '100%', boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}>
                         <svg style={{ position: 'absolute', left: '12px', color: '#999' }} width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
                         <input 
                           type="text" 
                           placeholder="Search Blog" 
                           value={searchTerm}
                           onChange={(e) => setSearchTerm(e.target.value)}
-                          style={{ padding: '12px 40px 12px 42px', border: 'none', borderRadius: '6px', fontSize: '15px', width: '100%', outline: 'none', background: 'transparent', fontWeight: '500' }} 
+                          style={{ padding: '12px 40px 12px 42px', border: 'none', borderRadius: '8px', fontSize: '15px', width: '100%', outline: 'none', background: 'transparent' }} 
                         />
                         {searchTerm && (
-                            <button onClick={handleClearSearch} style={{ position: 'absolute', right: '12px', background: 'none', border: 'none', cursor: 'pointer', color: '#999', display: 'flex', alignItems: 'center', padding: '4px' }}>
+                            <button onClick={handleClearSearch} style={{ position: 'absolute', right: '12px', background: 'none', border: 'none', cursor: 'pointer', color: '#999' }}>
                                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
                             </button>
                         )}
@@ -380,45 +365,31 @@ const Blog = ({ embedded }) => {
                 </div>
             </div>
 
-            {/* Spell Suggestion */}
-            {didYouMean && searchTerm && filteredPosts.length === 0 && (
-              <div style={{ marginBottom: '2rem', padding: '1rem', backgroundColor: 'rgba(255,96,38,0.05)', borderRadius: '8px', border: '1px solid rgba(255,96,38,0.1)' }}>
-                <span style={{ fontSize: '14px', color: '#666' }}>No results for "{searchTerm}". Did you mean: </span>
-                <button 
-                  onClick={() => handleOpenBlog(didYouMean)}
-                  style={{ background: 'none', border: 'none', color: '#ff6026', fontWeight: '600', cursor: 'pointer', padding: 0, fontSize: '14px', textDecoration: 'underline' }}
-                >
-                  {didYouMean.title}
-                </button>
-              </div>
-            )}
-
             {/* Featured Post */}
             {!selectedCategory && !currentFilter && pinnedPost && (
-                <div style={{ display: 'flex', gap: '4rem', marginBottom: '8rem', alignItems: 'center', paddingTop: '2rem' }}>
+                <div className="blog-featured-row" style={{ display: 'flex', gap: '4rem', marginBottom: '8rem', alignItems: 'center' }}>
                     <div style={{ flex: 1.2 }}>
-                        <h1 
+                        <h2 
                             onClick={() => handleOpenBlog(pinnedPost)}
-                            style={{ fontSize: '3.2rem', fontWeight: '900', marginBottom: '1.5rem', fontFamily: 'Inter, sans-serif', color: '#111', lineHeight: '1.1', cursor: 'pointer', letterSpacing: '-0.03em' }}
+                            className="responsive-h2"
+                            style={{ fontWeight: '900', marginBottom: '1.5rem', cursor: 'pointer', textAlign: 'left' }}
                         >
                             {pinnedPost.title}
-                        </h1>
-                        <p style={{ fontSize: '1.15rem', lineHeight: '1.7', color: '#333', marginBottom: '2rem', fontFamily: 'Inter, sans-serif', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden', maxWidth: '90%' }}>
+                        </h2>
+                        <p className="responsive-p" style={{ color: '#333', marginBottom: '2rem', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
                             {pinnedPost.content?.replace(/<[^>]*>?/gm, '').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&')}
                         </p>
                         <button 
                             onClick={() => handleOpenBlog(pinnedPost)}
-                            style={{ color: '#007bff', fontWeight: '700', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '8px', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontSize: '15px' }}
+                            style={{ color: '#6300dd', fontWeight: '700', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '8px', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontSize: '15px' }}
                         >
-                            Read More <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 8 16 12 12 16"></polyline><line x1="8" y1="12" x2="16" y2="12"></line></svg>
+                            Read More <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="12 8 16 12 12 16"></polyline><line x1="8" y1="12" x2="16" y2="12"></line></svg>
                         </button>
                     </div>
-                    <div style={{ flex: 1 }}>
+                    <div style={{ flex: 1, width: '100%' }}>
                         <div 
                             onClick={() => handleOpenBlog(pinnedPost)}
-                            style={{ width: '100%', aspectRatio: '1.1/1', borderRadius: '12px', overflow: 'hidden', boxShadow: '0 30px 60px rgba(0,0,0,0.12)', cursor: 'pointer', transition: 'transform 0.3s ease' }}
-                            onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.02)'}
-                            onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
+                            style={{ width: '100%', aspectRatio: '16/9', borderRadius: '16px', overflow: 'hidden', boxShadow: '0 20px 40px rgba(0,0,0,0.1)', cursor: 'pointer' }}
                         >
                             <img src={pinnedPost.image} alt="Featured" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                         </div>
@@ -428,87 +399,58 @@ const Blog = ({ embedded }) => {
 
             {/* Recent Posts Grid */}
             <h2 style={{ fontSize: '1rem', fontWeight: 'bold', color: '#ff6026', textTransform: 'uppercase', marginBottom: '2rem', letterSpacing: '0.05em' }}>
-                {currentFilter ? `SEARCH RESULTS FOR "${currentFilter.toUpperCase()}"` : 'RECENT POSTS'} {selectedCategory && `(${selectedCategory.toUpperCase()})`}
+                {currentFilter ? `SEARCH RESULTS FOR "${currentFilter.toUpperCase()}"` : 'RECENT POSTS'}
             </h2>
             
-            {filteredPosts.length > 0 ? (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '2rem', marginBottom: '8rem' }}>
-                    {filteredPosts.map(post => (
-                        <div 
-                            key={post.id} 
-                            className="blog-list-item"
-                            onClick={() => handleOpenBlog(post)} 
-                            style={{ backgroundColor: 'white', borderRadius: '12px', overflow: 'hidden', border: '1px solid #eee', display: 'flex', flexDirection: 'column', cursor: 'pointer' }}
-                        >
-                            <div style={{ width: '100%', aspectRatio: '16/9', overflow: 'hidden' }}>
-                                <img src={post.image} alt={post.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                            </div>
-                            <div style={{ padding: '1.5rem', flex: 1, display: 'flex', flexDirection: 'column' }}>
-                                <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold', marginBottom: '1rem', fontFamily: 'Inter, sans-serif', lineHeight: '1.3' }}>{post.title}</h3>
-                                <p style={{ fontSize: '0.95rem', color: '#555', lineHeight: '1.6', marginBottom: '1.5rem', flex: 1, display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-                                    {post.content?.replace(/<[^>]*>?/gm, '').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&')}
-                                </p>
-                                
-                                <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem' }}>
-                                    <span style={{ backgroundColor: '#f0f0f0', padding: '4px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: '600', color: '#666' }}>{post.category || 'General'}</span>
-                                </div>
-
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                                    <AuthorAvatar authorId={post.userId || post.authorId} authorName={post.author} existingImg={post.authorImage || post.authorPhoto} size="32px" />
-                                    <div>
-                                        <p style={{ margin: 0, fontSize: '13px', fontWeight: '600' }}>{post.author}</p>
-                                        <p style={{ margin: 0, fontSize: '12px', color: '#999' }}>{new Date(post.date || post.createdAt).toLocaleDateString()}</p>
-                                    </div>
-                                </div>
+            <div className="blog-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '2rem', marginBottom: '8rem' }}>
+                {filteredPosts.map(post => (
+                    <div 
+                        key={post.id} 
+                        onClick={() => handleOpenBlog(post)} 
+                        style={{ backgroundColor: 'white', borderRadius: '16px', overflow: 'hidden', border: '1px solid #eee', display: 'flex', flexDirection: 'column', cursor: 'pointer', transition: 'transform 0.2s' }}
+                        onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-4px)'}
+                        onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}
+                    >
+                        <div style={{ width: '100%', aspectRatio: '16/9', overflow: 'hidden' }}>
+                            <img src={post.image} alt={post.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        </div>
+                        <div style={{ padding: '1.5rem', flex: 1, display: 'flex', flexDirection: 'column' }}>
+                            <h3 style={{ fontSize: '1.15rem', fontWeight: 'bold', marginBottom: '1rem', lineHeight: '1.3' }}>{post.title}</h3>
+                            <div style={{ marginTop: 'auto', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                                <AuthorAvatar authorId={post.userId || post.authorId} authorName={post.author} existingImg={post.authorImage || post.authorPhoto} size="32px" />
+                                <span style={{ fontSize: '13px', color: '#666' }}>{post.author}</span>
                             </div>
                         </div>
-                    ))}
-                </div>
-            ) : (currentFilter || selectedCategory) ? (
-                <div style={{ textAlign: 'center', padding: '6rem 2rem', color: '#666', backgroundColor: '#fff', borderRadius: '12px', border: '1px solid #eee', marginBottom: '8rem' }}>
-                  <p style={{ fontSize: '1.25rem', fontWeight: '600', color: '#111', marginBottom: '0.5rem' }}>No posts found {currentFilter && `for "${currentFilter}"`}</p>
-                  {suggestion ? (
-                      <p style={{ fontSize: '1rem', color: '#666', marginBottom: '1.5rem' }}>
-                          Did you mean: <span onClick={() => { setSearchTerm(suggestion.title); }} style={{ color: '#ff6026', cursor: 'pointer', fontWeight: 'bold', borderBottom: '2px solid #ff6026' }}>{suggestion.title}</span>?
-                      </p>
-                  ) : (
-                      <p style={{ fontSize: '1rem', color: '#888', marginBottom: '1.5rem' }}>Try adjusting your keywords or filters.</p>
-                  )}
-                  <button onClick={handleClearSearch} style={{ color: '#ff6026', background: 'none', border: '1px solid #ff6026', padding: '8px 24px', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', transition: 'all 0.2s ease' }} onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#ff6026'; e.currentTarget.style.color = '#fff'; }} onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = '#ff6026'; }}>Clear Search</button>
-                </div>
-            ) : null}
+                    </div>
+                ))}
+            </div>
 
-            {/* Categories Sidebar Layout */}
-            {!currentFilter && (
-              <div style={{ display: 'flex', gap: '5rem' }}>
-                  <div style={{ flex: 1 }}>
-                      <h2 style={{ fontSize: '1rem', fontWeight: 'bold', color: '#ff6026', textTransform: 'uppercase', marginBottom: '2.5rem', letterSpacing: '0.05em' }}>All Posts</h2>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '3rem' }}>
-                          {blogs.slice(0, 8).map((post, idx) => (
-                              <div key={post.id} className="blog-list-item" style={{ cursor: 'pointer', padding: '1.5rem', borderRadius: '12px', margin: '-1.5rem', transition: 'all 0.2s ease' }} onClick={() => handleOpenBlog(post)}>
-                                  <h3 style={{ fontSize: '1.5rem', fontWeight: 'bold', marginBottom: '0.5rem', fontFamily: 'Inter, sans-serif' }}>{post.title}</h3>
-                                  <p style={{ fontSize: '13px', color: '#666', marginBottom: '1rem' }}>
-                                      by <span style={{ color: '#007bff' }}>{post.author}</span> &nbsp; {new Date(post.date || post.createdAt).toLocaleDateString()}
-                                  </p>
-                                  <p style={{ fontSize: '1rem', lineHeight: '1.6', color: '#333', marginBottom: '1rem', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-                                      {post.content?.replace(/<[^>]*>?/gm, '')}
-                                  </p>
-                                  <span style={{ color: '#007bff', fontWeight: '500', fontSize: '14px' }}>Read More</span>
-                              </div>
-                          ))}
-                      </div>
-                  </div>
+            {/* Categories & More */}
+            <div className="blog-footer-layout" style={{ display: 'flex', gap: '4rem', borderTop: '1px solid #eee', paddingTop: '4rem' }}>
+                <div style={{ flex: 1 }}>
+                    <h2 style={{ fontSize: '1rem', fontWeight: 'bold', color: '#111', textTransform: 'uppercase', marginBottom: '2.5rem', letterSpacing: '0.05em' }}>Categories</h2>
+                    <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+                        {categories.map(cat => (
+                            <span 
+                                key={cat} 
+                                onClick={() => setSelectedCategory(cat === selectedCategory ? null : cat)} 
+                                style={{ backgroundColor: selectedCategory === cat ? '#6300dd' : '#fff', padding: '8px 16px', borderRadius: '8px', fontSize: '14px', fontWeight: '600', color: selectedCategory === cat ? '#fff' : '#444', cursor: 'pointer', border: '1px solid #eee' }}
+                            >
+                                {cat}
+                            </span>
+                        ))}
+                    </div>
+                </div>
+            </div>
 
-                  <aside style={{ width: '250px' }}>
-                      <h2 style={{ fontSize: '1rem', fontWeight: 'bold', color: '#111', textTransform: 'uppercase', marginBottom: '1.5rem', letterSpacing: '0.05em' }}>Categories</h2>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', alignItems: 'flex-start' }}>
-                          {categories.map(cat => (
-                              <span key={cat} onClick={() => setSelectedCategory(cat === selectedCategory ? null : cat)} style={{ backgroundColor: selectedCategory === cat ? '#6300dd' : '#e9e9e2', padding: '8px 16px', borderRadius: '4px', fontSize: '14px', fontWeight: '500', color: selectedCategory === cat ? '#fff' : '#111', cursor: 'pointer', transition: 'all 0.2s ease', border: '1px solid rgba(0,0,0,0.05)' }}>{cat}</span>
-                          ))}
-                      </div>
-                  </aside>
-              </div>
-            )}
+            <style>{`
+                @media (max-width: 900px) {
+                    .blog-featured-row { flex-direction: column; gap: 2rem !important; }
+                    .blog-grid { grid-template-columns: 1fr !important; }
+                    .blog-footer-layout { flex-direction: column; }
+                    .blog-container { padding-top: 2rem !important; }
+                }
+            `}</style>
           </>
         )}
       </div>

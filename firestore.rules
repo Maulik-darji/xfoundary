@@ -99,6 +99,12 @@
         allow read, write: if isAdmin();
       }
 
+      // Global Settings: Publicly readable for directory flags, writeable by admins
+      match /settings/{settingId} {
+        allow read: if true;
+        allow write: if isAdmin();
+      }
+
       // Global default: Deny all other access
       match /{document=**} {
         allow read, write: if false;

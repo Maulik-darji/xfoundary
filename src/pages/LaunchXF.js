@@ -7,48 +7,22 @@ const LaunchXF = () => {
     }, []);
 
     return (
-        <div style={{ 
-            minHeight: '80vh', 
-            display: 'flex', 
-            flexDirection: 'column', 
-            alignItems: 'center', 
-            justifyContent: 'center', 
-            backgroundColor: '#f5f5ee', 
-            fontFamily: '"Inter", sans-serif',
-            textAlign: 'center',
-            padding: '2rem'
-        }}>
-            <h1 style={{ 
-                fontFamily: '"Georgia", serif', 
-                fontStyle: 'italic', 
-                fontSize: '4.5rem', 
-                fontWeight: 400, 
-                color: '#1a1a1a', 
-                marginBottom: '1rem',
-                letterSpacing: '-0.02em'
-            }}>
-                Coming Soon
-            </h1>
-            <p style={{ 
-                fontSize: '1.25rem', 
-                color: '#555', 
-                maxWidth: '600px', 
-                marginBottom: '2rem',
-                lineHeight: 1.6 
-            }}>
+        <div style={{ backgroundColor: '#f5f5ee', minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '2rem' }}>
+            <h1 className="responsive-h1" style={{ textAlign: 'center', marginBottom: '1.5rem' }}>Coming Soon</h1>
+            <p className="responsive-p" style={{ textAlign: 'center', maxWidth: '600px', marginBottom: '3rem' }}>
                 We are working hard to bring you Launch XF. Stay tuned for updates!
             </p>
             <Link to="/" style={{
-                backgroundColor: '#1a1a1a',
+                backgroundColor: '#111',
                 color: '#fff',
-                padding: '12px 24px',
-                borderRadius: '8px',
+                padding: '14px 32px',
+                borderRadius: '100px',
                 textDecoration: 'none',
                 fontWeight: '600',
                 fontSize: '1rem',
-                transition: 'background-color 0.2s'
-            }} onMouseEnter={(e) => e.target.style.backgroundColor = '#333'}
-               onMouseLeave={(e) => e.target.style.backgroundColor = '#1a1a1a'}>
+                transition: 'opacity 0.2s'
+            }} onMouseEnter={(e) => e.target.style.opacity = '0.8'}
+               onMouseLeave={(e) => e.target.style.opacity = '1'}>
                 Back to Home
             </Link>
         </div>
