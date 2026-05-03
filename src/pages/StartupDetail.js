@@ -95,7 +95,7 @@ const StartupDetail = () => {
     }, [id]);
 
     if (loading) return (
-        <div style={{ minHeight: '100vh', backgroundColor: '#fdfdfc', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ minHeight: '100vh', backgroundColor: '#f5f5ee', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <div style={{ fontSize: '18px', color: '#111', fontWeight: 600 }}>Loading company data...</div>
         </div>
     );
@@ -103,11 +103,11 @@ const StartupDetail = () => {
     if (!startup) return null;
 
     return (
-        <div style={{ minHeight: '100vh', backgroundColor: '#fdfdfc', fontFamily: '"Inter", sans-serif', paddingBottom: '10rem' }}>
+        <div style={{ minHeight: '100vh', backgroundColor: '#f5f5ee', fontFamily: '"Inter", sans-serif', paddingBottom: '10rem' }}>
             <div style={{ maxWidth: '1000px', margin: '0 auto', padding: '4rem 2rem' }}>
                 {/* Breadcrumbs */}
                 <nav style={{ fontSize: '14px', color: '#666', marginBottom: '2rem', fontWeight: '500' }}>
-                    <Link to="/jobs" style={{ color: '#666', textDecoration: 'none', transition: 'color 0.2s' }} onMouseEnter={e => e.currentTarget.style.color = '#000'} onMouseLeave={e => e.currentTarget.style.color = '#666'}>Companies</Link>
+                    <Link to="/directory" style={{ color: '#666', textDecoration: 'none', transition: 'color 0.2s' }} onMouseEnter={e => e.currentTarget.style.color = '#000'} onMouseLeave={e => e.currentTarget.style.color = '#666'}>Companies</Link>
                     <span style={{ margin: '0 8px', color: '#ccc' }}>/</span>
                     <span style={{ color: '#000', fontWeight: '700' }}>{startup.name} ({startup.batch})</span>
                 </nav>
@@ -297,7 +297,7 @@ const StartupDetail = () => {
             </div>
 
             {/* YC-Style Mega Footer */}
-            <footer style={{ backgroundColor: '#fdfdfc', borderTop: '1px solid #eee', padding: '5rem 2rem', marginTop: '5rem' }}>
+            <footer style={{ backgroundColor: '#f5f5ee', borderTop: '1px solid #eee', padding: '5rem 2rem', marginTop: '5rem' }}>
                 <div style={{ maxWidth: '1100px', margin: '0 auto', display: 'grid', gridTemplateColumns: '80px 1.2fr 1.2fr 1.5fr 1.2fr', gap: '2rem' }}>
                     {/* Brand Logo */}
                     <div>

@@ -591,12 +591,11 @@ const Admin = () => {
   const [distGrouping, setDistGrouping] = useState('Category'); // 'Category' or 'Industry'
 
   const renderManagementHeader = (title, count, searchQuery, setSearchQuery, selectedItems, onBulkDelete, suggestion, additionalControls = null) => (
-      <div style={{ marginBottom: '2.5rem' }}>
+      <div style={{ padding: '2rem 2.5rem 2.5rem', marginBottom: 0, borderBottom: '1px solid rgba(0,0,0,0.05)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
-              <div>
+              <div style={{ paddingLeft: '0.25rem' }}>
                   <h2 style={{ margin: 0, fontWeight: '900', fontSize: '2.2rem', letterSpacing: '-0.03em' }}>{title}</h2>
-                  <div style={{ fontSize: '14px', color: '#667777', fontWeight: '600', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#6300dd' }}></div>
+                  <div style={{ fontSize: '14px', color: '#667777', fontWeight: '600', marginTop: '4px' }}>
                       {count} {title.toLowerCase()} recorded
                   </div>
               </div>
@@ -617,7 +616,7 @@ const Admin = () => {
               </div>
           </div>
           
-          <div style={{ position: 'relative', width: '100%', maxWidth: '500px' }}>
+          <div style={{ position: 'relative', width: '100%', maxWidth: '500px', marginLeft: '0.25rem' }}>
               <div style={{ position: 'relative' }}>
                   <svg style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: '#999' }} width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
                   <input 
@@ -2610,7 +2609,7 @@ const Admin = () => {
       <main style={{ 
         flex: 1, 
         marginLeft: '300px',
-        padding: (activeTab === 'XF Blog' || activeTab === 'Cold Mail' || activeTab === 'Backup') ? '0.5rem' : '2.5rem', 
+        padding: (activeTab === 'XF Blog' || activeTab === 'Cold Mail' || activeTab === 'Backup') ? '0.5rem' : '3rem', 
         zIndex: 1, 
         position: 'relative', 
         height: '100vh',
@@ -3166,32 +3165,8 @@ const Admin = () => {
             </>
         )}
 
-        {(activeTab === 'Founders' || activeTab === 'Admins' || activeTab === 'Members') && (
+        {activeTab === 'Founders' && (
             <div className="glass-card" style={{ borderRadius: '12px', overflow: 'hidden', animation: 'fadeInUp 0.4s ease-out' }}>
-                {renderSearchHeader(
-                    activeTab === 'Founders' ? 'Founders' : activeTab,
-                    activeTab === 'Founders' ? founderSearchQuery : (activeTab === 'Admins' ? adminSearchQuery : memberSearchQuery),
-                    activeTab === 'Founders' ? setFounderSearchQuery : (activeTab === 'Admins' ? setAdminSearchQuery : setMemberSearchQuery),
-                    activeTab === 'Founders' ? handleExportFounders : (activeTab === 'Members' ? handleExportMembers : null),
-                    activeTab === 'Founders' && (
-                        <div style={{ display: 'flex', gap: '10px' }}>
-                            <button 
-                                onClick={() => setShowCoFounders(!showCoFounders)}
-                                style={{ padding: '8px 16px', backgroundColor: showCoFounders ? '#000' : 'rgba(0,0,0,0.05)', color: showCoFounders ? '#fff' : '#000', border: 'none', borderRadius: '10px', fontSize: '12px', fontWeight: '700', cursor: 'pointer' }}
-                            >
-                                {showCoFounders ? 'Hide Co-founders' : 'Show Co-founders'}
-                            </button>
-                            {selectedFounders.length > 0 && (
-                                <button 
-                                    onClick={handleBulkDeleteFounders}
-                                    style={{ padding: '8px 16px', backgroundColor: 'rgba(255, 59, 48, 0.1)', color: '#ff3b30', border: '1px solid rgba(255, 59, 48, 0.2)', borderRadius: '10px', fontSize: '12px', fontWeight: '700', cursor: 'pointer' }}
-                                >
-                                    Delete Selected ({selectedFounders.length})
-                                </button>
-                            )}
-                        </div>
-                    )
-                )}
                 {renderManagementHeader(
                     "Founders", 
                     filteredFoundersList.length, 
@@ -3200,7 +3175,17 @@ const Admin = () => {
                     selectedFounders, 
                     handleBulkDeleteFounders,
                     getFuzzySuggestion(founderSearchQuery, users, ['name', 'email']),
-                    <ToggleSwitch checked={showCoFoundersOnly} onChange={setShowCoFoundersOnly} label="Co-founders Only" />
+                    activeTab === 'Founders' ? (
+                        <>
+                            <button 
+                                onClick={() => setShowCoFounders(!showCoFounders)}
+                                style={{ padding: '10px 16px', backgroundColor: showCoFounders ? '#000' : 'rgba(0,0,0,0.05)', color: showCoFounders ? '#fff' : '#000', border: 'none', borderRadius: '10px', fontSize: '12px', fontWeight: '800', cursor: 'pointer' }}
+                            >
+                                {showCoFounders ? 'Hide Co-founders' : 'Show Co-founders'}
+                            </button>
+                            <ToggleSwitch checked={showCoFoundersOnly} onChange={setShowCoFoundersOnly} label="Co-founders Only" />
+                        </>
+                    ) : null
                 )}
                 <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
                     <thead style={{ backgroundColor: 'rgba(0,0,0,0.02)' }}>
@@ -3319,6 +3304,53 @@ const Admin = () => {
                         </button>
                     </div>
                 )}
+            </div>
+        )}
+        {(activeTab === 'Admins' || activeTab === 'Members') && (
+            <div className="glass-card" style={{ borderRadius: '12px', overflow: 'hidden', animation: 'fadeInUp 0.4s ease-out' }}>
+                {renderManagementHeader(
+                    activeTab,
+                    activeTab === 'Admins' ? filteredAdmins.length : filteredMembers.length,
+                    activeTab === 'Admins' ? adminSearchQuery : memberSearchQuery,
+                    activeTab === 'Admins' ? setAdminSearchQuery : setMemberSearchQuery,
+                    [],
+                    null,
+                    getFuzzySuggestion(
+                        activeTab === 'Admins' ? adminSearchQuery : memberSearchQuery,
+                        activeTab === 'Admins' ? filteredAdmins : filteredMembers,
+                        ['name', 'email']
+                    )
+                )}
+                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                    <thead style={{ backgroundColor: 'rgba(0,0,0,0.02)' }}>
+                        <tr>
+                            <th style={{ padding: '1.25rem 2rem', color: '#667777', fontSize: '12px', textTransform: 'uppercase' }}>Name & Email</th>
+                            <th style={{ padding: '1.25rem 2rem', color: '#667777', fontSize: '12px', textTransform: 'uppercase', textAlign: 'right' }}>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {(activeTab === 'Admins' ? filteredAdmins : filteredMembers).map(u => (
+                            <tr key={u.id} style={{ borderBottom: '1px solid rgba(0,0,0,0.03)' }}>
+                                <td style={{ padding: '1.25rem 2rem' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                        <div style={{ width: '40px', height: '40px', borderRadius: '12px', backgroundColor: 'rgba(0,0,0,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', fontWeight: '800', color: '#888' }}>
+                                            {(u.profile?.name || u.name || u.email || 'U').charAt(0).toUpperCase()}
+                                        </div>
+                                        <div>
+                                            <div style={{ fontWeight: '700', fontSize: '14px', color: '#000' }}>{u.profile?.name || u.name || 'Unnamed'}</div>
+                                            <div style={{ fontSize: '12px', color: '#667777' }}>{u.email}</div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td style={{ padding: '1.25rem 2rem', textAlign: 'right' }}>
+                                    <span style={{ padding: '6px 12px', backgroundColor: 'rgba(0,0,0,0.05)', borderRadius: '8px', fontSize: '11px', fontWeight: '800', textTransform: 'uppercase' }}>
+                                        {activeTab === 'Admins' ? (u.role || 'Admin') : 'Member'}
+                                    </span>
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
             </div>
         )}
         {activeTab === 'Reports & Bugs' && (

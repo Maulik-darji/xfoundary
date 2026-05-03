@@ -5,7 +5,7 @@ const VerifyFounders = () => {
     return (
         <div style={{ 
             minHeight: '100vh', 
-            backgroundColor: '#fdfdfc', 
+            backgroundColor: '#f5f5ee', 
             display: 'flex', 
             flexDirection: 'column', 
             alignItems: 'center', 

@@ -397,7 +397,7 @@ const CandidateProfile = () => {
     if (loading) return <div style={{ padding: '10rem', textAlign: 'center' }}>Loading your profile...</div>;
 
     return (
-        <div style={{ backgroundColor: '#fdfdfc', minHeight: '100vh', fontFamily: '"Inter", sans-serif' }}>
+        <div style={{ backgroundColor: '#f5f5ee', minHeight: '100vh', fontFamily: '"Inter", sans-serif' }}>
             {/* Top Sub-Nav */}
             <div style={{ borderBottom: '1px solid #eee', padding: '1rem 2rem', backgroundColor: '#fff' }}>
                 <div style={{ maxWidth: '1400px', margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>

@@ -11,14 +11,14 @@ const CoFounderMatching = () => {
                 <div style={{ maxWidth: '1100px', margin: '0 auto', display: 'flex', alignItems: 'center', gap: '4rem' }}>
                     <div style={{ flex: 1.2 }}>
                         <h1 style={{ fontSize: '42px', fontWeight: '900', marginBottom: '1.5rem', lineHeight: '1.2' }}>
-                            <span style={{ color: '#ff6600' }}>X Foundary</span> Co-Founder Matching
+                            <span style={{ color: '#6300dd' }}>X Foundary</span> Co-Founder Matching
                         </h1>
                         <p style={{ fontSize: '24px', color: '#333', marginBottom: '2.5rem', fontWeight: '500' }}>
                             Where savvy founders go to meet potential co-founders
                         </p>
                         <button 
-                            onClick={() => navigate('/apply')}
-                            style={{ backgroundColor: '#ff6600', color: '#fff', padding: '16px 32px', borderRadius: '4px', fontSize: '18px', fontWeight: '700', border: 'none', cursor: 'pointer' }}
+                            onClick={() => navigate('/co-founder-matching-soon')}
+                            style={{ backgroundColor: '#6300dd', color: '#fff', padding: '16px 32px', borderRadius: '4px', fontSize: '18px', fontWeight: '700', border: 'none', cursor: 'pointer' }}
                         >
                             Go to co-founder matching
                         </button>
@@ -47,9 +47,6 @@ const CoFounderMatching = () => {
                                 }} 
                             />
                         ))}
-                        <div style={{ position: 'absolute', bottom: '-20px', left: '10%', right: '10%', textAlign: 'center', fontSize: '12px', color: '#666', fontStyle: 'italic' }}>
-                            (Actual founders who met on this site and got funded by XF.)
-                        </div>
                     </div>
                 </div>
             </section>
@@ -68,7 +65,7 @@ const CoFounderMatching = () => {
                             { title: 'Come with or without an idea', desc: "Don't have the right idea yet? This is a great place to find it." },
                             { title: 'Explore on your own terms', desc: "No commitment, no equity, no strings attached." }
                         ].map(item => (
-                            <div key={item.title} style={{ borderLeft: '4px solid #ff6600', paddingLeft: '1.5rem' }}>
+                            <div key={item.title} style={{ borderLeft: '4px solid #6300dd', paddingLeft: '1.5rem' }}>
                                 <h3 style={{ fontSize: '18px', fontWeight: '800', marginBottom: '10px' }}>{item.title}</h3>
                                 <p style={{ fontSize: '15px', color: '#444', lineHeight: '1.6' }}>{item.desc}</p>
                             </div>
@@ -101,8 +98,8 @@ const CoFounderMatching = () => {
             {/* Final CTA */}
             <section style={{ padding: '6rem 2rem', textAlign: 'center' }}>
                 <button 
-                    onClick={() => navigate('/apply')}
-                    style={{ backgroundColor: '#ff6600', color: '#fff', padding: '18px 48px', borderRadius: '4px', fontSize: '18px', fontWeight: '700', border: 'none', cursor: 'pointer' }}
+                    onClick={() => navigate('/co-founder-matching-soon')}
+                    style={{ backgroundColor: '#6300dd', color: '#fff', padding: '18px 48px', borderRadius: '4px', fontSize: '18px', fontWeight: '700', border: 'none', cursor: 'pointer' }}
                 >
                     Sign up now
                 </button>
@@ -113,7 +110,7 @@ const CoFounderMatching = () => {
                 <div style={{ maxWidth: '1100px', margin: '0 auto', display: 'grid', gridTemplateColumns: '80px 1.2fr 1.2fr 1.5fr 1.2fr', gap: '2rem' }}>
                     {/* Brand Logo */}
                     <div>
-                        <div style={{ backgroundColor: '#ff6600', width: '50px', height: '50px', borderRadius: '4px', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '28px', fontWeight: '900' }}>X</div>
+                        <div style={{ backgroundColor: '#6300dd', width: '50px', height: '50px', borderRadius: '4px', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '28px', fontWeight: '900' }}>X</div>
                     </div>
 
                     {/* Column 1 */}

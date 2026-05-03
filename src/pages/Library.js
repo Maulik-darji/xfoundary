@@ -9,7 +9,7 @@ const Library = () => {
       flexDirection: 'column', 
       alignItems: 'center', 
       justifyContent: 'center', 
-      backgroundColor: '#fdfdfc',
+      backgroundColor: '#f5f5ee',
       padding: '2rem'
     }}>
       <div style={{ 

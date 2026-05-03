@@ -62,14 +62,14 @@ const JobView = () => {
         }
     };
 
-    if (loading) return <div style={{ padding: '10rem', textAlign: 'center', backgroundColor: '#fdfdfc', minHeight: '100vh' }}>Loading job details...</div>;
+    if (loading) return <div style={{ padding: '10rem', textAlign: 'center', backgroundColor: '#f5f5ee', minHeight: '100vh' }}>Loading job details...</div>;
     if (!job) return <div style={{ padding: '10rem', textAlign: 'center' }}>Job not found.</div>;
 
     const companyName = company?.application?.companyName || job.companyName;
     const batch = company?.application?.batch || job.batch || 'S26';
 
     return (
-        <div style={{ backgroundColor: '#fdfdfc', minHeight: '100vh', fontFamily: '"Inter", sans-serif', paddingBottom: '10rem' }}>
+        <div style={{ backgroundColor: '#f5f5ee', minHeight: '100vh', fontFamily: '"Inter", sans-serif', paddingBottom: '10rem' }}>
             <div style={{ maxWidth: '1000px', margin: '0 auto', padding: '4rem 2rem' }}>
                 
                 {/* Breadcrumbs */}
@@ -216,7 +216,7 @@ const JobView = () => {
             </div>
 
             {/* YC-Style Mega Footer */}
-            <footer style={{ backgroundColor: '#fdfdfc', borderTop: '1px solid #eee', padding: '5rem 2rem', marginTop: '5rem' }}>
+            <footer style={{ backgroundColor: '#f5f5ee', borderTop: '1px solid #eee', padding: '5rem 2rem', marginTop: '5rem' }}>
                 <div style={{ maxWidth: '1100px', margin: '0 auto', display: 'grid', gridTemplateColumns: '80px 1.2fr 1.2fr 1.5fr 1.2fr', gap: '2rem' }}>
                     {/* Brand Logo */}
                     <div>

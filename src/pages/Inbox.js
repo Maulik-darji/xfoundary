@@ -43,7 +43,7 @@ const Inbox = () => {
     const current = conversations[selectedConvIndex];
 
     return (
-        <div style={{ backgroundColor: '#fdfdfc', minHeight: '100vh', fontFamily: '"Inter", sans-serif', color: '#111' }}>
+        <div style={{ backgroundColor: '#f5f5ee', minHeight: '100vh', fontFamily: '"Inter", sans-serif', color: '#111' }}>
             {/* Top Sub-Nav */}
             <div style={{ borderBottom: '1px solid #eee', padding: '1rem 2rem', backgroundColor: '#fff' }}>
                 <div style={{ maxWidth: '1400px', margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -146,7 +146,7 @@ const Inbox = () => {
                                 <div style={{ fontSize: '12px', color: '#666' }}>{current.lastMessageAt ? new Date(current.lastMessageAt.seconds * 1000).toLocaleString() : ''}</div>
                             </div>
 
-                            <div style={{ flex: 1, overflowY: 'auto', padding: '2rem', backgroundColor: '#fdfdfc' }}>
+                            <div style={{ flex: 1, overflowY: 'auto', padding: '2rem', backgroundColor: '#f5f5ee' }}>
                                 {(current.messages || []).map((msg, i) => (
                                     <div key={i} style={{ 
                                         backgroundColor: '#fff', 
@@ -186,7 +186,7 @@ const Inbox = () => {
                 </main>
 
                 {/* Right Sidebar: Context */}
-                <aside style={{ padding: '2rem', overflowY: 'auto', backgroundColor: '#fdfdfc' }}>
+                <aside style={{ padding: '2rem', overflowY: 'auto', backgroundColor: '#f5f5ee' }}>
                     {current ? (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>

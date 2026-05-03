@@ -50,13 +50,13 @@ const StartupJobs = () => {
     );
 
     if (loading) return (
-        <div style={{ minHeight: '100vh', backgroundColor: '#fdfdfc', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ minHeight: '100vh', backgroundColor: '#f5f5ee', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <div style={{ fontSize: '18px', color: '#111', fontWeight: 600 }}>Loading job board...</div>
         </div>
     );
 
     return (
-        <div style={{ backgroundColor: '#fdfdfc', minHeight: '100vh', fontFamily: '"Inter", sans-serif' }}>
+        <div style={{ backgroundColor: '#f5f5ee', minHeight: '100vh', fontFamily: '"Inter", sans-serif' }}>
             {/* Top Sub-Nav */}
             <div style={{ borderBottom: '1px solid #eee', padding: '1rem 2rem', backgroundColor: '#fff' }}>
                 <div style={{ maxWidth: '1400px', margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -156,7 +156,7 @@ const StartupJobs = () => {
                                     </div>
                                 </div>
                                 {/* Jobs List */}
-                                <div style={{ backgroundColor: '#fdfdfc' }}>
+                                <div style={{ backgroundColor: '#f5f5ee' }}>
                                     {company.jobs.map(job => (
                                         <div 
                                             key={job.id} 
