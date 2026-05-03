@@ -67,33 +67,31 @@ const Login = () => {
     e.preventDefault();
     setModalMessage('');
     try {
-      let resetEmail = forgotEmail;
+      let resetEmail = forgotEmail.trim();
 
-      // If the user entered a username instead of an email, look it up in Firestore
-      if (!forgotEmail.includes('@')) {
-        const usernameRef = doc(db, 'usernames', forgotEmail.toLowerCase());
-        const usernameDoc = await getDoc(usernameRef);
-        
-        if (usernameDoc.exists()) {
-          resetEmail = usernameDoc.data().email;
-        } else {
-          setModalMessage('Account does not exist. Please check your username or create an account.');
-          return;
-        }
-      } else {
-        // If they entered an email, verify it exists in our database first
-        const q = query(collection(db, 'usernames'), where('email', '==', forgotEmail));
-        const querySnapshot = await getDocs(q);
-        
-        if (querySnapshot.empty) {
-          setModalMessage('Account does not exist. Please check your email or create an account.');
-          return;
+      // If the user entered a username instead of an email, try to look it up
+      if (!resetEmail.includes('@')) {
+        try {
+            const usernameRef = doc(db, 'usernames', resetEmail.toLowerCase());
+            const usernameDoc = await getDoc(usernameRef);
+            if (usernameDoc.exists()) {
+              resetEmail = usernameDoc.data().email;
+            } else {
+              setModalMessage('Username not found. Please try entering your email address instead.');
+              return;
+            }
+        } catch (err) {
+            // Ignore permission errors and just try using it as an email (even though it lacks @) or fail gracefully
+            setModalMessage('Could not verify username. Please enter your email address directly.');
+            return;
         }
       }
 
+      // Directly send the password reset email. 
+      // If the email doesn't exist, Firebase will handle it silently or throw an error based on Enum Protection.
       await sendPasswordResetEmail(auth, resetEmail);
       setShowForgotPassword(false);
-      showToast(`Password reset emailed to the email associated with this account.`);
+      showToast(`Password reset link sent to the email associated with this account.`);
       setForgotEmail('');
     } catch (err) {
       setModalMessage("Error: " + err.message);

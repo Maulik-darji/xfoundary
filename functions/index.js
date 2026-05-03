@@ -408,3 +408,141 @@ exports.deleteUserAccount = onCall({ cors: true }, async (request) => {
     throw new HttpsError("internal", error.message || "An unexpected error occurred during account deletion.");
   }
 });
+
+// New function to request OTP for email change (Founders)
+exports.requestEmailChangeOTP = onCall({ cors: true }, async (request) => {
+  const { newEmail } = request.data;
+  if (!request.auth || !request.auth.uid) {
+    throw new HttpsError("unauthenticated", "You must be logged in to change your email.");
+  }
+  if (!newEmail) {
+    throw new HttpsError("invalid-argument", "Missing new email.");
+  }
+
+  try {
+    // 1. Check if the new email is already in use
+    try {
+      await admin.auth().getUserByEmail(newEmail);
+      // If this succeeds, the email is already taken
+      throw new HttpsError("already-exists", "This email address is already registered to another account.");
+    } catch (err) {
+      if (err.code !== "auth/user-not-found" && !(err instanceof HttpsError)) {
+        throw new HttpsError("internal", "Error verifying email availability.");
+      }
+      if (err instanceof HttpsError) throw err; // Re-throw the already-exists error
+    }
+
+    // Generate a 6-digit OTP
+    const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+    
+    // Save OTP to Firestore (expires in 10 mins)
+    await db.collection("login_codes").doc(`email_change_${request.auth.uid}`).set({
+      code: otpCode,
+      newEmail: newEmail.toLowerCase(),
+      expiresAt: Date.now() + 10 * 60 * 1000
+    });
+
+    // Send email to new address
+    await db.collection("mail").add({
+      to: newEmail,
+      message: {
+        subject: 'Verify your new email for X Foundary',
+        html: `
+          <div style="font-family: 'Inter', sans-serif; max-width: 450px; margin: 0 auto; border: 1px solid #eee; padding: 30px; border-radius: 12px; color: #111;">
+            <div style="text-align: center; margin-bottom: 30px;">
+              <div style="background-color: #000; width: 42px; height: 42px; line-height: 42px; display: inline-block; border-radius: 0; color: white; font-weight: 800; font-size: 16px; text-align: center;">XF</div>
+              <h2 style="margin-top: 20px; color: #111;">Verify your new email</h2>
+            </div>
+            <p>Hello,</p>
+            <p>We received a request to use this email address for your X Foundary account.</p>
+            <p>Enter this 6-digit code on the settings page to verify it:</p>
+            <div style="background: #f8f8f8; padding: 20px; text-align: center; font-size: 28px; font-weight: bold; letter-spacing: 8px; color: #111; border-radius: 8px; margin: 20px 0; border: 1px solid #eee;">
+              ${otpCode}
+            </div>
+            <p style="font-size: 12px; color: #999; margin-top: 30px; line-height: 1.5;">
+              If you did not request this change, you can safely ignore this email. This code will expire in 10 minutes.
+            </p>
+          </div>
+        `
+      }
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error("Error sending OTP for email change:", error);
+    throw new HttpsError("internal", error.message);
+  }
+});
+
+// New function to verify OTP and apply email change (Founders)
+exports.verifyEmailChangeOTP = onCall({ cors: true }, async (request) => {
+  const { otp } = request.data;
+  if (!request.auth || !request.auth.uid) {
+    throw new HttpsError("unauthenticated", "You must be logged in to change your email.");
+  }
+  if (!otp) {
+    throw new HttpsError("invalid-argument", "Missing OTP.");
+  }
+
+  try {
+    const uid = request.auth.uid;
+    const oldEmail = request.auth.token.email;
+    const otpRef = db.collection("login_codes").doc(`email_change_${uid}`);
+    const otpDoc = await otpRef.get();
+
+    if (!otpDoc.exists) {
+      throw new HttpsError("not-found", "No pending email change request found.");
+    }
+
+    const { code, newEmail, expiresAt } = otpDoc.data();
+
+    if (code !== otp) {
+      throw new HttpsError("permission-denied", "Incorrect code. Please try again.");
+    }
+
+    if (Date.now() > expiresAt) {
+      throw new HttpsError("deadline-exceeded", "Code has expired. Please request a new one.");
+    }
+
+    // Update Auth
+    await admin.auth().updateUser(uid, { email: newEmail, emailVerified: true });
+
+    // Update 'users' collection (if they are a founder)
+    await db.collection("users").doc(uid).update({ email: newEmail }).catch(() => {});
+
+    // Try to update 'usernames' collection if it exists
+    const usernamesSnapshot = await db.collection("usernames").where("uid", "==", uid).get();
+    const batch = db.batch();
+    usernamesSnapshot.forEach((docSnap) => {
+        batch.update(docSnap.ref, { email: newEmail });
+    });
+    await batch.commit();
+
+    await otpRef.delete();
+
+    // Send notification to old email
+    await db.collection("mail").add({
+      to: oldEmail,
+      message: {
+        subject: 'Your X Foundary email was changed',
+        html: `
+          <div style="font-family: 'Inter', sans-serif; max-width: 450px; margin: 0 auto; border: 1px solid #eee; padding: 30px; border-radius: 12px; color: #111;">
+            <p>Hello,</p>
+            <p>The email address associated with your X Foundary account was just changed.</p>
+            <p><strong>Old Email:</strong> ${oldEmail}</p>
+            <p><strong>New Email:</strong> ${newEmail}</p>
+            <p style="font-size: 12px; color: #999; margin-top: 30px; border-top: 1px solid #eee; padding-top: 20px;">
+              If you did not make this change, please contact support immediately to secure your account.
+            </p>
+          </div>
+        `
+      }
+    });
+
+    return { success: true, newEmail };
+  } catch (error) {
+    console.error("Error verifying email change OTP:", error);
+    if (error instanceof HttpsError) throw error;
+    throw new HttpsError("internal", error.message);
+  }
+});

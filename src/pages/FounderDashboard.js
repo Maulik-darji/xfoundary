@@ -17,7 +17,20 @@ const FounderDashboard = () => {
     const [saving, setSaving] = useState(false);
     const [message, setMessage] = useState({ text: '', type: '' });
     const [uploadProgress, setUploadProgress] = useState(0);
-    const [activeTab, setActiveTab] = useState(() => localStorage.getItem('founderActiveTab') || 'company');
+    const [activeTab, setActiveTab] = useState(() => {
+        const params = new URLSearchParams(window.location.search);
+        const tabParam = params.get('tab');
+        if (tabParam) return tabParam;
+        return localStorage.getItem('founderActiveTab') || 'company';
+    });
+
+    useEffect(() => {
+        const params = new URLSearchParams(window.location.search);
+        const tabParam = params.get('tab');
+        if (tabParam && tabParam !== activeTab) {
+            setActiveTab(tabParam);
+        }
+    }, [window.location.search]);
 
     useEffect(() => {
         localStorage.setItem('founderActiveTab', activeTab);
@@ -664,130 +677,60 @@ const FounderDashboard = () => {
                     padding-top: 120px;
                     min-height: 100vh;
                 }
-                .nav-btn {
-                    width: 100%;
-                    text-align: left;
-                    padding: 10px 14px;
-                    border-radius: 4px;
-                    border: 1px solid transparent;
-                    background: transparent;
-                    font-size: 14px;
-                    font-weight: 600;
-                    color: #555;
-                    cursor: pointer;
-                    transition: all 0.15s ease;
-                    display: flex;
-                    align-items: center;
-                    gap: 10px;
-                    margin-bottom: 2px;
-                }
-                .nav-btn.active {
-                    background: #fff;
-                    color: #111;
-                    border-color: #ddd;
-                }
-                .nav-btn:hover:not(.active) {
-                    background: rgba(0,0,0,0.03);
-                }
-                .content-section {
-                    max-width: 750px;
-                }
-                .form-group { margin-bottom: 1.75rem; }
-                .label-text {
-                    display: block;
-                    font-size: 11px;
-                    font-weight: 700;
-                    margin-bottom: 0.5rem;
-                    color: #777;
-                    text-transform: uppercase;
-                    letter-spacing: 0.05em;
-                }
-                .portal-input {
-                    width: 100%;
-                    padding: 10px 14px;
-                    border: 1px solid #ddd;
-                    border-radius: 4px;
-                    font-size: 15px;
-                    outline: none;
-                    transition: border-color 0.2s;
-                    background: #fff;
-                    color: #111;
-                    font-family: 'Inter', sans-serif;
-                }
-                .portal-input:focus { 
-                    border-color: #111; 
-                }
-                .action-btn {
-                    background: #111;
-                    color: #fff;
-                    border: 1px solid #111;
-                    padding: 10px 20px;
-                    border-radius: 4px;
-                    font-weight: 600;
-                    font-size: 14px;
-                    cursor: pointer;
-                    transition: all 0.2s;
-                }
-                .action-btn:hover {
-                    background: #333;
-                }
-                .action-btn:disabled {
-                    background: #ccc;
-                    border-color: #ccc;
-                    cursor: not-allowed;
-                }
-                .profile-box {
-                    display: flex;
-                    align-items: center;
-                    gap: 1.5rem;
-                    margin-bottom: 3.5rem;
-                }
-                .avatar-circle {
-                    width: 64px;
-                    height: 64px;
-                    border-radius: 50%;
-                    background: #fff;
-                    border: 1px solid #ddd;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    cursor: pointer;
-                    position: relative;
-                    overflow: hidden;
-                    transition: all 0.2s;
-                }
-                .avatar-circle:hover { border-color: #111; }
-                .avatar-circle img { width: 100%; height: 100%; object-fit: cover; }
-                .toast-popup {
-                    position: fixed;
-                    bottom: 2rem;
-                    right: 2rem;
-                    z-index: 9999;
-                    display: flex;
-                    align-items: center;
-                    gap: 12px;
-                    padding: 14px 20px;
-                    border-radius: 10px;
-                    font-size: 14px;
-                    font-weight: 600;
-                    box-shadow: 0 8px 30px rgba(0,0,0,0.12);
-                    animation: toastIn 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
-                    min-width: 240px;
-                    max-width: 380px;
-                }
-                .toast-popup.success {
-                    background: #fff;
-                    border: 1px solid #bbf7d0;
-                    color: #15803d;
-                }
-                .toast-popup.error {
-                    background: #fff;
-                    border: 1px solid #fecaca;
-                    color: #dc2626;
-                }
                 @keyframes toastIn {
                     0%  { opacity: 0; transform: translateY(20px) scale(0.95); }
                     100% { opacity: 1; transform: translateY(0) scale(1); }
+                }
+                .portal-input {
+                    width: 100%;
+                    padding: 12px 16px;
+                    border: 1px solid #ddd;
+                    border-radius: 8px;
+                    background-color: #fff;
+                    font-size: 14px;
+                    color: #333;
+                    outline: none;
+                    transition: all 0.2s ease;
+                    font-family: 'Inter', sans-serif;
+                }
+                .portal-input:focus {
+                    border-color: #6300dd;
+                    box-shadow: 0 0 0 4px rgba(99, 0, 221, 0.05);
+                }
+                .label-text {
+                    display: block;
+                    font-size: 13px;
+                    font-weight: 600;
+                    color: #111;
+                    margin-bottom: 8px;
+                    font-family: 'Inter', sans-serif;
+                    text-transform: none;
+                    letter-spacing: normal;
+                }
+                .nav-btn {
+                    width: 100%;
+                    text-align: left;
+                    padding: 12px 16px;
+                    border-radius: 8px;
+                    border: none;
+                    background: transparent;
+                    font-size: 14px;
+                    font-weight: 500;
+                    color: #666;
+                    cursor: pointer;
+                    transition: all 0.2s ease;
+                    display: flex;
+                    align-items: center;
+                    gap: 12px;
+                    margin-bottom: 4px;
+                }
+                .nav-btn.active {
+                    background: rgba(99, 0, 221, 0.05);
+                    color: #6300dd;
+                    font-weight: 700;
+                }
+                .nav-btn:hover:not(.active) {
+                    background: rgba(0,0,0,0.03);
                 }
             `}</style>
 
@@ -1088,123 +1031,90 @@ const FounderDashboard = () => {
                         </>
                     ) : activeTab === 'profile' ? (
                         <>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '2rem', marginBottom: '3rem' }}>
-                                <div 
-                                    className="avatar-circle" 
-                                    onClick={() => { 
-                                        if (userData.photoURL) {
-                                            setShowPhotoViewerModal(true);
-                                        } else {
-                                            setSourceTarget('profile'); 
-                                            setShowSourceModal(true); 
-                                        }
-                                    }}
-                                    style={{ 
-                                        width: '80px', 
-                                        height: '80px', 
-                                        borderRadius: '50%', 
-                                        backgroundColor: '#eee', 
-                                        display: 'flex', 
-                                        alignItems: 'center', 
-                                        justifyContent: 'center', 
-                                        overflow: 'hidden', 
-                                        cursor: 'pointer',
-                                        position: 'relative',
-                                        border: '1px solid #ddd'
-                                    }}
-                                >
-                                    {userData.photoURL ? (
-                                        <img src={userData.photoURL} alt="Avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                                    ) : (
-                                        <div style={{ fontSize: '24px', fontWeight: '700', color: '#999' }}>
-                                            {userData.profile?.name?.charAt(0).toUpperCase() || 'F'}
+                            <h1 style={{ fontSize: '28px', fontWeight: '900', marginBottom: '8px', color: '#000', letterSpacing: '-0.5px' }}>Account Settings</h1>
+                            <p style={{ fontSize: '15px', color: '#666', marginBottom: '3.5rem' }}>Personal information and contact details</p>
+
+                            <div style={{ display: 'flex', gap: '3rem', alignItems: 'flex-start', marginBottom: '4rem' }}>
+                                <div style={{ width: '120px', textAlign: 'center' }}>
+                                    <div style={{ position: 'relative', width: '100px', height: '100px', margin: '0 auto 1.5rem' }}>
+                                        <div style={{ width: '100%', height: '100%', backgroundColor: '#fff', borderRadius: '50%', border: '1px solid #eee', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
+                                            {userData.photoURL ? (
+                                                <img src={userData.photoURL} alt="Avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                            ) : (
+                                                <div style={{ fontSize: '32px', fontWeight: '800', color: '#ccc' }}>
+                                                    {userData.profile?.name?.charAt(0).toUpperCase() || 'F'}
+                                                </div>
+                                            )}
                                         </div>
-                                    )}
+                                        <button 
+                                            type="button"
+                                            onClick={() => { setSourceTarget('profile'); setShowSourceModal(true); }}
+                                            style={{ position: 'absolute', bottom: '0', right: '0', backgroundColor: '#6300dd', border: 'none', width: '32px', height: '32px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', boxShadow: '0 4px 10px rgba(99, 0, 221, 0.3)' }}
+                                        >
+                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
+                                        </button>
+                                    </div>
                                 </div>
-                                <div>
-                                    <h1 style={{ fontSize: '24px', fontWeight: '800', margin: 0, color: '#111' }}>Account Settings</h1>
-                                    <p style={{ color: '#666', marginTop: '4px', fontSize: '14px', marginBottom: '8px' }}>Personal information and contact details</p>
-                                    <button 
-                                        type="button"
-                                        onClick={() => { setSourceTarget('profile'); setShowSourceModal(true); }}
-                                        style={{ 
-                                            background: '#f3f4f6', 
-                                            border: '1px solid #ddd', 
-                                            padding: '4px 10px', 
-                                            borderRadius: '6px', 
-                                            fontSize: '11px', 
-                                            fontWeight: '600', 
-                                            cursor: 'pointer',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            gap: '4px'
-                                        }}
-                                    >
-                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
-                                        Change Photo
-                                    </button>
+
+                                <div style={{ flex: 1, maxWidth: '600px' }}>
+                                    <form onSubmit={handleProfileSave}>
+                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
+                                            <div className="form-group">
+                                                <label className="label-text">Display Name</label>
+                                                <input 
+                                                    className="portal-input"
+                                                    value={userData.profile?.name || ''}
+                                                    onChange={(e) => setUserData({...userData, profile: {...(userData.profile || {}), name: e.target.value}})}
+                                                    required
+                                                />
+                                            </div>
+                                            <div className="form-group">
+                                                <label className="label-text">Username</label>
+                                                <input 
+                                                    className="portal-input"
+                                                    value={userData.username || ''}
+                                                    onChange={(e) => setUserData({...userData, username: e.target.value})}
+                                                    required
+                                                />
+                                            </div>
+                                        </div>
+
+                                        <div className="form-group">
+                                            <label className="label-text">Email Address</label>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 16px', backgroundColor: '#f9f9f9', borderRadius: '8px', border: '1px solid #eee' }}>
+                                                <span style={{ fontSize: '14px', color: '#666', flex: 1 }}>{userData.email || user?.email}</span>
+                                                <span style={{ fontSize: '12px', color: '#999', fontWeight: '600' }}>Primary</span>
+                                            </div>
+                                        </div>
+
+                                        <div className="form-group">
+                                            <label className="label-text">LinkedIn URL</label>
+                                            <input 
+                                                className="portal-input"
+                                                value={userData.socials?.linkedin || ''}
+                                                onChange={(e) => setUserData({...userData, socials: {...(userData.socials || {}), linkedin: e.target.value}})}
+                                                placeholder="https://linkedin.com/in/username"
+                                            />
+                                        </div>
+
+                                        <div className="form-group">
+                                            <label className="label-text">Twitter / X URL</label>
+                                            <input 
+                                                className="portal-input"
+                                                value={userData.socials?.twitter || ''}
+                                                onChange={(e) => setUserData({...userData, socials: {...(userData.socials || {}), twitter: e.target.value}})}
+                                                placeholder="https://x.com/username"
+                                            />
+                                        </div>
+
+                                        <div style={{ marginTop: '2.5rem' }}>
+                                            <button type="submit" disabled={saving || justSaved} className="action-btn">
+                                                {saving ? 'Updating...' : justSaved ? 'SAVED' : 'Update Profile'}
+                                            </button>
+                                        </div>
+                                    </form>
                                 </div>
                             </div>
-
-                            <form onSubmit={handleProfileSave}>
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
-                                    <div className="form-group">
-                                        <label className="label-text">Display Name</label>
-                                        <input 
-                                            className="portal-input"
-                                            value={userData.profile?.name || ''}
-                                            onChange={(e) => setUserData({...userData, profile: {...(userData.profile || {}), name: e.target.value}})}
-                                            required
-                                        />
-                                    </div>
-                                    <div className="form-group">
-                                        <label className="label-text">Username</label>
-                                        <input 
-                                            className="portal-input"
-                                            value={userData.username || ''}
-                                            onChange={(e) => setUserData({...userData, username: e.target.value})}
-                                            required
-                                        />
-                                    </div>
-                                </div>
-
-                                <div className="form-group">
-                                    <label className="label-text">Email Address</label>
-                                    <input 
-                                        className="portal-input"
-                                        type="email"
-                                        value={userData.email || ''}
-                                        onChange={(e) => setUserData({...userData, email: e.target.value})}
-                                        required
-                                    />
-                                </div>
-
-                                <div className="form-group">
-                                    <label className="label-text">Personal LinkedIn URL</label>
-                                    <input 
-                                        className="portal-input"
-                                        value={userData.socials?.linkedin || ''}
-                                        onChange={(e) => setUserData({...userData, socials: {...(userData.socials || {}), linkedin: e.target.value}})}
-                                        placeholder="https://linkedin.com/in/username"
-                                    />
-                                </div>
-
-                                <div className="form-group">
-                                    <label className="label-text">Personal Twitter/X URL</label>
-                                    <input 
-                                        className="portal-input"
-                                        value={userData.socials?.twitter || ''}
-                                        onChange={(e) => setUserData({...userData, socials: {...(userData.socials || {}), twitter: e.target.value}})}
-                                        placeholder="https://x.com/username"
-                                    />
-                                </div>
-
-                                <div style={{ marginTop: '2.5rem' }}>
-                                    <button type="submit" disabled={saving || justSaved} className="action-btn">
-                                        {saving ? 'Updating...' : justSaved ? 'SAVED' : 'Save Profile'}
-                                    </button>
-                                </div>
-                            </form>
                         </>
                     ) : (
                         <>
