@@ -546,3 +546,60 @@ exports.verifyEmailChangeOTP = onCall({ cors: true }, async (request) => {
     throw new HttpsError("internal", error.message);
   }
 });
+
+// New function to handle Password Reset link generation and delivery (Ensures production URL)
+exports.sendPasswordResetEmailCustom = onCall({ cors: true }, async (request) => {
+  const { email } = request.data;
+  
+  if (!email) {
+    throw new HttpsError("invalid-argument", "Missing email address.");
+  }
+
+  try {
+    // 1. Verify user exists
+    const userRecord = await admin.auth().getUserByEmail(email).catch(() => null);
+    if (!userRecord) {
+      // For security, don't reveal if user exists, but we won't send an email
+      return { success: true }; 
+    }
+
+    // 2. Generate the link with strict production URL
+    const actionCodeSettings = {
+      url: 'https://xfoundaryapp.web.app/reset-password',
+      handleCodeInApp: true,
+    };
+    
+    const resetLink = await admin.auth().generatePasswordResetLink(email, actionCodeSettings);
+
+    // 3. Send email via the reliable "mail" collection
+    await db.collection("mail").add({
+      to: email,
+      message: {
+        subject: 'Reset your password for X Foundary',
+        html: `
+          <div style="font-family: 'Inter', sans-serif; max-width: 450px; margin: 0 auto; border: 1px solid #eee; padding: 30px; border-radius: 12px; color: #111;">
+            <div style="text-align: center; margin-bottom: 30px;">
+              <div style="background-color: #000; width: 42px; height: 42px; line-height: 42px; display: inline-block; border-radius: 0; color: white; font-weight: 800; font-size: 16px; text-align: center;">XF</div>
+              <h2 style="margin-top: 20px; color: #111;">Reset your password</h2>
+            </div>
+            <p>Hello,</p>
+            <p>We received a request to reset your password for your X Foundary account.</p>
+            <p>You can reset it by clicking the button below:</p>
+            <div style="text-align: center; margin: 30px 0;">
+              <a href="${resetLink}" style="background-color: #000; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 600; display: inline-block;">Reset Password</a>
+            </div>
+            <p style="font-size: 12px; color: #999; margin-top: 30px; line-height: 1.5;">
+              If you did not request this, you can safely ignore this email. This link will expire in 1 hour.
+            </p>
+          </div>
+        `
+      }
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error("Error generating password reset link:", error);
+    throw new HttpsError("internal", error.message);
+  }
+});
+

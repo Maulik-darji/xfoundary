@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { adminAuth as auth, adminDb as db, adminStorage as storage } from '../firebase';
-import { onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, GoogleAuthProvider, signInWithPopup, setPersistence, inMemoryPersistence, updateEmail, verifyBeforeUpdateEmail, updatePassword, sendPasswordResetEmail, sendEmailVerification, signInWithCustomToken } from 'firebase/auth';
+import { onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, GoogleAuthProvider, signInWithPopup, setPersistence, inMemoryPersistence, updateEmail, verifyBeforeUpdateEmail, updatePassword, sendEmailVerification, signInWithCustomToken } from 'firebase/auth';
 import { httpsCallable } from 'firebase/functions';
 import { adminFunctions as functions } from '../firebase';
 import { collection, getDocs, doc, getDoc, updateDoc, setDoc, writeBatch, addDoc, deleteDoc, onSnapshot, increment, query, where } from 'firebase/firestore';
@@ -523,6 +523,8 @@ const Admin = () => {
   const [showProfilePopup, setShowProfilePopup] = useState(false);
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
+  const [isResetSent, setIsResetSent] = useState(false);
+  const [isSendingReset, setIsSendingReset] = useState(false);
   
   const [pinInput, setPinInput] = useState('');
   const [profile, setProfile] = useState({ name: 'Admin', pin: '000000' });
@@ -1496,18 +1498,23 @@ const Admin = () => {
       setError('');
       const email = e.target.email.value;
       if (!email) return;
+      setIsSendingReset(true);
       try {
-          const actionCodeSettings = {
-              url: 'https://xfoundaryapp.web.app/admin',
-              handleCodeInApp: true,
-          };
-          await sendPasswordResetEmail(auth, email, actionCodeSettings);
+          const resetFn = httpsCallable(functions, 'sendPasswordResetEmailCustom');
+          await resetFn({ email });
+          setIsResetSent(true);
           setToastMessage("Password reset link sent to " + email);
           setShowToast(true);
-          setTimeout(() => setShowToast(false), 5000);
-          setAuthMode('login');
+          
+          setTimeout(() => {
+              setShowToast(false);
+              setIsResetSent(false);
+              setIsSendingReset(false);
+              setAuthMode('login');
+          }, 2000);
       } catch (err) {
           setError(err.message);
+          setIsSendingReset(false);
       }
   };
 
@@ -2377,8 +2384,23 @@ const Admin = () => {
                 <form onSubmit={handleForgotPasswordSubmit}>
                     <p style={{ fontSize: '14px', color: '#666', marginBottom: '1.5rem', textAlign: 'center' }}>Enter your admin email to receive a password reset link.</p>
                     <input name="email" type="email" placeholder="Admin Email" required style={{ width: '100%', padding: '12px', marginBottom: '1.5rem', borderRadius: '6px', border: '1px solid #ddd' }} />
-                    <button type="submit" style={{ width: '100%', padding: '12px', backgroundColor: '#000', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', marginBottom: '1rem' }}>
-                        Send Reset Link
+                    <button 
+                        type="submit" 
+                        disabled={isSendingReset || isResetSent}
+                        style={{ 
+                            width: '100%', 
+                            padding: '12px', 
+                            backgroundColor: isResetSent ? '#ccc' : '#000', 
+                            color: '#fff', 
+                            border: 'none', 
+                            borderRadius: '6px', 
+                            fontWeight: 'bold', 
+                            cursor: (isSendingReset || isResetSent) ? 'not-allowed' : 'pointer', 
+                            marginBottom: '1rem',
+                            transition: 'all 0.3s'
+                        }}
+                    >
+                        {isResetSent ? 'Sent' : (isSendingReset ? 'Sending...' : 'Send Reset Link')}
                     </button>
                     <div style={{ textAlign: 'center' }}>
                         <button type="button" onClick={() => { setAuthMode('login'); setError(''); }} style={{ background: 'none', border: 'none', color: '#000000', fontSize: '13px', fontWeight: '600', cursor: 'pointer', padding: '0' }}>Back to Login</button>

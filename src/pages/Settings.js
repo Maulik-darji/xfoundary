@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { auth, db, functions, storage } from '../firebase';
-import { onAuthStateChanged, sendPasswordResetEmail } from 'firebase/auth';
+import { onAuthStateChanged } from 'firebase/auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
@@ -31,6 +31,8 @@ const Settings = () => {
   const [emailOTP, setEmailOTP] = useState('');
   const [emailChangeError, setEmailChangeError] = useState('');
   const [isChangingEmail, setIsChangingEmail] = useState(false);
+  const [isResetSent, setIsResetSent] = useState(false);
+  const [isSendingReset, setIsSendingReset] = useState(false);
 
   useEffect(() => {
     document.title = "Settings";
@@ -158,15 +160,19 @@ const Settings = () => {
 
   const handleChangePassword = async () => {
     if (user?.email) {
+      setIsSendingReset(true);
       try {
-        const actionCodeSettings = {
-          url: 'https://xfoundaryapp.web.app/login',
-          handleCodeInApp: true,
-        };
-        await sendPasswordResetEmail(auth, user.email, actionCodeSettings);
+        const resetFn = httpsCallable(functions, 'sendPasswordResetEmailCustom');
+        await resetFn({ email: user.email });
+        setIsResetSent(true);
         showAlert('Password reset email sent!', 'success');
+        setTimeout(() => {
+          setIsResetSent(false);
+          setIsSendingReset(false);
+        }, 3000);
       } catch (error) {
         showAlert('Error sending reset email: ' + error.message, 'error');
+        setIsSendingReset(false);
       }
     }
   };
@@ -426,8 +432,22 @@ const Settings = () => {
                 <p style={{ fontSize: '14px', color: '#666', marginBottom: '1.5rem', lineHeight: '1.5' }}>
                   We'll send you an email with a link to reset your password. You'll be logged out of all other sessions.
                 </p>
-                <button onClick={handleChangePassword} style={{ backgroundColor: '#000', color: '#fff', border: 'none', padding: '12px 24px', borderRadius: '8px', fontWeight: '700', cursor: 'pointer', fontSize: '14px' }}>
-                  Request Password Reset
+                <button 
+                  onClick={handleChangePassword} 
+                  disabled={isSendingReset || isResetSent}
+                  style={{ 
+                    backgroundColor: isResetSent ? '#ccc' : '#000', 
+                    color: '#fff', 
+                    border: 'none', 
+                    padding: '12px 24px', 
+                    borderRadius: '8px', 
+                    fontWeight: '700', 
+                    cursor: (isSendingReset || isResetSent) ? 'not-allowed' : 'pointer', 
+                    fontSize: '14px',
+                    transition: 'all 0.3s'
+                  }}
+                >
+                  {isResetSent ? 'Sent' : (isSendingReset ? 'Sending...' : 'Request Password Reset')}
                 </button>
               </div>
             </div>

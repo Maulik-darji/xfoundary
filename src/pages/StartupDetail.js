@@ -184,7 +184,7 @@ const StartupDetail = () => {
 
     return (
         <div style={{ minHeight: '100vh', backgroundColor: '#f5f5ee', fontFamily: '"Inter", sans-serif', paddingBottom: '10rem' }}>
-            <div style={{ maxWidth: '1000px', margin: '0 auto', padding: '4rem 2rem' }}>
+            <div style={{ maxWidth: '1100px', margin: '0 auto', padding: '4rem 2rem' }}>
                 {/* Breadcrumbs */}
                 <nav style={{ fontSize: '14px', color: '#666', marginBottom: '2rem', fontWeight: '500' }}>
                     <Link to="/directory" style={{ color: '#666', textDecoration: 'none', transition: 'color 0.2s' }} onMouseEnter={e => e.currentTarget.style.color = '#000'} onMouseLeave={e => e.currentTarget.style.color = '#666'}>Companies</Link>
@@ -193,7 +193,7 @@ const StartupDetail = () => {
                 </nav>
 
                 {/* Two-Column XF Layout */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', gap: '3rem', alignItems: 'start' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 400px', gap: '3rem', alignItems: 'start' }}>
                     
                     {/* Left Column */}
                     <div>
@@ -278,20 +278,16 @@ const StartupDetail = () => {
                     {/* Right Column (Sidebar Card) */}
                     <div>
                         <div style={{ backgroundColor: '#fff', border: '1px solid #e0e0e0', borderRadius: '8px', padding: '2rem', boxShadow: '0 4px 12px rgba(0,0,0,0.03)' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '16px', marginBottom: '2.5rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-start', gap: '16px', marginBottom: '2.5rem' }}>
                                 {startup.logoWordmark ? (
-                                    <img src={startup.logoWordmark} alt={startup.name} style={{ maxHeight: '40px', objectFit: 'contain' }} />
+                                    <img src={startup.logoWordmark} alt={startup.name} style={{ maxHeight: '56px', objectFit: 'contain' }} />
                                 ) : (
                                     <>
-                                        <img src={startup.logo} alt="" style={{ width: '40px', height: '40px', objectFit: 'contain' }} onError={(e) => e.target.src = `https://api.dicebear.com/7.x/initials/svg?seed=${startup.name}&backgroundColor=6300dd&textColor=ffffff`} />
-                                        <h2 style={{ fontSize: '24px', fontWeight: '800', margin: 0, color: '#000' }}>{startup.name}</h2>
+                                        <img src={startup.logo} alt="" style={{ width: '60px', height: '60px', objectFit: 'contain' }} onError={(e) => e.target.src = `https://api.dicebear.com/7.x/initials/svg?seed=${startup.name}&backgroundColor=6300dd&textColor=ffffff`} />
+                                        <h2 style={{ fontSize: '28px', fontWeight: '800', margin: 0, color: '#000' }}>{startup.name}</h2>
                                     </>
                                 )}
                             </div>
-                            
-                            {!startup.logoWordmark && (
-                                <h3 style={{ fontSize: '18px', fontWeight: '800', color: '#111', margin: '0 0 1.5rem 0' }}>{startup.name}</h3>
-                            )}
 
                             <table style={{ width: '100%', fontSize: '14px', marginBottom: '2rem', borderCollapse: 'collapse' }}>
                                 <tbody>
@@ -317,7 +313,7 @@ const StartupDetail = () => {
                                 </tbody>
                             </table>
 
-                            <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
+                            <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-start' }}>
                                 {startup.url && (
                                     <a href={startup.url} target="_blank" rel="noopener noreferrer" style={{ width: '32px', height: '32px', border: '1px solid #eee', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#666', textDecoration: 'none' }}>
                                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
@@ -368,9 +364,8 @@ const StartupDetail = () => {
                             ))}
                         </div>
                     ) : (
-                        <div style={{ padding: '2rem', backgroundColor: '#fff', border: '1px solid #eee', borderRadius: '4px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <span style={{ color: '#666', fontSize: '16px' }}>No specific jobs listed. You can still apply and we'll let the founders know.</span>
-                            <button onClick={() => navigate('/apply')} style={{ backgroundColor: '#6300dd', color: '#fff', border: 'none', padding: '10px 24px', borderRadius: '6px', fontWeight: '700', fontSize: '14px', cursor: 'pointer' }}>Apply</button>
+                        <div style={{ padding: '2rem', backgroundColor: '#fff', border: '1px solid #eee', borderRadius: '4px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                            <span style={{ color: '#666', fontSize: '16px', fontWeight: '500' }}>No active job listings at the moment. Check back later!</span>
                         </div>
                     )}
                 </div>

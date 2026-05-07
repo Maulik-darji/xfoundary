@@ -63,11 +63,11 @@ a {
 }
 
 .header-inner.scrolled {
-  width: 96%;
-  max-width: 1350px;
+  width: 99%;
+  max-width: 1600px;
   margin-top: 1rem;
   border-radius: 100px;
-  padding: 0.75rem 2.5rem;
+  padding: 1rem 2.5rem;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
   border: 1px solid rgba(255, 255, 255, 0.4);
 }

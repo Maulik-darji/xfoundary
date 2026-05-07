@@ -256,13 +256,13 @@ const Header = () => {
           
           <Link to="/jobs" className="nav-item">Startup Jobs</Link>
           
+        </nav>
+        <div className="nav-actions">
           {isApprovedFounder && (
-            <Link to="/founderscompany/dashboard" className="nav-item" style={{ color: 'var(--xf-primary)', fontWeight: '600', textDecoration: 'none' }}>
+            <Link to="/founderscompany/dashboard" className="nav-item" style={{ color: 'var(--xf-primary)', fontWeight: '600', textDecoration: 'none', marginRight: '0.5rem' }}>
               Founder Dashboard
             </Link>
           )}
-        </nav>
-        <div className="nav-actions">
           {user ? (
             <div className="nav-item user-menu">
               <div className="user-avatar">

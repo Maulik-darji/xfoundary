@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { 
   signInWithEmailAndPassword, 
-  sendPasswordResetEmail, 
   sendSignInLinkToEmail,
   isSignInWithEmailLink,
   signInWithEmailLink,
@@ -33,6 +32,11 @@ const Login = () => {
   const [showForgotUsername, setShowForgotUsername] = useState(false);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [forgotEmail, setForgotEmail] = useState('');
+  const [modalMessage, setModalMessage] = useState('');
+  const [isResetSent, setIsResetSent] = useState(false);
+  const [isSendingReset, setIsSendingReset] = useState(false);
+  
+  const [toast, setToast] = useState({ visible: false, message: '' });
   const [loginLinkSent, setLoginLinkSent] = useState(false);
   const [loginLinkEmail, setLoginLinkEmail] = useState('');
   const [userOtp, setUserOtp] = useState('');
@@ -51,8 +55,6 @@ const Login = () => {
     }
     return () => clearInterval(interval);
   }, [resendTimer]);
-  const [modalMessage, setModalMessage] = useState('');
-  const [toast, setToast] = useState({ visible: false, message: '' });
   const navigate = useNavigate();
   const location = useLocation();
   const queryParams = new URLSearchParams(location.search);
@@ -89,16 +91,22 @@ const Login = () => {
 
       // Directly send the password reset email. 
       // If the email doesn't exist, Firebase will handle it silently or throw an error based on Enum Protection.
-      const actionCodeSettings = {
-        url: 'https://xfoundaryapp.web.app/login',
-        handleCodeInApp: true,
-      };
-      await sendPasswordResetEmail(auth, resetEmail, actionCodeSettings);
-      setShowForgotPassword(false);
+      setIsSendingReset(true);
+      const resetFn = httpsCallable(functions, 'sendPasswordResetEmailCustom');
+      await resetFn({ email: resetEmail });
+      setIsResetSent(true);
       showToast(`Password reset link sent to the email associated with this account.`);
-      setForgotEmail('');
+      
+      // Close modal after a short delay to show "Sent" state
+      setTimeout(() => {
+        setShowForgotPassword(false);
+        setIsResetSent(false);
+        setIsSendingReset(false);
+        setForgotEmail('');
+      }, 2000);
     } catch (err) {
       setModalMessage("Error: " + err.message);
+      setIsSendingReset(false);
     }
   };
 
@@ -560,8 +568,20 @@ const Login = () => {
               </div>
               {modalMessage && <p className="modal-message">{modalMessage}</p>}
               <div className="modal-actions">
-                <button type="button" className="btn-cancel" onClick={() => { setShowForgotPassword(false); setModalMessage(''); }}>Cancel</button>
-                <button type="submit" className="btn-modal-submit btn-send-link">Send Link</button>
+                <button type="button" className="btn-cancel" onClick={() => { setShowForgotPassword(false); setModalMessage(''); setIsResetSent(false); }}>Cancel</button>
+                <button 
+                  type="submit" 
+                  className="btn-modal-submit btn-send-link" 
+                  disabled={isSendingReset || isResetSent}
+                  style={{
+                    backgroundColor: isResetSent ? '#ccc' : (isSendingReset ? '#8e44ad' : '#6300dd'),
+                    color: '#fff',
+                    cursor: (isSendingReset || isResetSent) ? 'not-allowed' : 'pointer',
+                    transition: 'all 0.3s'
+                  }}
+                >
+                  {isResetSent ? 'Sent' : (isSendingReset ? 'Sending...' : 'Send Link')}
+                </button>
               </div>
             </form>
           </div>
