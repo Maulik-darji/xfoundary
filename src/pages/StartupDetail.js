@@ -101,6 +101,7 @@ const StartupDetail = () => {
                         batch: app.batch || 'Upcoming',
                         industries: Array.isArray(app.industries) ? app.industries : ['Tech'],
                         logo: app.companyLogo || (app.companyUrl ? `https://logo.clearbit.com/${app.companyUrl.replace(/^https?:\/\//, '')}` : 'https://via.placeholder.com/120?text=X'),
+                        logoWordmark: app.companyLogoWordmark || '',
                         url: app.companyUrl?.startsWith('http') ? app.companyUrl : `https://${app.companyUrl}`,
                         founded: '2024',
                         teamSize: '2',
@@ -139,6 +140,7 @@ const StartupDetail = () => {
                         batch: app.batch || 'Upcoming',
                         industries: Array.isArray(app.industries) ? app.industries : ['Tech'],
                         logo: app.companyLogo || (app.companyUrl ? `https://logo.clearbit.com/${app.companyUrl.replace(/^https?:\/\//, '')}` : 'https://via.placeholder.com/120?text=X'),
+                        logoWordmark: app.companyLogoWordmark || data.application?.companyLogoWordmark || '',
                         url: app.companyUrl?.startsWith('http') ? app.companyUrl : `https://${app.companyUrl}`,
                         founded: '2024',
                         teamSize: '2',
@@ -174,7 +176,7 @@ const StartupDetail = () => {
 
     if (loading) return (
         <div style={{ minHeight: '100vh', backgroundColor: '#f5f5ee', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <div style={{ fontSize: '18px', color: '#111', fontWeight: 600 }}>Loading company data...</div>
+            <div style={{ fontSize: '2rem', color: '#111', fontFamily: "'Newsreader', Georgia, serif", fontStyle: 'italic', letterSpacing: '-0.02em', fontWeight: '400' }}>Loading company data...</div>
         </div>
     );
 
@@ -277,11 +279,19 @@ const StartupDetail = () => {
                     <div>
                         <div style={{ backgroundColor: '#fff', border: '1px solid #e0e0e0', borderRadius: '8px', padding: '2rem', boxShadow: '0 4px 12px rgba(0,0,0,0.03)' }}>
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '16px', marginBottom: '2.5rem' }}>
-                                <img src={startup.logo} alt="" style={{ width: '40px', height: '40px', objectFit: 'contain' }} onError={(e) => e.target.src = `https://api.dicebear.com/7.x/initials/svg?seed=${startup.name}&backgroundColor=6300dd&textColor=ffffff`} />
-                                <h2 style={{ fontSize: '24px', fontWeight: '800', margin: 0, color: '#000' }}>{startup.name}</h2>
+                                {startup.logoWordmark ? (
+                                    <img src={startup.logoWordmark} alt={startup.name} style={{ maxHeight: '40px', objectFit: 'contain' }} />
+                                ) : (
+                                    <>
+                                        <img src={startup.logo} alt="" style={{ width: '40px', height: '40px', objectFit: 'contain' }} onError={(e) => e.target.src = `https://api.dicebear.com/7.x/initials/svg?seed=${startup.name}&backgroundColor=6300dd&textColor=ffffff`} />
+                                        <h2 style={{ fontSize: '24px', fontWeight: '800', margin: 0, color: '#000' }}>{startup.name}</h2>
+                                    </>
+                                )}
                             </div>
                             
-                            <h3 style={{ fontSize: '18px', fontWeight: '800', color: '#111', margin: '0 0 1.5rem 0' }}>{startup.name}</h3>
+                            {!startup.logoWordmark && (
+                                <h3 style={{ fontSize: '18px', fontWeight: '800', color: '#111', margin: '0 0 1.5rem 0' }}>{startup.name}</h3>
+                            )}
 
                             <table style={{ width: '100%', fontSize: '14px', marginBottom: '2rem', borderCollapse: 'collapse' }}>
                                 <tbody>
@@ -303,10 +313,6 @@ const StartupDetail = () => {
                                     <tr>
                                         <td style={{ color: '#444', padding: '10px 0' }}>Location:</td>
                                         <td style={{ textAlign: 'right', fontWeight: '500', padding: '10px 0', color: '#111' }}>{startup.location}</td>
-                                    </tr>
-                                    <tr>
-                                        <td style={{ color: '#444', padding: '10px 0' }}>Primary Partner:</td>
-                                        <td style={{ textAlign: 'right', fontWeight: '500', color: '#0073b1', padding: '10px 0' }}>{startup.partner}</td>
                                     </tr>
                                 </tbody>
                             </table>

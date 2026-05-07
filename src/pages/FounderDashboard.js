@@ -82,6 +82,8 @@ const FounderDashboard = () => {
     const [rotation, setRotation] = useState(0);
     const [flip, setFlip] = useState({ horizontal: false, vertical: false });
     const [activeEditorTab, setActiveEditorTab] = useState('crop'); // 'crop', 'filter', 'adjust'
+    const [showConfirm, setShowConfirm] = useState(false);
+    const [confirmConfig, setConfirmConfig] = useState({ title: '', message: '', onConfirm: () => {} });
     
     // Location Selector State
     const [countries, setCountries] = useState([]);
@@ -617,24 +619,54 @@ const FounderDashboard = () => {
                 });
             };
 
-            if (sourceTarget === 'logo') {
+            if (sourceTarget === 'logoIcon' || sourceTarget === 'logoWordmark' || sourceTarget === 'logo') {
                 const currentMsgId = Date.now();
-                const storageRef = ref(storage, `company_logos/${user.uid}/logo.png`);
+                const fileName = sourceTarget === 'logoWordmark' ? 'wordmark.png' : 'logo.png';
+                const storageRef = ref(storage, `company_logos/${user.uid}/${fileName}`);
                 const croppedPromise = uploadWithProgress(storageRef, fileToUpload, 'main', progressMap);
 
-                let originalLogoURL = appData.originalCompanyLogo || appData.companyLogo || '';
+                const origFileName = sourceTarget === 'logoWordmark' ? 'original_wordmark.png' : 'original.png';
+                let originalLogoURL = (sourceTarget === 'logoWordmark' ? appData.originalCompanyLogoWordmark : appData.originalCompanyLogo) || '';
+                
                 if (selectedFile) {
-                    const originalRef = ref(storage, `company_logos/${user.uid}/original.png`);
+                    const originalRef = ref(storage, `company_logos/${user.uid}/${origFileName}`);
                     originalLogoURL = await uploadWithProgress(originalRef, selectedFile, 'orig', progressMap);
                 }
 
                 const rawDownloadURL = await croppedPromise;
                 const downloadURL = rawDownloadURL + (rawDownloadURL.includes('?') ? '&' : '?') + 't=' + Date.now();
 
-                await updateDoc(doc(db, 'users', user.uid), { 
-                    'application.companyLogo': downloadURL,
-                    'application.originalCompanyLogo': originalLogoURL
-                });
+                const dbUpdates = {};
+                if (sourceTarget === 'logoWordmark') {
+                    dbUpdates['application.companyLogoWordmark'] = downloadURL;
+                    dbUpdates['application.originalCompanyLogoWordmark'] = originalLogoURL;
+                } else {
+                    // logoIcon or legacy 'logo'
+                    dbUpdates['application.companyLogo'] = downloadURL;
+                    dbUpdates['application.originalCompanyLogo'] = originalLogoURL;
+                }
+
+                await updateDoc(doc(db, 'users', user.uid), dbUpdates);
+
+                // Sync to applications collection
+                try {
+                    const appQuery = query(collection(db, 'applications'), where('founderId', '==', user.uid));
+                    const appSnap = await getDocs(appQuery);
+                    if (!appSnap.empty) {
+                        const appId = appSnap.docs[0].id;
+                        const appUpdates = {};
+                        if (sourceTarget === 'logoWordmark') {
+                            appUpdates['companyLogoWordmark'] = downloadURL;
+                            appUpdates['originalCompanyLogoWordmark'] = originalLogoURL;
+                        } else {
+                            appUpdates['companyLogo'] = downloadURL;
+                            appUpdates['originalCompanyLogo'] = originalLogoURL;
+                        }
+                        await updateDoc(doc(db, 'applications', appId), appUpdates);
+                    }
+                } catch (syncErr) {
+                    console.error("Error syncing to applications:", syncErr);
+                }
                 
                 setMessage({ text: 'Logo updated successfully!', type: 'success', id: Date.now() });
             } else {
@@ -679,45 +711,92 @@ const FounderDashboard = () => {
         }
     };
 
-    const handleRemoveLogo = async () => {
-        if (!window.confirm("Are you sure you want to remove the company logo?")) return;
+    const handleRemoveLogo = async (type = 'icon') => {
+        const typeLabel = type === 'wordmark' ? 'wordmark' : 'logo';
         
-        setSaving(true);
-        try {
-            const userRef = doc(db, 'users', user.uid);
-            await updateDoc(userRef, { 
-                'application.companyLogo': '' 
-            });
-            setAppData({ ...appData, companyLogo: '' });
-            setMessage({ text: 'Company logo removed!', type: 'success' });
-            setTimeout(() => setMessage({ text: '', type: '' }), 5000);
-        } catch (error) {
-            console.error("Error removing logo:", error);
-            setMessage({ text: 'Failed to remove logo.', type: 'error' });
-        } finally {
-            setSaving(false);
-        }
+        setConfirmConfig({
+            title: `Remove ${typeLabel}?`,
+            message: `Are you sure you want to remove the company ${typeLabel}? This action cannot be undone.`,
+            onConfirm: async () => {
+                setSaving(true);
+                setShowConfirm(false);
+                try {
+                    const userRef = doc(db, 'users', user.uid);
+                    const updates = {};
+                    if (type === 'wordmark') {
+                        updates['application.companyLogoWordmark'] = '';
+                        updates['application.originalCompanyLogoWordmark'] = '';
+                    } else {
+                        updates['application.companyLogo'] = '';
+                        updates['application.originalCompanyLogo'] = '';
+                    }
+                    
+                    await updateDoc(userRef, updates);
+                    
+                    if (type === 'wordmark') {
+                        setAppData({ ...appData, companyLogoWordmark: '', originalCompanyLogoWordmark: '' });
+                    } else {
+                        setAppData({ ...appData, companyLogo: '', originalCompanyLogo: '' });
+                    }
+
+                    // Sync to applications collection
+                    try {
+                        const appQuery = query(collection(db, 'applications'), where('founderId', '==', user.uid));
+                        const appSnap = await getDocs(appQuery);
+                        if (!appSnap.empty) {
+                            const appId = appSnap.docs[0].id;
+                            const appUpdates = {};
+                            if (type === 'wordmark') {
+                                appUpdates['companyLogoWordmark'] = '';
+                                appUpdates['originalCompanyLogoWordmark'] = '';
+                            } else {
+                                appUpdates['companyLogo'] = '';
+                                appUpdates['originalCompanyLogo'] = '';
+                            }
+                            await updateDoc(doc(db, 'applications', appId), appUpdates);
+                        }
+                    } catch (syncErr) {
+                        console.error("Error syncing removal to applications:", syncErr);
+                    }
+                    
+                    setMessage({ text: `Company ${typeLabel} removed!`, type: 'success' });
+                    setTimeout(() => setMessage({ text: '', type: '' }), 5000);
+                } catch (error) {
+                    console.error("Error removing logo:", error);
+                    setMessage({ text: 'Failed to remove logo.', type: 'error' });
+                } finally {
+                    setSaving(false);
+                }
+            }
+        });
+        setShowConfirm(true);
     };
 
     const handleRemoveProfileImage = async () => {
-        if (!window.confirm("Are you sure you want to remove your profile photo?")) return;
-        
-        setSaving(true);
-        try {
-            await updateProfile(user, { photoURL: '' });
-            const userRef = doc(db, 'users', user.uid);
-            await updateDoc(userRef, { 
-                photoURL: '' 
-            });
-            setUserData({ ...userData, photoURL: '' });
-            setMessage({ text: 'Profile photo removed!', type: 'success' });
-            setTimeout(() => setMessage({ text: '', type: '' }), 5000);
-        } catch (error) {
-            console.error("Error removing photo:", error);
-            setMessage({ text: 'Failed to remove photo.', type: 'error' });
-        } finally {
-            setSaving(false);
-        }
+        setConfirmConfig({
+            title: 'Remove photo?',
+            message: 'Are you sure you want to remove your profile photo?',
+            onConfirm: async () => {
+                setSaving(true);
+                setShowConfirm(false);
+                try {
+                    await updateProfile(user, { photoURL: '' });
+                    const userRef = doc(db, 'users', user.uid);
+                    await updateDoc(userRef, { 
+                        photoURL: '' 
+                    });
+                    setUserData({ ...userData, photoURL: '' });
+                    setMessage({ text: 'Profile photo removed!', type: 'success' });
+                    setTimeout(() => setMessage({ text: '', type: '' }), 5000);
+                } catch (error) {
+                    console.error("Error removing photo:", error);
+                    setMessage({ text: 'Failed to remove photo.', type: 'error' });
+                } finally {
+                    setSaving(false);
+                }
+            }
+        });
+        setShowConfirm(true);
     };
 
     if (loading || !appData) return (
@@ -725,7 +804,7 @@ const FounderDashboard = () => {
             <div className="logo-container">
                 <span style={{ fontSize: '24px' }}>X</span>
             </div>
-            <div style={{ fontSize: '18px', color: '#6300dd', fontWeight: 600 }}>Loading Dashboard...</div>
+            <div style={{ fontSize: '1.8rem', color: '#6300dd', fontFamily: "'Newsreader', Georgia, serif", fontStyle: 'italic', letterSpacing: '-0.01em', fontWeight: '400' }}>Loading Dashboard...</div>
         </div>
     );
 
@@ -854,6 +933,31 @@ const FounderDashboard = () => {
                     from { transform: translateY(10px); opacity: 0; }
                     to { transform: translateY(0); opacity: 1; }
                 }
+                .toast-popup {
+                    position: fixed;
+                    bottom: 2rem;
+                    right: 2rem;
+                    z-index: 99999;
+                    background: #fff;
+                    padding: 1.25rem 1.5rem;
+                    border-radius: 12px;
+                    box-shadow: 0 15px 45px rgba(0,0,0,0.12);
+                    border: 1px solid #eee;
+                    animation: toastIn 0.3s ease-out;
+                    display: flex;
+                    flex-direction: column;
+                    gap: 10px;
+                    min-width: 280px;
+                }
+                .toast-popup.success {
+                    border-left: 4px solid #00a651;
+                }
+                .toast-popup.error {
+                    border-left: 4px solid #ff4d4f;
+                }
+                .toast-popup.info {
+                    border-left: 4px solid #6300dd;
+                }
             `}</style>
 
 
@@ -936,117 +1040,148 @@ const FounderDashboard = () => {
                 <div className="content-section">
                     {activeTab === 'company' ? (
                         <>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '2rem', marginBottom: '3rem' }}>
-                                <div 
-                                    style={{ 
-                                        width: '100px', 
-                                        height: '100px', 
-                                        borderRadius: '16px', 
-                                        border: '1px solid #ddd', 
-                                        background: '#fff', 
-                                        display: 'flex', 
-                                        alignItems: 'center', 
-                                        justifyContent: 'center', 
-                                        cursor: 'pointer',
-                                        overflow: 'hidden',
-                                        position: 'relative'
-                                    }}
-                                >
-                                    <div style={{ width: '100%', height: '100%' }} onClick={() => { 
-                                        if (appData.companyLogo) {
-                                            const sourceUrl = appData.originalCompanyLogo || appData.companyLogo;
-                                            const bustSource = sourceUrl + (sourceUrl.includes('?') ? '&' : '?') + 'cache=' + Date.now();
-                                            setPreviewUrl(bustSource);
-                                            setSourceTarget('logo');
-                                            setShowCropModal(true);
-                                        } else {
-                                            setSourceTarget('logo'); 
-                                            setShowSourceModal(true);
-                                        }
-                                    }}>
-                                        {appData.companyLogo ? (
-                                            <img src={appData.companyLogo} alt="Logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
-                                        ) : (
-                                            <div style={{ fontSize: '11px', color: '#999', textAlign: 'center', padding: '10px' }}>Click to upload logo</div>
-                                        )}
-                                    </div>
-                                    
-                                    {appData.companyLogo && (
-                                        <div style={{ position: 'absolute', top: '4px', right: '4px', display: 'flex', gap: '4px' }}>
-                                            <button 
-                                                type="button"
-                                                onClick={(e) => { 
-                                                    e.stopPropagation(); 
-                                                    const sourceUrl = appData.originalCompanyLogo || appData.companyLogo;
-                                                    const bustSource = sourceUrl + (sourceUrl.includes('?') ? '&' : '?') + 'cache=' + Date.now();
-                                                    setPreviewUrl(bustSource);
-                                                    setSourceTarget('logo');
-                                                    setShowCropModal(true);
-                                                }}
-                                                style={{
-                                                    backgroundColor: 'rgba(255,255,255,0.9)',
-                                                    border: '1px solid #ddd',
-                                                    borderRadius: '50%',
-                                                    width: '24px',
-                                                    height: '24px',
-                                                    display: 'flex',
-                                                    alignItems: 'center',
-                                                    justifyContent: 'center',
-                                                    cursor: 'pointer',
-                                                    color: '#0073b1',
-                                                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
-                                                }}
-                                                title="Re-crop logo"
-                                            >
-                                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
-                                            </button>
-                                            <button 
-                                                type="button"
-                                                onClick={(e) => { e.stopPropagation(); handleRemoveLogo(); }}
-                                                style={{
-                                                    backgroundColor: 'rgba(255,255,255,0.9)',
-                                                    border: '1px solid #ddd',
-                                                    borderRadius: '50%',
-                                                    width: '24px',
-                                                    height: '24px',
-                                                    display: 'flex',
-                                                    alignItems: 'center',
-                                                    justifyContent: 'center',
-                                                    cursor: 'pointer',
-                                                    fontSize: '14px',
-                                                    color: '#ff4d4f',
-                                                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
-                                                }}
-                                                title="Remove logo"
-                                            >
-                                                ×
-                                            </button>
-                                        </div>
-                                    )}
-
-                                </div>
-                                <div>
-                                    <h1 style={{ fontSize: '28px', fontWeight: '800', margin: 0, color: '#111' }}>Company Profile</h1>
-                                    <p style={{ color: '#666', marginTop: '6px', fontSize: '15px', marginBottom: '12px' }}>Information displayed in the public startup directory</p>
-                                    <button 
-                                        type="button"
-                                        onClick={() => { setSourceTarget('logo'); setShowSourceModal(true); }}
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '2rem', marginBottom: '4rem', alignItems: 'flex-start' }}>
+                                {/* 1. Company Icon (Symbol Only) */}
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                                    <div 
                                         style={{ 
-                                            background: '#f3f4f6', 
+                                            width: '100px', 
+                                            height: '100px', 
+                                            borderRadius: '16px', 
                                             border: '1px solid #ddd', 
-                                            padding: '6px 12px', 
-                                            borderRadius: '6px', 
-                                            fontSize: '12px', 
-                                            fontWeight: '600', 
+                                            background: '#fff', 
+                                            display: 'flex', 
+                                            alignItems: 'center', 
+                                            justifyContent: 'center', 
                                             cursor: 'pointer',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            gap: '6px'
+                                            overflow: 'hidden',
+                                            position: 'relative',
+                                            boxShadow: '0 4px 12px rgba(0,0,0,0.03)'
+                                        }}
+                                        onClick={() => { 
+                                            if (appData.companyLogo) {
+                                                const sourceUrl = appData.originalCompanyLogo || appData.companyLogo;
+                                                const bustSource = sourceUrl + (sourceUrl.includes('?') ? '&' : '?') + 'cache=' + Date.now();
+                                                setPreviewUrl(bustSource);
+                                                setSourceTarget('logoIcon');
+                                                setShowCropModal(true);
+                                            } else {
+                                                setSourceTarget('logoIcon'); 
+                                                setShowSourceModal(true);
+                                            }
                                         }}
                                     >
-                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
-                                        Change Photo
-                                    </button>
+                                        {appData.companyLogo ? (
+                                            <img src={appData.companyLogo} alt="Icon" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                                        ) : (
+                                            <div style={{ fontSize: '11px', color: '#999', textAlign: 'center', padding: '10px' }}>Upload Icon</div>
+                                        )}
+                                        
+                                        {appData.companyLogo && (
+                                            <div style={{ position: 'absolute', top: '4px', right: '4px', display: 'flex', gap: '4px' }}>
+                                                <button 
+                                                    type="button"
+                                                    onClick={(e) => { 
+                                                        e.stopPropagation(); 
+                                                        handleRemoveLogo('icon'); 
+                                                    }}
+                                                    style={{
+                                                        backgroundColor: 'rgba(255,255,255,0.9)',
+                                                        border: '1px solid #eee',
+                                                        borderRadius: '50%',
+                                                        width: '20px',
+                                                        height: '20px',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        justifyContent: 'center',
+                                                        cursor: 'pointer',
+                                                        color: '#ff4d4f',
+                                                        fontSize: '12px'
+                                                    }}
+                                                >
+                                                    ×
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
+                                    <div style={{ maxWidth: '140px' }}>
+                                        <h4 style={{ fontSize: '13px', fontWeight: '700', margin: '0 0 4px 0' }}>Company Icon</h4>
+                                        <p style={{ fontSize: '11px', color: '#888', margin: 0, lineHeight: '1.3' }}>Symbol/icon only. Used for square cards and small avatars.</p>
+                                    </div>
+                                </div>
+
+                                {/* 2. Full Logo (Wordmark) */}
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                                    <div 
+                                        style={{ 
+                                            width: '240px', 
+                                            height: '100px', 
+                                            borderRadius: '16px', 
+                                            border: '1px solid #ddd', 
+                                            background: '#fff', 
+                                            display: 'flex', 
+                                            alignItems: 'center', 
+                                            justifyContent: 'center', 
+                                            cursor: 'pointer',
+                                            overflow: 'hidden',
+                                            position: 'relative',
+                                            boxShadow: '0 4px 12px rgba(0,0,0,0.03)'
+                                        }}
+                                        onClick={() => { 
+                                            if (appData.companyLogoWordmark) {
+                                                const sourceUrl = appData.originalCompanyLogoWordmark || appData.companyLogoWordmark;
+                                                const bustSource = sourceUrl + (sourceUrl.includes('?') ? '&' : '?') + 'cache=' + Date.now();
+                                                setPreviewUrl(bustSource);
+                                                setSourceTarget('logoWordmark');
+                                                setShowCropModal(true);
+                                            } else {
+                                                setSourceTarget('logoWordmark'); 
+                                                setShowSourceModal(true);
+                                            }
+                                        }}
+                                    >
+                                        {appData.companyLogoWordmark ? (
+                                            <img src={appData.companyLogoWordmark} alt="Wordmark" style={{ width: '100%', height: '100%', objectFit: 'contain', padding: '10px' }} />
+                                        ) : (
+                                            <div style={{ fontSize: '11px', color: '#999', textAlign: 'center', padding: '10px' }}>Upload Full Logo / Wordmark</div>
+                                        )}
+
+                                        {appData.companyLogoWordmark && (
+                                            <div style={{ position: 'absolute', top: '4px', right: '4px', display: 'flex', gap: '4px' }}>
+                                                <button 
+                                                    type="button"
+                                                    onClick={(e) => { 
+                                                        e.stopPropagation(); 
+                                                        handleRemoveLogo('wordmark'); 
+                                                    }}
+                                                    style={{
+                                                        backgroundColor: 'rgba(255,255,255,0.9)',
+                                                        border: '1px solid #eee',
+                                                        borderRadius: '50%',
+                                                        width: '20px',
+                                                        height: '20px',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        justifyContent: 'center',
+                                                        cursor: 'pointer',
+                                                        color: '#ff4d4f',
+                                                        fontSize: '12px'
+                                                    }}
+                                                >
+                                                    ×
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
+                                    <div style={{ maxWidth: '240px' }}>
+                                        <h4 style={{ fontSize: '13px', fontWeight: '700', margin: '0 0 4px 0' }}>Full Logo (Wordmark)</h4>
+                                        <p style={{ fontSize: '11px', color: '#888', margin: 0, lineHeight: '1.3' }}>Includes company name. Used for headers and main profile pages.</p>
+                                    </div>
+                                </div>
+
+                                <div style={{ flex: 1, minWidth: '200px', alignSelf: 'center' }}>
+                                    <h1 style={{ fontSize: '28px', fontWeight: '800', margin: 0, color: '#111', letterSpacing: '-0.5px' }}>Company Profile</h1>
+                                    <p style={{ color: '#666', marginTop: '6px', fontSize: '14px', marginBottom: '0' }}>Manage how your startup appears to the public.</p>
                                 </div>
                             </div>
 
@@ -1668,7 +1803,7 @@ const FounderDashboard = () => {
                                         crop={crop}
                                         zoom={zoom}
                                         rotation={rotation}
-                                        aspect={sourceTarget === 'logo' ? 1 : 1}
+                                        aspect={sourceTarget === 'logoWordmark' ? 3 / 1 : 1}
                                         cropShape={sourceTarget === 'profile' ? 'round' : 'rect'}
                                         onCropChange={setCrop}
                                         onZoomChange={setZoom}
@@ -1755,14 +1890,14 @@ const FounderDashboard = () => {
                 <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000, backdropFilter: 'blur(8px)' }}>
                     <div style={{ backgroundColor: '#fff', borderRadius: '16px', padding: '2.5rem', width: '440px', boxShadow: '0 25px 60px rgba(0,0,0,0.2)', animation: 'slideUp 0.3s ease-out' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
-                            <h3 style={{ margin: 0, fontWeight: '800', color: '#111', fontSize: '1.25rem' }}>Upload {sourceTarget === 'logo' ? 'Company Logo' : 'Profile Image'}</h3>
+                            <h3 style={{ margin: 0, fontWeight: '800', color: '#111', fontSize: '1.25rem' }}>Upload {(sourceTarget === 'logo' || sourceTarget === 'logoIcon' || sourceTarget === 'logoWordmark') ? 'Company Logo' : 'Profile Image'}</h3>
                             <button onClick={() => setShowSourceModal(false)} style={{ background: 'none', border: 'none', fontSize: '24px', color: '#999', cursor: 'pointer' }}>&times;</button>
                         </div>
                         
                         <div 
                             onClick={() => { 
                                 setShowSourceModal(false); 
-                                if (sourceTarget === 'logo') logoInputRef.current.click();
+                                if (sourceTarget === 'logo' || sourceTarget === 'logoIcon' || sourceTarget === 'logoWordmark') logoInputRef.current.click();
                                 else fileInputRef.current.click();
                             }}
                             style={{ 
@@ -1796,7 +1931,7 @@ const FounderDashboard = () => {
                                 onClick={async () => {
                                     const url = window.prompt('Enter image URL:');
                                     if (url) {
-                                        if (sourceTarget === 'logo') {
+                                    if (sourceTarget === 'logo' || sourceTarget === 'logoIcon' || sourceTarget === 'logoWordmark') {
                                             setPreviewUrl(url);
                                             setShowPreviewModal(true);
                                         } else {
@@ -1841,7 +1976,7 @@ const FounderDashboard = () => {
                 </div>
             )}
             {message.text && (
-                <div key={message.id} className={`toast-popup ${message.type}`} style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '8px', minWidth: '240px' }}>
+                <div key={message.id} className={`toast-popup ${message.type}`}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px', width: '100%' }}>
                         {message.type === 'success' ? (
                             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -1876,7 +2011,7 @@ const FounderDashboard = () => {
                 ref={logoInputRef} 
                 style={{ display: 'none' }} 
                 accept="image/*" 
-                onChange={(e) => handleFileChange(e, 'logo')} 
+                onChange={(e) => handleFileChange(e, sourceTarget)} 
             />
             <input 
                 type="file" 
@@ -1885,6 +2020,34 @@ const FounderDashboard = () => {
                 accept="image/*" 
                 onChange={(e) => handleFileChange(e, 'profile')} 
             />
+            {/* Custom Confirmation Modal */}
+            {showConfirm && (
+                <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 11000, backdropFilter: 'blur(8px)' }}>
+                    <div style={{ backgroundColor: '#fff', borderRadius: '16px', padding: '2.5rem', width: '400px', boxShadow: '0 25px 60px rgba(0,0,0,0.2)', textAlign: 'center' }}>
+                        <div style={{ width: '60px', height: '60px', backgroundColor: 'rgba(255, 77, 79, 0.1)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1.5rem' }}>
+                            <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#ff4d4f" strokeWidth="2.5"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+                        </div>
+                        <h3 style={{ margin: '0 0 12px 0', fontWeight: '800', color: '#111', fontSize: '1.25rem' }}>{confirmConfig.title}</h3>
+                        <p style={{ margin: '0 0 2rem 0', color: '#666', fontSize: '15px', lineHeight: '1.5' }}>{confirmConfig.message}</p>
+                        <div style={{ display: 'flex', gap: '12px' }}>
+                            <button 
+                                onClick={confirmConfig.onConfirm}
+                                style={{ flex: 1, padding: '12px', backgroundColor: '#ff4d4f', color: '#fff', border: 'none', borderRadius: '10px', fontWeight: '700', cursor: 'pointer', transition: 'all 0.2s' }}
+                                onMouseEnter={e => e.currentTarget.style.backgroundColor = '#d9363e'}
+                                onMouseLeave={e => e.currentTarget.style.backgroundColor = '#ff4d4f'}
+                            >
+                                Delete
+                            </button>
+                            <button 
+                                onClick={() => setShowConfirm(false)}
+                                style={{ flex: 1, padding: '12px', backgroundColor: '#f5f5f2', color: '#111', border: '1px solid #ddd', borderRadius: '10px', fontWeight: '700', cursor: 'pointer' }}
+                            >
+                                Cancel
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
