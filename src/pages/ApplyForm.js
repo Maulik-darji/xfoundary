@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useParams } from 'react-router-dom';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth, db } from '../firebase';
-import { doc, getDoc, setDoc, updateDoc, deleteField } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, deleteField, collection, addDoc } from 'firebase/firestore';
 import { getBatch } from '../utils/batchUtils';
 
 const ApplyForm = () => {
+  const { id } = useParams();
+  const [showIndustryDropdown, setShowIndustryDropdown] = useState(false);
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -25,80 +27,49 @@ const ApplyForm = () => {
   const [showLocationDropdown, setShowLocationDropdown] = useState(false);
   const [filteredLocations, setFilteredLocations] = useState([]);
   const locationRef = useRef(null);
+  const industryRef = useRef(null);
   
   const navigate = useNavigate();
 
   const emptyFormData = {
     batch: getBatch(),
-    basedIn: '',
-    foundersKnown: '',
-    technicalWork: '',
-    lookingForCofounder: '',
     companyName: '',
-    companyDescription: '',
-    companyUrl: '',
-    demoUrl: '',
-    productUrl: '',
-    loginCredentials: '',
     whatMaking: '',
-    liveNowLocation: '',
-    locationDecision: '',
-    howFar: '',
-    howLongWork: '',
-    techStack: '',
-    usersRadio: '',
-    revenueRadio: '',
-    pivotExplanation: '',
-    incubatorExplanation: '',
-    whyIdea: '',
-    competitors: '',
-    monetization: '',
+    companyUrl: '',
+    founderName: '',
+    founderLinkedIn: '',
+    basedIn: '',
     category: '',
-    otherIdeas: '',
-    founderVideoUrl: '',
-    legalEntityRadio: '',
-    investmentRadio: '',
-    fundraisingRadio: '',
-    whyApply: '',
-    howHear: ''
+    industries: [],
+    stage: [],
+    whyStarted: '',
+    lookingFor: []
   };
 
   // Refs for scrolling to missing fields
   const fieldRefs = {
-    basedIn: useRef(null),
-    foundersKnown: useRef(null),
-    technicalWork: useRef(null),
     companyName: useRef(null),
-    companyDescription: useRef(null),
     whatMaking: useRef(null),
-    liveNowLocation: useRef(null),
-    howFar: useRef(null),
-    howLongWork: useRef(null),
-    techStack: useRef(null),
-    whyIdea: useRef(null),
-    competitors: useRef(null),
-    monetization: useRef(null),
+    companyUrl: useRef(null),
+    founderName: useRef(null),
+    founderLinkedIn: useRef(null),
+    basedIn: useRef(null),
     category: useRef(null),
-    founderVideoUrl: useRef(null),
-    usersRadio: useRef(null),
-    revenueRadio: useRef(null),
-    legalEntityRadio: useRef(null),
-    investmentRadio: useRef(null),
-    fundraisingRadio: useRef(null),
-    whyApply: useRef(null),
-    howHear: useRef(null),
+    stage: useRef(null),
+    whyStarted: useRef(null),
     profile: useRef(null)
   };
 
-  const industryOptions = [
-    "B2B", "Analytics", "Engineering, Product and Design", "Finance and Accounting", "Human Resources", "Infrastructure", "Legal", "Marketing", "Office Management", "Operations", "Productivity", "Recruiting and Talent", "Retail", "Sales", "Security", "Supply Chain and Logistics",
-    "Consumer", "Apparel and Cosmetics", "Consumer Electronics", "Content", "Food and Beverage", "Gaming", "Home and Personal", "Job and Career Services", "Social", "Transportation Services", "Travel, Leisure and Tourism", "Virtual and Augmented Reality",
-    "Fintech", "Asset Management", "Banking and Exchange", "Consumer Finance", "Credit and Lending", "Insurance", "Payments",
-    "Healthcare", "Consumer Health and Wellness", "Diagnostics", "Drug Discovery and Delivery", "Healthcare IT", "Healthcare Services", "Industrial Bio", "Medical Devices", "Therapeutics",
-    "Industrials", "Agriculture", "Automotive", "Aviation and Space", "Climate", "Defense", "Drones", "Energy", "Manufacturing and Robotics",
-    "Real Estate and Construction", "Construction", "Housing and Real Estate",
-    "Government", "Education"
-  ].sort();
+  const industryHierarchy = {
+    'B2B': ['Analytics', 'Engineering, Product and Design', 'Finance and Accounting', 'Human Resources', 'Infrastructure', 'Legal', 'Marketing', 'Office Management', 'Operations', 'Productivity', 'Recruiting and Talent', 'Retail', 'Sales', 'Security', 'Supply Chain and Logistics'],
+    'Consumer': ['Apparel and Cosmetics', 'Consumer Electronics', 'Content', 'Food and Beverage', 'Gaming', 'Home and Personal', 'Job and Career Services', 'Social', 'Transportation Services', 'Travel, Leisure and Tourism', 'Virtual and Augmented Reality', 'Social Media', 'Quick Commerce', 'Spiritual Tech', 'Social Commerce'],
+    'Fintech': ['Asset Management', 'Banking and Exchange', 'Consumer Finance', 'Credit and Lending', 'Insurance', 'Payments', 'Savings', 'Banking'],
+    'Healthcare': ['Consumer Health and Wellness', 'Diagnostics', 'Drug Discovery and Delivery', 'Healthcare IT', 'Healthcare Services', 'Industrial Bio', 'Medical Devices', 'Therapeutics'],
+    'Industrials': ['Agriculture', 'Automotive', 'Aviation and Space', 'Climate', 'Defense', 'Drones', 'Energy', 'Manufacturing and Robotics', 'Aerospace', 'EV', 'Energy Storage'],
+    'Real Estate and Construction': ['Construction', 'Housing and Real Estate'],
+    'AI': ['Generative AI', 'Deep Tech', 'Foundational Models', 'Retail Tech', 'Conversational AI'],
+    'SaaS': ['Developer Tools', 'CRM', 'Billing', 'Software Testing', 'Productivity']
+  };
 
   const locationSuggestions = [
     "Ahmedabad, India", "Bengaluru, India", "Mumbai, India", "Delhi NCR, India", "Hyderabad, India", "Pune, India", "Chennai, India", "Kolkata, India", "Jaipur, India", "Surat, India",
@@ -158,14 +129,13 @@ const ApplyForm = () => {
     setIsApplicationComplete(checkApplicationCompleteness(formData) && isProfileComplete);
     
     // Auto-save to localStorage on change for persistence across refresh
-    // ONLY save if the initial load from Firestore/local has completed
-    if (user && initialLoadComplete) {
+    if (user && initialLoadComplete && !id) {
         localStorage.setItem(`xf_app_draft_${user.uid}`, JSON.stringify(formData));
     }
-  }, [formData, isProfileComplete, user, initialLoadComplete]);
+  }, [formData, isProfileComplete, user, initialLoadComplete, id]);
 
   useEffect(() => {
-    document.title = "Apply to X Foundary";
+    document.title = "Apply to X";
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       if (!currentUser && !loading) {
         navigate('/login');
@@ -175,54 +145,69 @@ const ApplyForm = () => {
       if (currentUser) {
         // Fetch existing application data
         try {
-            const docRef = doc(db, 'users', currentUser.uid);
-            const docSnap = await getDoc(docRef);
-            if (docSnap.exists()) {
-                const data = docSnap.data();
-                const appData = data.application || {};
-                
-                // If submitted more than 24 hours ago, redirect back to home (locking the form)
-                if (appData.status === 'pending' && appData.submittedAt) {
-                    const submittedTime = new Date(appData.submittedAt).getTime();
-                    const now = new Date().getTime();
-                    const hoursSinceSubmission = (now - submittedTime) / (1000 * 60 * 60);
-                    
-                    if (hoursSinceSubmission > 24) {
-                        navigate('/home');
-                        return;
-                    }
-                }
+            let initialData = {};
 
-                // Check localStorage for a more recent draft
-                const localDraft = localStorage.getItem(`xf_app_draft_${currentUser.uid}`);
-                let initialData = appData;
-                
-                if (localDraft) {
-                    try {
-                        const parsedLocal = JSON.parse(localDraft);
-                        // Only use local draft if it's not empty and we're in draft mode
-                        if (appData.status !== 'pending') {
-                            initialData = { ...appData, ...parsedLocal };
-                        }
-                    } catch (e) {
-                        console.error("Error parsing local draft:", e);
-                    }
+            if (id && id !== 'new') {
+                // Fetch from applications collection
+                const appRef = doc(db, 'applications', id);
+                const appSnap = await getDoc(appRef);
+                if (appSnap.exists()) {
+                    const data = appSnap.data();
+                    // Map application fields back to form data
+                    initialData = {
+                        ...emptyFormData,
+                        ...data,
+                        companyName: data.companyName || '',
+                        companyDescription: data.companyDescription || '',
+                        companyUrl: data.companyUrl || '',
+                        founderName: data.founderName || '',
+                        founderLinkedIn: data.founderLinkedIn || '',
+                        whyStarted: data.whyIdea || data.whyStarted || ''
+                    };
                 }
-
-                setFormData(prev => ({ ...prev, ...initialData, batch: initialData.batch || getBatch() }));
-                setIsProfileComplete(checkProfileCompleteness(data.profile));
+            } else if (id === 'new') {
+                // Fresh application - everything empty
+                initialData = { ...emptyFormData };
+                // Also clear any local storage for 'new' context to be safe
+                // (Optional: but might be good to ensure it's REALLY fresh)
             } else {
-                // If no doc exists, we still mark load as complete so they can start typing
-                const localDraft = localStorage.getItem(`xf_app_draft_${currentUser.uid}`);
-                if (localDraft) {
-                    try {
-                        const parsedLocal = JSON.parse(localDraft);
-                        setFormData(prev => ({ ...prev, ...parsedLocal }));
-                    } catch (e) {
-                        console.error("Error parsing local draft:", e);
+                // Legacy check only if not explicitly 'new'
+                const docRef = doc(db, 'users', currentUser.uid);
+                const docSnap = await getDoc(docRef);
+                if (docSnap.exists()) {
+                    const data = docSnap.data();
+                    const appData = data.application || {};
+                    
+                    // If submitted more than 24 hours ago, redirect back to home
+                    if (appData.status === 'pending' && appData.submittedAt) {
+                        const submittedTime = new Date(appData.submittedAt).getTime();
+                        const now = new Date().getTime();
+                        const hoursSinceSubmission = (now - submittedTime) / (1000 * 60 * 60);
+                        
+                        if (hoursSinceSubmission > 24) {
+                            navigate('/home');
+                            return;
+                        }
                     }
+
+                    const localDraft = localStorage.getItem(`xf_app_draft_${currentUser.uid}`);
+                    initialData = appData;
+                    
+                    if (localDraft) {
+                        try {
+                            const parsedLocal = JSON.parse(localDraft);
+                            if (appData.status !== 'pending') {
+                                initialData = { ...appData, ...parsedLocal };
+                            }
+                        } catch (e) {
+                            console.error("Error parsing local draft:", e);
+                        }
+                    }
+                    setIsProfileComplete(checkProfileCompleteness(data.profile));
                 }
             }
+
+            setFormData(prev => ({ ...prev, ...initialData, batch: initialData.batch || getBatch() }));
         } catch (error) {
             console.error("Error fetching application:", error);
         } finally {
@@ -232,7 +217,7 @@ const ApplyForm = () => {
       setLoading(false);
     });
     return () => unsubscribe();
-  }, [navigate, loading]);
+  }, [navigate, loading, id]);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -266,6 +251,17 @@ const ApplyForm = () => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  // Handle outside click for industry dropdown
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+        if (industryRef.current && !industryRef.current.contains(event.target)) {
+            setShowIndustryDropdown(false);
+        }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   const handleInputChange = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }));
     
@@ -287,16 +283,21 @@ const ApplyForm = () => {
     if (!user) return;
     setSaving(true);
     try {
-        const applicationData = { 
-            ...formData, 
-            batch: formData.batch || getBatch(),
+        const applicationData = {
+            ...formData,
+            founderId: user.uid,
+            status: 'draft',
             updatedAt: new Date().toISOString()
         };
-        await setDoc(doc(db, 'users', user.uid), {
-            application: applicationData,
-            updatedAt: new Date().toISOString()
-        }, { merge: true });
-        
+
+        if (id && id !== 'new') {
+            await updateDoc(doc(db, 'applications', id), applicationData);
+        } else {
+            // Check if we should create a new doc or update user doc (keeping it simple: always use applications collection for new ones now)
+            const newAppRef = await addDoc(collection(db, 'applications'), applicationData);
+            navigate(`/apply-form/${newAppRef.id}`);
+        }
+
         setToastConfig({ message: 'Changes saved', type: 'success' });
         setShowToast(true);
         setTimeout(() => setShowToast(false), 3000);
@@ -311,11 +312,17 @@ const ApplyForm = () => {
       if (!user) return;
       setIsResetting(true);
       try {
-          await updateDoc(doc(db, 'users', user.uid), {
-              application: deleteField()
-          });
-          localStorage.removeItem(`xf_app_draft_${user.uid}`);
-          setFormData(emptyFormData);
+          if (id && id !== 'new') {
+              // Just reset local state for this specific app if it's already in applications coll? 
+              // Actually reset should probably just clear fields
+              setFormData(emptyFormData);
+          } else {
+              await updateDoc(doc(db, 'users', user.uid), {
+                  application: deleteField()
+              });
+              localStorage.removeItem(`xf_app_draft_${user.uid}`);
+              setFormData(emptyFormData);
+          }
           setShowResetModal(false);
           setToastConfig({ message: 'Application has been reset', type: 'reset' });
           setShowToast(true);
@@ -342,12 +349,12 @@ const ApplyForm = () => {
         'whatMaking', 'liveNowLocation', 'howFar', 'howLongWork', 'techStack',
         'usersRadio', 'revenueRadio', 'whyIdea', 'competitors', 'monetization',
         'category', 'founderVideoUrl', 'legalEntityRadio', 'investmentRadio',
-        'fundraisingRadio', 'whyApply', 'howHear'
+        'fundraisingRadio', 'whyApply', 'howHear', 'stage', 'whyStarted'
     ];
 
     for (const field of compulsory) {
-        if (!formData[field] || formData[field].toString().trim().length === 0) {
-            fieldRefs[field].current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        if (!formData[field] || (typeof formData[field] === 'string' && formData[field].trim().length === 0)) {
+            fieldRefs[field]?.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
             return;
         }
     }
@@ -359,13 +366,26 @@ const ApplyForm = () => {
     if (!user) return;
     setSubmitting(true);
     try {
+        const submissionData = {
+            ...formData,
+            founderId: user.uid,
+            status: 'pending',
+            submittedAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+        };
+
+        if (id && id !== 'new') {
+            await updateDoc(doc(db, 'applications', id), submissionData);
+        } else {
+            await addDoc(collection(db, 'applications'), submissionData);
+        }
+
+        // Also update legacy user doc for profile sync
         await updateDoc(doc(db, 'users', user.uid), {
-            'application.status': 'pending',
+            'profile.linkedin': formData.founderLinkedIn || '',
+            'application.status': 'pending', // Minimal sync
             'application.submittedAt': new Date().toISOString()
         });
-
-        // Confirmation email is now handled server-side via Cloud Functions
-        // to ensure reliability and bypass security rule restrictions
 
         // Clear local draft upon submission
         localStorage.removeItem(`xf_app_draft_${user.uid}`);
@@ -383,12 +403,7 @@ const ApplyForm = () => {
   const sections = [
     { id: 'basics', label: 'Basics' },
     { id: 'founders', label: 'Founders' },
-    { id: 'company', label: 'Company' },
-    { id: 'progress', label: 'Progress' },
-    { id: 'idea', label: 'Idea' },
-    { id: 'video', label: 'Founder Video' },
-    { id: 'equity', label: 'Equity' },
-    { id: 'curious', label: 'Curious' }
+    { id: 'progress', label: 'Progress' }
   ];
 
   if (loading) return null;
@@ -487,117 +502,99 @@ const ApplyForm = () => {
               &lt; Back
             </Link>
             
-            <h1 style={{ fontFamily: 'Newsreader, serif', fontSize: '3.25rem', fontWeight: 500, fontStyle: 'italic', color: '#111', margin: '0 0 0.5rem 0', letterSpacing: '-0.02em' }}>YC Application</h1>
+            <h1 style={{ fontFamily: 'Newsreader, serif', fontSize: '3.25rem', fontWeight: 500, fontStyle: 'italic', color: '#111', margin: '0 0 0.5rem 0', letterSpacing: '-0.02em' }}>XF Application</h1>
             <p style={{ color: '#999', margin: '0 0 3.5rem 0', fontSize: '14px', fontFamily: 'Inter, sans-serif' }}>Founded in Summer 2026</p>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '4rem' }}>
                 {/* Basics Section */}
                 <section id="basics">
                     <h2 style={{ fontSize: '1.25rem', fontWeight: 'bold', marginBottom: '1.5rem', fontFamily: 'Inter, sans-serif' }}>Basics</h2>
-                    <div className="form-group" style={{ ...formGroupStyle, position: 'relative' }} ref={locationRef}>
-                      <label style={labelStyle}>Where is the company based?</label>
-                      <div ref={fieldRefs.basedIn} style={{ position: 'relative' }}>
+                    
+                    <div className="form-group" style={formGroupStyle} ref={fieldRefs.companyName}>
+                        <label style={labelStyle}>Startup Name*</label>
+                        <input type="text" style={inputStyle} value={formData.companyName} onChange={(e) => handleInputChange('companyName', e.target.value)} />
+                    </div>
+
+                    <div className="form-group" style={formGroupStyle} ref={fieldRefs.companyDescription}>
+                        <label style={labelStyle}>What are you building?*</label>
+                        <p style={helpTextStyle}>A one-line description of your startup.</p>
+                        <input type="text" style={inputStyle} value={formData.companyDescription} onChange={(e) => handleInputChange('companyDescription', e.target.value)} />
+                    </div>
+
+                    <div className="form-group" style={formGroupStyle} ref={fieldRefs.companyUrl}>
+                        <label style={labelStyle}>Website/Product Link*</label>
+                        <input type="text" style={inputStyle} value={formData.companyUrl} onChange={(e) => handleInputChange('companyUrl', e.target.value)} placeholder="https://..." />
+                    </div>
+
+                    <div className="form-group" style={formGroupStyle} ref={fieldRefs.basedIn}>
+                        <label style={labelStyle}>Where is your startup based?*</label>
                         <input 
                             type="text" 
-                            style={{ ...inputStyle, paddingRight: '40px' }} 
+                            style={inputStyle} 
                             value={formData.basedIn} 
-                            onChange={(e) => handleInputChange('basedIn', e.target.value)} 
-                            onFocus={() => setShowLocationDropdown(true)}
-                            placeholder="e.g. Ahmedabad, India" 
+                            onChange={(e) => handleInputChange('basedIn', e.target.value)}
+                            placeholder="City, Country"
                         />
-                        <div style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}>
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#666" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
-                        </div>
-                      </div>
-
-                      {showLocationDropdown && (
-                          <div style={{ 
-                              position: 'absolute', 
-                              top: '100%', 
-                              left: 0, 
-                              width: '300px', 
-                              backgroundColor: '#111', 
-                              borderRadius: '4px', 
-                              marginTop: '4px', 
-                              boxShadow: '0 10px 25px rgba(0,0,0,0.2)',
-                              zIndex: 1000,
-                              maxHeight: '300px',
-                              overflowY: 'auto',
-                              padding: '8px 0'
-                          }}>
-                              {(filteredLocations.length > 0 ? filteredLocations : locationSuggestions).map(loc => (
-                                  <div 
-                                    key={loc} 
-                                    onClick={() => selectLocation(loc)}
-                                    style={{ 
-                                        padding: '10px 20px', 
-                                        color: 'white', 
-                                        fontSize: '14px', 
-                                        cursor: 'pointer',
-                                        transition: 'background 0.2s',
-                                        fontFamily: 'Inter, sans-serif'
-                                    }}
-                                    onMouseEnter={(e) => e.target.style.backgroundColor = '#333'}
-                                    onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
-                                  >
-                                      {loc}
-                                  </div>
-                              ))}
-                          </div>
-                      )}
                     </div>
+
+                    <div className="form-group" style={formGroupStyle} ref={fieldRefs.category}>
+                        <label style={labelStyle}>Industry*</label>
+                        <div style={{ position: 'relative' }}>
+                            <select 
+                                style={{ ...inputStyle, appearance: 'none' }} 
+                                value={formData.category} 
+                                onChange={(e) => {
+                                    handleInputChange('category', e.target.value);
+                                    handleInputChange('industries', []); // Reset sub-industries
+                                }}
+                            >
+                                <option value="">Select Industry</option>
+                                {Object.keys(industryHierarchy).map(cat => (
+                                    <option key={cat} value={cat}>{cat}</option>
+                                ))}
+                            </select>
+                            <div style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}>
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#666" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                            </div>
+                        </div>
+                    </div>
+
+                    {formData.category && (
+                        <div className="form-group" style={formGroupStyle}>
+                            <label style={labelStyle}>Sub-industry</label>
+                            <div style={{ position: 'relative' }}>
+                                <select 
+                                    style={{ ...inputStyle, appearance: 'none' }} 
+                                    value={formData.industries && formData.industries.length > 0 ? formData.industries[0] : ''} 
+                                    onChange={(e) => handleInputChange('industries', [e.target.value])}
+                                >
+                                    <option value="">Select Sub-industry</option>
+                                    {industryHierarchy[formData.category].map(sub => (
+                                        <option key={sub} value={sub}>{sub}</option>
+                                    ))}
+                                </select>
+                                <div style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}>
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#666" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                                </div>
+                            </div>
+                        </div>
+                    )}
                 </section>
 
                 {/* Founders Section */}
                 <section id="founders">
                     <h2 style={{ fontSize: '1.25rem', fontWeight: 'bold', marginBottom: '1.5rem', fontFamily: 'Inter, sans-serif' }}>Founders</h2>
-                    <div ref={fieldRefs.profile} style={{ border: '1px solid #111', borderRadius: '4px', padding: '1.25rem 1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'white', marginBottom: '1.5rem' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                        <span style={{ fontWeight: 'bold', fontSize: '15px' }}>{user?.displayName || user?.email?.split('@')[0]}</span>
-                        <span style={{ 
-                            backgroundColor: isProfileComplete ? '#00bf8e' : '#a94442', 
-                            color: 'white', 
-                            fontSize: '11px', 
-                            padding: '3px 10px', 
-                            borderRadius: '20px', 
-                            display: 'flex', 
-                            alignItems: 'center', 
-                            gap: '5px', 
-                            fontWeight: 'bold' 
-                        }}>
-                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round">
-                              {isProfileComplete ? (
-                                  <polyline points="20 6 9 17 4 12"></polyline>
-                              ) : (
-                                  <><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></>
-                              )}
-                          </svg>
-                          {isProfileComplete ? 'Profile Complete' : 'Profile Incomplete'}
-                        </span>
-                      </div>
-                      <span 
-                        onClick={() => navigate('/founder-profile')}
-                        style={{ fontSize: '13px', color: '#111', cursor: 'pointer', fontWeight: 'bold', fontStyle: 'italic', fontFamily: 'Newsreader, serif' }}
-                      >Complete my profile →</span>
+                    
+                    <div className="form-group" style={formGroupStyle} ref={fieldRefs.founderName}>
+                        <label style={labelStyle}>Founder Name*</label>
+                        <input type="text" style={inputStyle} value={formData.founderName} onChange={(e) => handleInputChange('founderName', e.target.value)} />
                     </div>
 
-                    {coFounderInvites.map((_, index) => (
-                        <div key={index} style={{ border: '1px solid #111', borderRadius: '4px', padding: '1.5rem', backgroundColor: 'white', marginBottom: '1rem' }}>
-                            <label style={labelStyle}>Email</label>
-                            <p style={helpTextStyle}>To be considered a founder, a person must own at least 10% equity in the company.</p>
-                            <input type="email" style={{ ...inputStyle, maxWidth: '300px', marginBottom: '1rem' }} />
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
-                                <button style={{ backgroundColor: 'white', color: '#111', border: '1px solid #111', padding: '10px 24px', borderRadius: '30px', fontWeight: '600', fontSize: '16px', cursor: 'pointer', fontFamily: 'Newsreader, serif', fontStyle: 'italic' }}>Send invite</button>
-                                <span onClick={() => setCoFounderInvites(coFounderInvites.filter((_, i) => i !== index))} style={{ fontSize: '15px', color: '#000', cursor: 'pointer', fontStyle: 'italic', fontFamily: 'Newsreader, serif', fontWeight: 600 }}>Cancel</span>
-                            </div>
-                        </div>
-                    ))}
+                    <div className="form-group" style={formGroupStyle} ref={fieldRefs.founderLinkedIn}>
+                        <label style={labelStyle}>Founder LinkedIn*</label>
+                        <input type="text" style={inputStyle} value={formData.founderLinkedIn} onChange={(e) => handleInputChange('founderLinkedIn', e.target.value)} />
+                    </div>
 
-                    <button 
-                        onClick={() => setCoFounderInvites([...coFounderInvites, {}])}
-                        style={{ backgroundColor: '#000', color: 'white', border: 'none', padding: '11px 32px', borderRadius: '30px', fontWeight: '600', fontSize: '16px', cursor: 'pointer', marginBottom: '2.5rem', fontFamily: 'Newsreader, serif', fontStyle: 'italic' }}
-                    >+ Add a co-founder</button>
-                    
                     <div className="form-group" style={formGroupStyle} ref={fieldRefs.foundersKnown}>
                       <label style={labelStyle}>How long have the founders known one another and how did you meet? Have any of the founders not met in person?</label>
                       <textarea style={textareaStyle} value={formData.foundersKnown} onChange={(e) => handleInputChange('foundersKnown', e.target.value)}></textarea>
@@ -654,7 +651,7 @@ const ApplyForm = () => {
                         <textarea style={textareaStyle} value={formData.whatMaking} onChange={(e) => handleInputChange('whatMaking', e.target.value)}></textarea>
                     </div>
                     <div className="form-group" style={formGroupStyle} ref={fieldRefs.liveNowLocation}>
-                        <label style={labelStyle}>Where do you live now, and where would the company be based after YC?</label>
+                        <label style={labelStyle}>Where do you live now, and where would the company be based after XF?</label>
                         <p style={helpTextStyle}>Use the format City A, Country A / City B, Country B</p>
                         <input type="text" style={inputStyle} value={formData.liveNowLocation} onChange={(e) => handleInputChange('liveNowLocation', e.target.value)} />
                     </div>
@@ -667,6 +664,43 @@ const ApplyForm = () => {
                 {/* Progress Section */}
                 <section id="progress">
                     <h2 style={{ fontSize: '1.25rem', fontWeight: 'bold', marginBottom: '1.5rem', fontFamily: 'Inter, sans-serif' }}>Progress</h2>
+                    
+                    <div className="form-group" style={formGroupStyle} ref={fieldRefs.stage}>
+                        <label style={labelStyle}>Current Stage*</label>
+                        <div style={{ display: 'flex', gap: '1.25rem', flexWrap: 'wrap', marginTop: '0.5rem' }}>
+                            {['Idea', 'MVP', 'Revenue', 'Scaling'].map(s => (
+                                <label key={s} style={{ 
+                                    display: 'flex', 
+                                    alignItems: 'center', 
+                                    gap: '10px', 
+                                    fontSize: '14px', 
+                                    cursor: 'pointer',
+                                    fontFamily: 'Inter, sans-serif',
+                                    fontWeight: '500'
+                                }}>
+                                    <input 
+                                        type="checkbox" 
+                                        checked={Array.isArray(formData.stage) ? formData.stage.includes(s) : formData.stage === s}
+                                        onChange={(e) => {
+                                            const currentStages = Array.isArray(formData.stage) ? formData.stage : (formData.stage ? [formData.stage] : []);
+                                            const newStages = e.target.checked 
+                                                ? [...currentStages, s]
+                                                : currentStages.filter(stage => stage !== s);
+                                            handleInputChange('stage', newStages);
+                                        }}
+                                        style={{ 
+                                            width: '18px', 
+                                            height: '18px', 
+                                            cursor: 'pointer',
+                                            accentColor: '#000'
+                                        }}
+                                    />
+                                    {s}
+                                </label>
+                            ))}
+                        </div>
+                    </div>
+
                     <div className="form-group" style={formGroupStyle} ref={fieldRefs.howFar}>
                         <label style={labelStyle}>How far along are you?</label>
                         <textarea style={textareaStyle} value={formData.howFar} onChange={(e) => handleInputChange('howFar', e.target.value)}></textarea>
@@ -716,6 +750,40 @@ const ApplyForm = () => {
                 {/* Idea Section */}
                 <section id="idea">
                     <h2 style={{ fontSize: '1.25rem', fontWeight: 'bold', marginBottom: '1.5rem', fontFamily: 'Inter, sans-serif' }}>Idea</h2>
+                    
+                    <div className="form-group" style={formGroupStyle} ref={fieldRefs.whyStarted}>
+                        <label style={labelStyle}>Why did you start this startup?*</label>
+                        <textarea style={textareaStyle} value={formData.whyStarted} onChange={(e) => handleInputChange('whyStarted', e.target.value)}></textarea>
+                    </div>
+
+                    <div className="form-group" style={formGroupStyle}>
+                        <label style={labelStyle}>What are you currently looking for?</label>
+                        <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', marginTop: '0.5rem' }}>
+                            {['Users', 'Investors', 'Hiring', 'Co-founders', 'Partnerships'].map(tag => (
+                                <span 
+                                    key={tag}
+                                    onClick={() => {
+                                        const newLooking = (formData.lookingFor || []).includes(tag)
+                                            ? formData.lookingFor.filter(t => t !== tag)
+                                            : [...(formData.lookingFor || []), tag];
+                                        handleInputChange('lookingFor', newLooking);
+                                    }}
+                                    style={{ 
+                                        padding: '6px 16px', 
+                                        borderRadius: '20px', 
+                                        border: '1px solid #111', 
+                                        fontSize: '13px', 
+                                        cursor: 'pointer',
+                                        backgroundColor: (formData.lookingFor || []).includes(tag) ? '#111' : 'transparent',
+                                        color: (formData.lookingFor || []).includes(tag) ? 'white' : '#111',
+                                        fontWeight: 'bold',
+                                        transition: 'all 0.2s'
+                                    }}
+                                >{tag}</span>
+                            ))}
+                        </div>
+                    </div>
+
                     <div className="form-group" style={formGroupStyle} ref={fieldRefs.whyIdea}>
                         <label style={labelStyle}>Why did you pick this idea to work on? Do you have domain expertise in this area? How do you know people need what you're making?</label>
                         <textarea style={textareaStyle} value={formData.whyIdea} onChange={(e) => handleInputChange('whyIdea', e.target.value)}></textarea>
@@ -728,16 +796,6 @@ const ApplyForm = () => {
                         <label style={labelStyle}>How do or will you make money? How much could you make?</label>
                         <p style={helpTextStyle}>(We realize you can't know precisely, but give your best estimate)</p>
                         <textarea style={textareaStyle} value={formData.monetization} onChange={(e) => handleInputChange('monetization', e.target.value)}></textarea>
-                    </div>
-                    <div className="form-group" style={formGroupStyle} ref={fieldRefs.category}>
-                        <label style={labelStyle}>Which category best applies to your company?</label>
-                        <div style={{ position: 'relative' }}>
-                            <select style={{ ...inputStyle, appearance: 'none' }} value={formData.category} onChange={(e) => handleInputChange('category', e.target.value)}>
-                                <option value="">Select Category</option>
-                                {industryOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                            </select>
-                            <svg style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: '#999' }} width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
-                        </div>
                     </div>
                     <div className="form-group" style={formGroupStyle}>
                         <label style={labelStyle}>If you had any other ideas you considered applying with, please list them.</label>
@@ -754,46 +812,34 @@ const ApplyForm = () => {
                     <div ref={fieldRefs.founderVideoUrl} style={{ display: 'flex', alignItems: 'center', border: '1px solid #111', borderRadius: '4px', backgroundColor: '#fff', marginBottom: '1.5rem' }}>
                         <span style={{ padding: '10px 12px', borderRight: '1px solid #111', color: '#999', fontSize: '14px', backgroundColor: '#f9f9f9' }}>URL</span>
                         <input type="url" style={{ ...inputStyle, border: 'none' }} placeholder="https://youtube.com/... or https://drive.google.com/..." value={formData.founderVideoUrl} onChange={(e) => handleInputChange('founderVideoUrl', e.target.value)} />
-                    </div>
-                </section>
-
-                {/* Equity Section */}
-                <section id="equity">
-                    <h2 style={{ fontSize: '1.25rem', fontWeight: 'bold', marginBottom: '1.5rem', fontFamily: 'Inter, sans-serif' }}>Equity</h2>
-                    <div className="form-group" style={formGroupStyle} ref={fieldRefs.legalEntityRadio}>
-                        <label style={labelStyle}>Have you formed ANY legal entity yet?</label>
-                        <p style={helpTextStyle}>This may be in the United States, in your home country or in another country.</p>
-                        <div style={{ display: 'flex', gap: '3rem', marginTop: '0.4rem' }}>
-                            <label style={{ fontSize: '14px', display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer' }}><input type="radio" name="legal" checked={formData.legalEntityRadio === 'Yes'} onChange={() => handleInputChange('legalEntityRadio', 'Yes')} style={{ width: '18px', height: '18px', accentColor: '#6300dd' }} /> Yes</label>
-                            <label style={{ fontSize: '14px', display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer' }}><input type="radio" name="legal" checked={formData.legalEntityRadio === 'No'} onChange={() => handleInputChange('legalEntityRadio', 'No')} style={{ width: '18px', height: '18px', accentColor: '#6300dd' }} /> No</label>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '1rem', marginTop: '1rem' }}>
+                            {['Users', 'Investors', 'Hiring', 'Co-founders', 'Partnerships'].map(option => (
+                                <label key={option} style={{ 
+                                    display: 'flex', 
+                                    alignItems: 'center', 
+                                    gap: '10px', 
+                                    cursor: 'pointer',
+                                    padding: '12px 16px',
+                                    border: '1px solid #eee',
+                                    borderRadius: '8px',
+                                    backgroundColor: formData.lookingFor.includes(option) ? '#f5f5f5' : 'white',
+                                    transition: 'all 0.2s'
+                                }}>
+                                    <input 
+                                        type="checkbox" 
+                                        checked={formData.lookingFor.includes(option)}
+                                        onChange={(e) => {
+                                            const newLooking = e.target.checked 
+                                                ? [...formData.lookingFor, option]
+                                                : formData.lookingFor.filter(s => s !== option);
+                                            handleInputChange('lookingFor', newLooking);
+                                        }}
+                                        style={{ accentColor: '#000' }}
+                                    />
+                                    <span style={{ fontSize: '14px', fontWeight: 500 }}>{option}</span>
+                                </label>
+                            ))}
                         </div>
-                    </div>
-                    <div className="form-group" style={formGroupStyle} ref={fieldRefs.investmentRadio}>
-                        <label style={labelStyle}>Have you taken any investment yet?</label>
-                        <div style={{ display: 'flex', gap: '3rem', marginTop: '0.4rem' }}>
-                            <label style={{ fontSize: '14px', display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer' }}><input type="radio" name="investment" checked={formData.investmentRadio === 'Yes'} onChange={() => handleInputChange('investmentRadio', 'Yes')} style={{ width: '18px', height: '18px', accentColor: '#6300dd' }} /> Yes</label>
-                            <label style={{ fontSize: '14px', display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer' }}><input type="radio" name="investment" checked={formData.investmentRadio === 'No'} onChange={() => handleInputChange('investmentRadio', 'No')} style={{ width: '18px', height: '18px', accentColor: '#6300dd' }} /> No</label>
-                        </div>
-                    </div>
-                    <div className="form-group" style={formGroupStyle} ref={fieldRefs.fundraisingRadio}>
-                        <label style={labelStyle}>Are you currently fundraising?</label>
-                        <div style={{ display: 'flex', gap: '3rem', marginTop: '0.4rem' }}>
-                            <label style={{ fontSize: '14px', display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer' }}><input type="radio" name="fundraising" checked={formData.fundraisingRadio === 'Yes'} onChange={() => handleInputChange('fundraisingRadio', 'Yes')} style={{ width: '18px', height: '18px', accentColor: '#6300dd' }} /> Yes</label>
-                            <label style={{ fontSize: '14px', display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer' }}><input type="radio" name="fundraising" checked={formData.fundraisingRadio === 'No'} onChange={() => handleInputChange('fundraisingRadio', 'No')} style={{ width: '18px', height: '18px', accentColor: '#6300dd' }} /> No</label>
-                        </div>
-                    </div>
-                </section>
-
-                {/* Curious Section */}
-                <section id="curious">
-                    <h2 style={{ fontSize: '1.25rem', fontWeight: 'bold', marginBottom: '1.5rem', fontFamily: 'Inter, sans-serif' }}>Curious</h2>
-                    <div className="form-group" style={formGroupStyle} ref={fieldRefs.whyApply}>
-                        <label style={labelStyle}>What convinced you to apply to Y Combinator? Did someone encourage you to apply? Have you been to any YC events?</label>
-                        <textarea style={textareaStyle} value={formData.whyApply} onChange={(e) => handleInputChange('whyApply', e.target.value)}></textarea>
-                    </div>
-                    <div className="form-group" style={formGroupStyle} ref={fieldRefs.howHear}>
-                        <label style={labelStyle}>How did you hear about Y Combinator?</label>
-                        <input type="text" style={inputStyle} value={formData.howHear} onChange={(e) => handleInputChange('howHear', e.target.value)} />
                     </div>
                 </section>
 

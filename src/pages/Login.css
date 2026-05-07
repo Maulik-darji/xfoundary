@@ -18,18 +18,20 @@
 }
 
 .login-logo {
-  width: 42px;
-  height: 42px;
+  width: 44px;
+  height: 44px;
   background-color: #6300dd;
   color: white;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-weight: bold;
-  font-size: 1.1rem;
+  font-weight: 800;
+  font-size: 1.35rem;
   margin: 0 auto 2rem;
   text-decoration: none;
-  border-radius: 2px;
+  border-radius: 10px;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 12px rgba(99, 0, 221, 0.2);
 }
 
 .login-logo:hover {

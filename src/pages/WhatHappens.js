@@ -8,7 +8,7 @@ const WhatHappens = () => {
   const [activeSection, setActiveSection] = useState('overview');
 
   useEffect(() => {
-    document.title = "What Happens at XF";
+    document.title = "What Happens at X";
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
     });
@@ -18,7 +18,7 @@ const WhatHappens = () => {
   const sections = [
     { id: 'overview', label: 'Overview' },
     { id: 'what-we-do', label: 'What We Do' },
-    { id: 'why-xf', label: 'Why XF Exists' },
+    { id: 'why-xf', label: 'Why X Exists' },
     { id: 'who-for', label: 'Who It\'s For' },
     { id: 'vision', label: 'The Vision' }
   ];
@@ -71,14 +71,14 @@ const WhatHappens = () => {
 
         {/* Main Content */}
         <div className="main-content">
-            <h1 className="responsive-h1">What Happens at XF</h1>
+            <h1 className="responsive-h1">What Happens at X</h1>
             
             <section id="overview">
                 <p className="responsive-p" style={{ fontSize: '1.25rem', fontWeight: '500' }}>
-                    People often ask us what happens at X Foundary. Here is an overview of how we discover the most promising startups that the world is currently overlooking.
+                    People often ask us what happens at X. Here is an overview of how we discover the most promising startups that the world is currently overlooking.
                 </p>
                 <p className="responsive-p">
-                    X Foundary (XF) is a platform dedicated to Indian startups, early-stage builders, and founders who didn’t get access to traditional elite platforms. Our goal is simple: <strong>Find the best — before everyone else does.</strong>
+                    X is a platform dedicated to Indian startups, early-stage builders, and founders who didn’t get access to traditional elite platforms. Our goal is simple: <strong>Find the best — before everyone else does.</strong>
                 </p>
             </section>
 
@@ -87,12 +87,12 @@ const WhatHappens = () => {
                 
                 <div style={{ marginBottom: '2rem' }}>
                     <h3 style={{ fontSize: '1.15rem', fontWeight: 'bold', marginBottom: '0.5rem' }}>1. Curate High-Potential Startups</h3>
-                    <p className="responsive-p">We actively search for startups with real potential — not just hype. Every startup listed on XF is carefully reviewed and selected based on vision, execution, and scalability.</p>
+                    <p className="responsive-p">We actively search for startups with real potential — not just hype. Every startup listed on X is carefully reviewed and selected based on vision, execution, and scalability.</p>
                 </div>
 
                 <div style={{ marginBottom: '2rem' }}>
                     <h3 style={{ fontSize: '1.15rem', fontWeight: 'bold', marginBottom: '0.5rem' }}>2. Give Founders Visibility</h3>
-                    <p className="responsive-p">Many great founders never get noticed. XF helps them get discovered, showcase their products, and tell their stories to the right audience.</p>
+                    <p className="responsive-p">Many great founders never get noticed. X helps them get discovered, showcase their products, and tell their stories to the right audience.</p>
                 </div>
 
                 <div style={{ marginBottom: '2rem' }}>
@@ -102,13 +102,13 @@ const WhatHappens = () => {
 
                 <div style={{ marginBottom: '2rem' }}>
                     <h3 style={{ fontSize: '1.15rem', fontWeight: 'bold', marginBottom: '0.5rem' }}>4. Build a Trusted Startup Directory</h3>
-                    <p className="responsive-p">XF is building a high-signal startup directory where quality matters more than quantity. Every listing counts, and investors can explore with confidence.</p>
+                    <p className="responsive-p">X is building a high-signal startup directory where quality matters more than quantity. Every listing counts, and investors can explore with confidence.</p>
                 </div>
             </section>
 
             <section id="why-xf">
-                <h2 className="responsive-h2">Why XF Exists</h2>
-                <p className="responsive-p">Right now, the system is broken. Great startups often get ignored because they don’t have the right network or didn’t get into top accelerators. XF exists to fix this gap and reveal hidden opportunities.</p>
+                <h2 className="responsive-h2">Why X Exists</h2>
+                <p className="responsive-p">Right now, the system is broken. Great startups often get ignored because they don’t have the right network or didn’t get into top accelerators. X exists to fix this gap and reveal hidden opportunities.</p>
             </section>
 
             <section id="who-for">
@@ -116,23 +116,23 @@ const WhatHappens = () => {
                 <div className="responsive-grid-2">
                     <div>
                         <h3 style={{ fontWeight: 'bold', marginBottom: '0.5rem' }}>Founders</h3>
-                        <p className="responsive-p" style={{ fontSize: '15px' }}>If you’re building something real but not getting attention — XF is for you.</p>
+                        <p className="responsive-p" style={{ fontSize: '15px' }}>If you’re building something real but not getting attention — X is for you.</p>
                     </div>
                     <div>
                         <h3 style={{ fontWeight: 'bold', marginBottom: '0.5rem' }}>Investors</h3>
-                        <p className="responsive-p" style={{ fontSize: '15px' }}>If you want access to startups before they blow up — XF is for you.</p>
+                        <p className="responsive-p" style={{ fontSize: '15px' }}>If you want access to startups before they blow up — X is for you.</p>
                     </div>
                 </div>
             </section>
 
             <section id="vision">
                 <h2 className="responsive-h2">The Vision</h2>
-                <p className="responsive-p" style={{ fontWeight: '500' }}>We want XF to become the place where the next generation of great startups are discovered first.</p>
+                <p className="responsive-p" style={{ fontWeight: '500' }}>We want X to become the place where the next generation of great startups are discovered first.</p>
                 
                 <div style={{ marginTop: '4rem', padding: '2.5rem', backgroundColor: '#fff', border: '1px solid #eee', borderRadius: '8px' }}>
                     <h3 style={{ fontFamily: 'Newsreader, serif', fontStyle: 'italic', fontSize: '1.5rem', marginBottom: '1rem' }}>Built by a Founder, for Founders</h3>
                     <p className="responsive-p" style={{ fontSize: '16px', marginBottom: 0 }}>
-                        XF is being built by a student founder who understands how hard it is to get noticed, how unfair access can be, and how much talent goes unseen. This platform exists to change that.
+                        X is being built by a student founder who understands how hard it is to get noticed, how unfair access can be, and how much talent goes unseen. This platform exists to change that.
                     </p>
                 </div>
             </section>

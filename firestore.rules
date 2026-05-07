@@ -105,6 +105,14 @@
         allow write: if isAdmin();
       }
 
+      // Multi-startup Applications
+      match /applications/{appId} {
+        allow read: if true;
+        allow create: if request.auth != null && request.resource.data.founderId == request.auth.uid;
+        allow update: if request.auth != null && (request.auth.uid == resource.data.founderId || isStaff());
+        allow delete: if request.auth != null && (request.auth.uid == resource.data.founderId || isAdmin());
+      }
+
       // Global default: Deny all other access
       match /{document=**} {
         allow read, write: if false;

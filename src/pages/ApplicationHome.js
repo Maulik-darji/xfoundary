@@ -2,17 +2,15 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { auth, db } from '../firebase';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, collection, query, where, getDocs, updateDoc } from 'firebase/firestore';
 
 const ApplicationHome = () => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('active');
-  const [hasApplication, setHasApplication] = useState(false);
-  const [appName, setAppName] = useState('Untitled');
-  const [appStatus, setAppStatus] = useState('draft');
-  const [submittedAt, setSubmittedAt] = useState(null);
+  const [applications, setApplications] = useState([]);
   const [showWithdrawModal, setShowWithdrawModal] = useState(false);
+  const [selectedAppId, setSelectedAppId] = useState(null);
   const [isWithdrawing, setIsWithdrawing] = useState(false);
   const navigate = useNavigate();
 
@@ -25,8 +23,8 @@ const ApplicationHome = () => {
       setUser(currentUser);
       
       if (currentUser) {
-        // Check if user is an admin or member to redirect them
         try {
+            // Check if user is an admin or member to redirect them
             const adminDoc = await getDoc(doc(db, 'admins', currentUser.uid));
             if (adminDoc.exists()) {
                 navigate('/admin');
@@ -39,24 +37,24 @@ const ApplicationHome = () => {
                 return;
             }
 
-            const memberAppDoc = await getDoc(doc(db, 'memberApplications', currentUser.uid));
-            if (memberAppDoc.exists()) {
-                navigate('/member');
-                return;
+            // Fetch all applications for this founder
+            const q = query(collection(db, 'applications'), where('founderId', '==', currentUser.uid));
+            const querySnapshot = await getDocs(q);
+            const fetchedApps = [];
+            querySnapshot.forEach((doc) => {
+                fetchedApps.push({ id: doc.id, ...doc.data() });
+            });
+
+            // Fallback for legacy application in user doc
+            const userRef = doc(db, 'users', currentUser.uid);
+            const userSnap = await getDoc(userRef);
+            if (userSnap.exists() && userSnap.data().application && fetchedApps.length === 0) {
+                fetchedApps.push({ id: 'legacy', ...userSnap.data().application });
             }
 
-            // Check if application exists
-            const docRef = doc(db, 'users', currentUser.uid);
-            const docSnap = await getDoc(docRef);
-            if (docSnap.exists() && docSnap.data().application) {
-                const appData = docSnap.data().application;
-                setHasApplication(true);
-                setAppName(appData.companyName || 'Untitled');
-                setAppStatus(appData.status || 'draft');
-                setSubmittedAt(appData.submittedAt || null);
-            }
+            setApplications(fetchedApps);
         } catch (error) {
-            console.error("Error checking role or application:", error);
+            console.error("Error fetching applications:", error);
         }
       }
       setLoading(false);
@@ -70,19 +68,24 @@ const ApplicationHome = () => {
   };
 
   const handleWithdraw = async () => {
-    if (!user) return;
+    if (!user || !selectedAppId) return;
     setIsWithdrawing(true);
 
     try {
-        const { updateDoc } = await import('firebase/firestore');
-        await updateDoc(doc(db, 'users', user.uid), {
-            'application.status': 'withdrawn'
-        });
-        setAppStatus('withdrawn');
+        if (selectedAppId === 'legacy') {
+            await updateDoc(doc(db, 'users', user.uid), {
+                'application.status': 'withdrawn'
+            });
+        } else {
+            await updateDoc(doc(db, 'applications', selectedAppId), {
+                status: 'withdrawn'
+            });
+        }
+        
+        setApplications(prev => prev.map(app => app.id === selectedAppId ? { ...app, status: 'withdrawn' } : app));
         setShowWithdrawModal(false);
     } catch (error) {
         console.error("Error withdrawing application:", error);
-        alert("Error withdrawing application. Please try again.");
     } finally {
         setIsWithdrawing(false);
     }
@@ -112,32 +115,9 @@ const ApplicationHome = () => {
             return { text: 'Rejected', color: '#ff4d4f', bg: '#fff1f0', border: '#ffa39e' };
         case 'withdrawn':
             return { text: 'Withdrawn', color: '#ff4d4f', bg: '#fff1f0', border: '#ffa39e' };
-        case 'draft':
         default:
-            return { text: 'Not submitted', color: '#856404', bg: '#fffbe6', border: '#ffe58f' };
+            return { text: 'Draft', color: '#856404', bg: '#fffbe6', border: '#ffe58f' };
     }
-  };
-
-  const badge = getStatusBadge(appStatus);
-
-  // Calculate if the 24-hour edit window is still open
-  const isWithin24Hours = () => {
-    if (!submittedAt) return true;
-    const submittedTime = new Date(submittedAt).getTime();
-    const now = new Date().getTime();
-    const hoursSinceSubmission = (now - submittedTime) / (1000 * 60 * 60);
-    return hoursSinceSubmission <= 24;
-  };
-
-  const getRemainingEditTime = () => {
-    if (!submittedAt) return '';
-    const submittedTime = new Date(submittedAt).getTime();
-    const now = new Date().getTime();
-    const remainingMs = (submittedTime + 24 * 60 * 60 * 1000) - now;
-    if (remainingMs <= 0) return '';
-    const remainingHours = Math.floor(remainingMs / (1000 * 60 * 60));
-    const remainingMinutes = Math.floor((remainingMs % (1000 * 60 * 60)) / (1000 * 60));
-    return `${remainingHours}h ${remainingMinutes}m left to edit`;
   };
 
   return (
@@ -175,7 +155,25 @@ const ApplicationHome = () => {
       <div style={{ maxWidth: '1100px', margin: '4rem auto', display: 'flex', gap: '4rem', padding: '0 2rem' }}>
         {/* Main Content */}
         <div style={{ flex: 2 }}>
-          <h1 style={{ fontFamily: 'Newsreader, serif', fontSize: '3.25rem', fontWeight: 500, fontStyle: 'italic', marginBottom: '2.5rem', letterSpacing: '-0.02em' }}>My Applications</h1>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2.5rem' }}>
+            <h1 style={{ fontFamily: 'Newsreader, serif', fontSize: '3.25rem', fontWeight: 500, fontStyle: 'italic', margin: 0, letterSpacing: '-0.02em' }}>My Applications</h1>
+            <button 
+                onClick={() => navigate('/apply-form/new')}
+                style={{ 
+                    backgroundColor: '#6300dd', 
+                    color: 'white', 
+                    border: 'none', 
+                    padding: '12px 24px', 
+                    borderRadius: '30px', 
+                    fontSize: '15px', 
+                    fontWeight: 'bold', 
+                    cursor: 'pointer',
+                    fontFamily: 'Inter, sans-serif'
+                }}
+            >
+                Start new application
+            </button>
+          </div>
           
           <div style={{ display: 'flex', gap: '1.5rem', marginBottom: '2.5rem', borderBottom: '1px solid #ddd' }}>
             <span onClick={() => setActiveTab('active')} style={tabStyle('active')}>Active</span>
@@ -184,104 +182,136 @@ const ApplicationHome = () => {
             <span onClick={() => setActiveTab('rejected')} style={tabStyle('rejected')}>Rejected</span>
           </div>
 
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
           {(() => {
-            const shouldShowApp = () => {
-              if (!hasApplication) return false;
-              if (activeTab === 'active') return ['draft', 'pending', 'hold'].includes(appStatus);
-              if (activeTab === 'previous') return appStatus === 'withdrawn';
-              if (activeTab === 'approved') return appStatus === 'approved';
-              if (activeTab === 'rejected') return appStatus === 'rejected';
+            const filteredApps = applications.filter(app => {
+              if (activeTab === 'active') return ['draft', 'pending', 'hold'].includes(app.status || 'draft');
+              if (activeTab === 'previous') return app.status === 'withdrawn';
+              if (activeTab === 'approved') return app.status === 'approved';
+              if (activeTab === 'rejected') return app.status === 'rejected';
               return false;
-            };
+            });
 
-            if (shouldShowApp()) {
-              return (
-                <div style={{ backgroundColor: 'white', borderRadius: '4px', border: '1px solid #111', padding: '2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                  <div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.5rem' }}>
-                      <h3 style={{ margin: 0, fontSize: '1.25rem', color: '#111', fontWeight: 'bold' }}>{appName}</h3>
-                      <span style={{ backgroundColor: '#eee', padding: '2px 8px', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>Summer 2026</span>
+            if (filteredApps.length > 0) {
+              return filteredApps.map(app => {
+                const badge = getStatusBadge(app.status);
+                return (
+                    <div key={app.id} style={{ backgroundColor: 'white', borderRadius: '4px', border: '1px solid #111', padding: '2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.5rem' }}>
+                        <h3 style={{ margin: 0, fontSize: '1.25rem', color: '#111', fontWeight: 'bold' }}>{app.companyName || 'Untitled'}</h3>
+                        <span style={{ backgroundColor: '#eee', padding: '2px 8px', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>{app.batch || 'Upcoming'}</span>
+                        </div>
+                        <p style={{ margin: 0, fontSize: '14px' }}>
+                        Founders: <span style={{ color: '#6300dd' }}>{app.founderName || user?.displayName || 'Founder'}</span>
+                        </p>
                     </div>
-                    <p style={{ margin: 0, fontSize: '14px' }}>
-                      Founders: <span style={{ color: '#6300dd' }}>{user?.displayName || 'Maulik Darji'}</span>
-                    </p>
-                  </div>
-                  
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '1rem' }}>
-                    <span style={{ backgroundColor: badge.bg, color: badge.color, padding: '4px 12px', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold', border: `1px solid ${badge.border}` }}>
-                        {badge.text}
-                    </span>
-                    <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1rem' }}>
-                      {appStatus === 'approved' ? (
-                        <button 
-                          onClick={() => navigate('/founderscompany/dashboard')}
-                          style={{ 
-                            backgroundColor: '#6300dd', 
-                            color: 'white', 
-                            border: 'none', 
-                            padding: '8px 24px', 
-                            borderRadius: '20px', 
-                            fontSize: '13px', 
-                            fontWeight: 'bold',
-                            cursor: 'pointer',
-                            fontFamily: 'Inter, sans-serif'
-                          }}
-                        >Go to Dashboard</button>
-                      ) : (
-                        <button 
-                          onClick={() => navigate('/preview-application')}
-                          style={{ 
-                            backgroundColor: 'white', 
-                            border: '1px solid #111', 
-                            padding: '8px 24px', 
-                            borderRadius: '20px', 
-                            fontSize: '13px', 
-                            fontWeight: 'bold',
-                            cursor: 'pointer',
-                            fontFamily: 'Inter, sans-serif'
-                          }}
-                        >Preview</button>
-                      )}
-                      {(appStatus === 'draft' || appStatus === 'withdrawn' || appStatus === 'hold' || (appStatus === 'pending' && isWithin24Hours())) && (
-                          <button 
-                            onClick={() => navigate('/apply-form')}
+                    
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '1rem' }}>
+                        <span style={{ backgroundColor: badge.bg, color: badge.color, padding: '4px 12px', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold', border: `1px solid ${badge.border}` }}>
+                            {badge.text}
+                        </span>
+                        <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1rem' }}>
+                        {app.status === 'approved' ? (
+                            <button 
+                            onClick={() => navigate('/founderscompany/dashboard')}
                             style={{ 
-                            backgroundColor: 'black', 
-                            color: 'white', 
-                            border: 'none', 
-                            padding: '8px 24px', 
-                            borderRadius: '20px', 
-                            fontSize: '13px', 
-                            fontWeight: 'bold',
-                            cursor: 'pointer',
-                            fontFamily: 'Inter, sans-serif'
-                          }}>{(appStatus === 'pending') ? 'Edit application' : 'Continue application'}</button>
-                      )}
-                      {(appStatus === 'pending' && isWithin24Hours()) && (
-                          <div style={{ position: 'absolute', marginTop: '40px', right: '0', fontSize: '11px', color: '#ff9500', fontWeight: 'bold' }}>
-                              {getRemainingEditTime()}
-                          </div>
-                      )}
-                      {appStatus === 'pending' && (
-                          <button 
-                            onClick={() => setShowWithdrawModal(true)}
+                                backgroundColor: '#6300dd', 
+                                color: 'white', 
+                                border: 'none', 
+                                padding: '8px 24px', 
+                                borderRadius: '20px', 
+                                fontSize: '13px', 
+                                fontWeight: 'bold',
+                                cursor: 'pointer',
+                                fontFamily: 'Inter, sans-serif'
+                            }}
+                            >Go to Dashboard</button>
+                        ) : (
+                            <button 
+                            onClick={() => navigate('/preview-application')}
                             style={{ 
-                            backgroundColor: 'transparent', 
-                            border: '1px solid #ff4d4f', 
-                            color: '#ff4d4f',
-                            padding: '8px 24px', 
-                            borderRadius: '20px', 
-                            fontSize: '13px', 
-                            fontWeight: 'bold',
-                            cursor: 'pointer',
-                            fontFamily: 'Inter, sans-serif'
-                          }}>Withdraw Application</button>
-                      )}
+                                backgroundColor: 'white', 
+                                border: '1px solid #111', 
+                                padding: '8px 24px', 
+                                borderRadius: '20px', 
+                                fontSize: '13px', 
+                                fontWeight: 'bold',
+                                cursor: 'pointer',
+                                fontFamily: 'Inter, sans-serif'
+                            }}
+                            >Preview</button>
+                        )}
+                        {['draft', 'withdrawn', 'hold'].includes(app.status || 'draft') && (
+                            <button 
+                                onClick={() => navigate(app.id === 'legacy' ? '/apply-form' : `/apply-form/${app.id}`)}
+                                style={{ 
+                                backgroundColor: 'black', 
+                                color: 'white', 
+                                border: 'none', 
+                                padding: '8px 24px', 
+                                borderRadius: '20px', 
+                                fontSize: '13px', 
+                                fontWeight: 'bold', 
+                                cursor: 'pointer',
+                                fontFamily: 'Inter, sans-serif'
+                            }}>Edit</button>
+                        )}
+                        {app.status === 'pending' && (() => {
+                            const submittedTime = new Date(app.submittedAt).getTime();
+                            const now = new Date().getTime();
+                            const hoursSinceSubmission = (now - submittedTime) / (1000 * 60 * 60);
+                            const isWithin24 = hoursSinceSubmission <= 24;
+                            
+                            const remainingMs = (submittedTime + 24 * 60 * 60 * 1000) - now;
+                            const remainingHours = Math.floor(remainingMs / (1000 * 60 * 60));
+                            const remainingMinutes = Math.floor((remainingMs % (1000 * 60 * 60)) / (1000 * 60));
+                            const countdown = remainingMs > 0 ? `${remainingHours}h ${remainingMinutes}m left to edit` : '';
+
+                            return (
+                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
+                                    {isWithin24 && (
+                                        <button 
+                                            onClick={() => navigate(app.id === 'legacy' ? '/apply-form' : `/apply-form/${app.id}`)}
+                                            style={{ 
+                                            backgroundColor: 'black', 
+                                            color: 'white', 
+                                            border: 'none', 
+                                            padding: '8px 24px', 
+                                            borderRadius: '20px', 
+                                            fontSize: '13px', 
+                                            fontWeight: 'bold', 
+                                            cursor: 'pointer',
+                                            fontFamily: 'Inter, sans-serif'
+                                        }}>Edit</button>
+                                    )}
+                                    {isWithin24 && remainingMs > 0 && (
+                                        <span style={{ fontSize: '11px', color: '#ff9500', fontWeight: 'bold' }}>{countdown}</span>
+                                    )}
+                                </div>
+                            );
+                        })()}
+                        {app.status === 'pending' && (
+                            <button 
+                                onClick={() => { setSelectedAppId(app.id); setShowWithdrawModal(true); }}
+                                style={{ 
+                                backgroundColor: 'transparent', 
+                                border: '1px solid #ff4d4f', 
+                                color: '#ff4d4f',
+                                padding: '8px 24px', 
+                                borderRadius: '20px', 
+                                fontSize: '13px', 
+                                fontWeight: 'bold',
+                                cursor: 'pointer',
+                                fontFamily: 'Inter, sans-serif'
+                            }}>Withdraw</button>
+                        )}
+                        </div>
                     </div>
-                  </div>
-                </div>
-              );
-            } else if (activeTab === 'active' && !hasApplication) {
+                    </div>
+                );
+              });
+            } else if (activeTab === 'active') {
               return (
                 <div style={{ backgroundColor: '#f0eaff', borderRadius: '4px', border: '1px solid #6300dd33', padding: '3.5rem 3rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div>
@@ -289,7 +319,7 @@ const ApplicationHome = () => {
                     <p style={{ margin: 0, color: '#666', fontSize: '15px' }}>Submit it when you're ready.</p>
                   </div>
                   <button 
-                    onClick={() => navigate('/apply-form')}
+                    onClick={() => navigate('/apply-form/new')}
                     style={{ 
                       backgroundColor: 'black', 
                       color: 'white', 
@@ -314,6 +344,7 @@ const ApplicationHome = () => {
               );
             }
           })()}
+          </div>
         </div>
 
         {/* Sidebar */}

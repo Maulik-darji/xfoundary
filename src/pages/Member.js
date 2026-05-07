@@ -707,7 +707,7 @@ const Member = () => {
                   { q: "Demo Video", a: appData.demoUrl, type: "status", status: appData.demoUrl ? "Video uploaded" : "No video uploaded" },
                   { q: "Please provide a link to the product, if any.", a: appData.productUrl },
                   { q: "What is your company going to make? Please describe your product and what it does or will do.", a: appData.whatMaking },
-                  { q: "Where do you live now, and where would the company be based after YC?", a: appData.liveNowLocation },
+                  { q: "Where do you live now, and where would the company be based after X Foundary?", a: appData.liveNowLocation },
                   { q: "Explain your decision regarding location.", a: appData.locationDecision }
                 ]
               },

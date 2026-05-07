@@ -57,56 +57,100 @@ const StartupDetail = () => {
                     }
                 }
 
-                const docRef = doc(db, 'users', id);
-                const docSnap = await getDoc(docRef);
+                // 1. Try 'applications' collection by ID
+                const appRef = doc(db, 'applications', id);
+                let appSnap = await getDoc(appRef);
+                let appDataFromSnap = null;
                 
-                if (docSnap.exists()) {
-                    const data = docSnap.data();
-                    const app = data.application || {};
+                if (appSnap.exists()) {
+                    appDataFromSnap = appSnap.data();
+                } else {
+                    // 1b. If not found by ID, try querying by founderId
+                    const appQuery = query(collection(db, 'applications'), where('founderId', '==', id));
+                    const appQuerySnap = await getDocs(appQuery);
+                    if (!appQuerySnap.empty) {
+                        appSnap = appQuerySnap.docs[0];
+                        appDataFromSnap = appSnap.data();
+                    }
+                }
+                
+                if (appDataFromSnap) {
+                    const app = appDataFromSnap;
                     
-                    const linkedinUrl = data.socials?.linkedin || app.socials?.linkedin || '';
-                    
+                    // Fetch founder details
+                    let founderInfo = { name: 'Founder', photo: `https://api.dicebear.com/7.x/avataaars/svg?seed=${id}`, bio: app.whyIdea || '' };
+                    if (app.founderId) {
+                        const userSnap = await getDoc(doc(db, 'users', app.founderId));
+                        if (userSnap.exists()) {
+                            const u = userSnap.data();
+                            founderInfo = {
+                                name: u.profile?.name || u.displayName || app.founderName || 'Founder',
+                                photo: u.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${app.founderId}`,
+                                bio: app.whyIdea || u.profile?.bio || '',
+                                linkedin: u.socials?.linkedin || app.founderLinkedIn || ''
+                            };
+                        }
+                    }
+
                     setStartup({
-                        id: docSnap.id,
+                        id: appSnap.id,
                         name: app.companyName || 'Unnamed Startup',
                         location: app.basedIn || 'Unknown Location',
                         tagline: app.companyDescription?.split('.')[0] + '.' || 'No tagline available.',
                         fullDesc: app.companyDescription || 'No detailed description provided.',
                         batch: app.batch || 'Upcoming',
-                        industries: (() => {
-                            const tags = new Set();
-                            const inds = Array.isArray(app.industries) ? app.industries : (app.category ? [app.category] : []);
-                            inds.forEach(ind => {
-                                if (industryHierarchy[ind]) {
-                                    tags.add(ind);
-                                } else {
-                                    const parent = Object.keys(industryHierarchy).find(k => industryHierarchy[k].includes(ind));
-                                    if (parent) tags.add(parent);
-                                    tags.add(ind);
-                                }
-                            });
-                            return tags.size > 0 ? [...tags] : ['Tech'];
-                        })(),
+                        industries: Array.isArray(app.industries) ? app.industries : ['Tech'],
                         logo: app.companyLogo || (app.companyUrl ? `https://logo.clearbit.com/${app.companyUrl.replace(/^https?:\/\//, '')}` : 'https://via.placeholder.com/120?text=X'),
                         url: app.companyUrl?.startsWith('http') ? app.companyUrl : `https://${app.companyUrl}`,
-                        founded: app.howLongWork?.match(/\d{4}/)?.[0] || '2024',
-                        teamSize: app.foundersKnown?.match(/\d+/)?.[0] || '2',
-                        status: app.legalEntityRadio === 'Yes' ? 'Public' : 'Private',
+                        founded: '2024',
+                        teamSize: '2',
+                        status: app.status === 'approved' ? 'Public' : 'Private',
                         partner: 'X Foundary',
-                        socials: {
-                            twitter: app.socials?.twitter || '',
-                            linkedin: linkedinUrl,
-                            github: app.socials?.github || '',
-                            facebook: app.socials?.facebook || '',
-                            crunchbase: app.socials?.crunchbase || ''
-                        },
+                        socials: { linkedin: founderInfo.linkedin || '' },
+                        founders: [founderInfo],
+                        news: []
+                    });
+                    document.title = `${app.companyName || 'Startup'} | X Foundary`;
+
+                    // Fetch Jobs (if any)
+                    const jQ = query(collection(db, 'jobs'), where('founderId', '==', app.founderId));
+                    const jSnap = await getDocs(jQ);
+                    setJobs(jSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+                    setLoading(false);
+                    return;
+                }
+
+                // 2. Fallback to legacy 'users' collection
+                const userRef = doc(db, 'users', id);
+                const userSnap = await getDoc(userRef);
+                
+                if (userSnap.exists()) {
+                    const data = userSnap.data();
+                    const app = data.application || {};
+                    
+                    const linkedinUrl = data.socials?.linkedin || app.socials?.linkedin || '';
+                    
+                    setStartup({
+                        id: userSnap.id,
+                        name: app.companyName || 'Unnamed Startup',
+                        location: app.basedIn || 'Unknown Location',
+                        tagline: app.companyDescription?.split('.')[0] + '.' || 'No tagline available.',
+                        fullDesc: app.companyDescription || 'No detailed description provided.',
+                        batch: app.batch || 'Upcoming',
+                        industries: Array.isArray(app.industries) ? app.industries : ['Tech'],
+                        logo: app.companyLogo || (app.companyUrl ? `https://logo.clearbit.com/${app.companyUrl.replace(/^https?:\/\//, '')}` : 'https://via.placeholder.com/120?text=X'),
+                        url: app.companyUrl?.startsWith('http') ? app.companyUrl : `https://${app.companyUrl}`,
+                        founded: '2024',
+                        teamSize: '2',
+                        status: app.status === 'approved' ? 'Public' : 'Private',
+                        partner: 'X Foundary',
+                        socials: { linkedin: linkedinUrl },
                         founders: [
                             {
                                 name: data.profile?.name || data.displayName || 'Founder',
                                 role: data.profile?.title || 'Founder/CEO',
                                 bio: app.whyIdea || 'Founder bio not provided.',
-                                photo: data.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${docSnap.id}`,
-                                twitter: data.socials?.twitter || '',
+                                photo: data.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${userSnap.id}`,
                                 linkedin: linkedinUrl
                             }
                         ],
@@ -115,7 +159,7 @@ const StartupDetail = () => {
                     document.title = `${app.companyName || 'Startup'} | X Foundary`;
 
                     // Fetch Jobs
-                    const jQ = query(collection(db, 'jobs'), where('founderId', '==', docSnap.id));
+                    const jQ = query(collection(db, 'jobs'), where('founderId', '==', userSnap.id));
                     const jSnap = await getDocs(jQ);
                     setJobs(jSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
                 }
@@ -146,7 +190,7 @@ const StartupDetail = () => {
                     <span style={{ color: '#000', fontWeight: '700' }}>{startup.name} (Founded in {startup.batch})</span>
                 </nav>
 
-                {/* Two-Column YC Layout */}
+                {/* Two-Column XF Layout */}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', gap: '3rem', alignItems: 'start' }}>
                     
                     {/* Left Column */}
@@ -326,7 +370,7 @@ const StartupDetail = () => {
                 </div>
             </div>
 
-            {/* YC-Style Mega Footer */}
+            {/* XF-Style Mega Footer */}
             <footer style={{ backgroundColor: '#f5f5ee', borderTop: '1px solid #eee', padding: '5rem 2rem', marginTop: '5rem' }}>
                 <div style={{ maxWidth: '1100px', margin: '0 auto', display: 'grid', gridTemplateColumns: '80px 1.2fr 1.2fr 1.5fr 1.2fr', gap: '2rem' }}>
                     {/* Brand Logo */}

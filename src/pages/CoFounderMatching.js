@@ -110,7 +110,7 @@ const CoFounderMatching = () => {
                     {/* Column 1 */}
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                         <h4 style={{ margin: '0 0 4px 0', fontSize: '14px', fontWeight: '800', color: '#fff' }}>Programs</h4>
-                        {['YC Program', 'Startup School', 'Work at a Startup', 'Co-Founder Matching'].map(item => (
+                        {['XF Program', 'Startup School', 'Work at a Startup', 'Co-Founder Matching'].map(item => (
                             <a key={item} href="#" style={{ fontSize: '13px', color: '#aaa', textDecoration: 'none' }}>{item}</a>
                         ))}
                     </div>
@@ -126,7 +126,7 @@ const CoFounderMatching = () => {
                     {/* Column 3 */}
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                         <h4 style={{ margin: '0 0 4px 0', fontSize: '14px', fontWeight: '800', color: '#fff' }}>Company</h4>
-                        {['YC Blog', 'Contact', 'Press', 'People', 'Careers', 'Privacy Policy'].map(item => (
+                        {['XF Blog', 'Contact', 'Press', 'People', 'Careers', 'Privacy Policy'].map(item => (
                             <a key={item} href="#" style={{ fontSize: '13px', color: '#aaa', textDecoration: 'none' }}>{item}</a>
                         ))}
                     </div>

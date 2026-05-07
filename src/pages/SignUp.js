@@ -88,7 +88,7 @@ const SignUp = () => {
   return (
     <div className="login-page">
       <div className="login-card" style={{ maxWidth: '520px' }}>
-        <Link to="/" className="login-logo">X</Link>
+        <Link to="/" className="login-logo">XF</Link>
         <h1>{context === 'apply' ? 'Sign up to access the X Application' : 'Sign up'}</h1>
         
         {error && (

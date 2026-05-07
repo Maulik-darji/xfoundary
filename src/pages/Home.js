@@ -7,7 +7,7 @@ const Hero = ({ userRole }) => {
   return (
     <section className="hero">
       <h1>
-        XF Helps founders <em>feature their startup globally</em>
+        X Helps founders <em>feature their startup globally</em>
       </h1>
       <p>Four times a year we invest in a large number of startups.</p>
       <div className="hero-footer">
@@ -22,12 +22,12 @@ const Hero = ({ userRole }) => {
 const FundingDetails = () => (
   <section className="funding-details">
     <div className="funding-details-content">
-      <p>XF helps startups reach the world.
+      <p>X helps startups reach the world.
 <br/><br/>
 We help founders gain global visibility, connect with the right audience, and grow beyond borders.
 <br/><br/>
 And we don’t stop there—
-XF continues to support startups as they scale worldwide.</p>
+X continues to support startups as they scale worldwide.</p>
       </div>
   </section>
 );

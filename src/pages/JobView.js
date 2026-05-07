@@ -215,7 +215,7 @@ const JobView = () => {
                 </div>
             </div>
 
-            {/* YC-Style Mega Footer */}
+            {/* XF-Style Mega Footer */}
             <footer style={{ backgroundColor: '#f5f5ee', borderTop: '1px solid #eee', padding: '5rem 2rem', marginTop: '5rem' }}>
                 <div style={{ maxWidth: '1100px', margin: '0 auto', display: 'grid', gridTemplateColumns: '80px 1.2fr 1.2fr 1.5fr 1.2fr', gap: '2rem' }}>
                     {/* Brand Logo */}

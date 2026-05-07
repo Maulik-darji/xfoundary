@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link, useLocation } from 'react-router-dom';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { auth, db } from './firebase';
-import { doc, getDoc, onSnapshot } from 'firebase/firestore';
+import { doc, getDoc, onSnapshot, collection, query, where, getDocs } from 'firebase/firestore';
 import './index.css';
 import Home from './pages/Home';
 import Login from './pages/Login';
@@ -11,6 +11,7 @@ import Apply from './pages/Apply';
 import ResetPassword from './pages/ResetPassword';
 import ApplicationHome from './pages/ApplicationHome';
 import ApplyForm from './pages/ApplyForm';
+import StartupRegistration from './pages/StartupRegistration';
 import PreviewApplication from './pages/PreviewApplication';
 import FounderProfile from './pages/FounderProfile';
 import WhatHappens from './pages/WhatHappens';
@@ -54,6 +55,7 @@ const Header = () => {
   const [userRole, setUserRole] = useState(null);
   const [isApprovedFounder, setIsApprovedFounder] = useState(false);
   const [authLoading, setAuthLoading] = useState(true);
+  const [hasApplied, setHasApplied] = useState(false);
 
   useEffect(() => {
     let unsubUser = null;
@@ -66,10 +68,18 @@ const Header = () => {
             if (docSnap.exists()) {
               const data = docSnap.data();
               setIsApprovedFounder(data.application?.status === 'approved');
+              if (data.application) {
+                setHasApplied(true);
+              }
               setUserRole('user');
             }
             setAuthLoading(false);
           });
+
+          // Check for previous applications
+          const appsQuery = query(collection(db, 'applications'), where('founderId', '==', currentUser.uid));
+          const appsSnap = await getDocs(appsQuery);
+          setHasApplied(!appsSnap.empty);
 
           // Check if admin or member (these are usually static roles)
           const adminDoc = await getDoc(doc(db, 'admins', currentUser.uid));
@@ -92,6 +102,7 @@ const Header = () => {
       } else {
         setUserRole(null);
         setIsApprovedFounder(false);
+        setHasApplied(false);
         setAuthLoading(false);
       }
     });
@@ -118,7 +129,7 @@ const Header = () => {
         <div className="mobile-header-row">
             <div className="mobile-header-left" style={{ width: '40px' }} />
             <Link to="/" className="mobile-logo" onClick={closeMobileMenu}>
-                <div className="yc-logo">X</div>
+                <div className="xf-logo">X</div>
             </Link>
             <button className="hamburger-btn" onClick={toggleMobileMenu} style={{ width: '40px' }}>
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -177,7 +188,7 @@ const Header = () => {
                                 <Link to="/newsletter" onClick={closeMobileMenu}>Newsletter</Link>
                                 <Link to="/verify-founders" onClick={closeMobileMenu}>Verify Founders</Link>
                                 <Link to="/find-co-founder" onClick={closeMobileMenu}>Find a Co-Founder</Link>
-                                <a href="https://news.ycombinator.com/news" target="_blank" rel="noopener noreferrer" onClick={closeMobileMenu}>Hacker News</a>
+                                <a href="https://news.ycombinator.com/news" target="_blank" rel="noopener noreferrer" onClick={closeMobileMenu}>X News</a>
                             </div>
                         )}
                     </div>
@@ -197,7 +208,7 @@ const Header = () => {
                     <div className="mobile-apply-container">
                         {(!userRole || userRole === 'user') && (
                             <Link to="/apply" onClick={closeMobileMenu} className="mobile-pill-apply">
-                                <em>Apply</em>
+                                {hasApplied ? 'Apply Again' : 'Apply'}
                             </Link>
                         )}
                     </div>
@@ -229,7 +240,7 @@ const Header = () => {
           <Link to="/library" className="nav-item">Library</Link>
           
           <Link to="/" className="logo-container" style={{ textDecoration: 'none' }}>
-            <div className="yc-logo">X</div>
+            <div className="xf-logo">X</div>
           </Link>
           
           <div className="nav-item has-dropdown">
@@ -246,7 +257,7 @@ const Header = () => {
           <Link to="/jobs" className="nav-item">Startup Jobs</Link>
           
           {isApprovedFounder && (
-            <Link to="/founderscompany/dashboard" className="nav-item" style={{ color: 'var(--yc-orange)', fontWeight: '600', textDecoration: 'none' }}>
+            <Link to="/founderscompany/dashboard" className="nav-item" style={{ color: 'var(--xf-primary)', fontWeight: '600', textDecoration: 'none' }}>
               Founder Dashboard
             </Link>
           )}
@@ -261,13 +272,18 @@ const Header = () => {
                 <div className="profile-username">{user.displayName || (user.email && user.email.split('@')[0]) || 'User'}</div>
                 
                 {userRole === 'admin' && (
-                  <Link to="/admin" className="dropdown-item" style={{ color: 'var(--yc-orange)', fontWeight: '600' }}>
-                    Admin Portal
-                  </Link>
+                  <>
+                    <Link to="/admin" className="dropdown-item" style={{ color: 'var(--xf-primary)', fontWeight: '600' }}>
+                      Dashboard
+                    </Link>
+                    <Link to="/member" className="dropdown-item" style={{ color: 'var(--xf-primary)', fontWeight: '600' }}>
+                      Member Area
+                    </Link>
+                  </>
                 )}
                 
                 {userRole === 'member' && (
-                  <Link to="/member" className="dropdown-item" style={{ color: 'var(--yc-orange)', fontWeight: '600' }}>
+                  <Link to="/member" className="dropdown-item" style={{ color: 'var(--xf-primary)', fontWeight: '600' }}>
                     Member Portal
                   </Link>
                 )}
@@ -293,7 +309,7 @@ const Header = () => {
           ) : (
             <Link to="/login" className="btn-login">Log in</Link>
           )}
-          {(!userRole || userRole === 'user') && <Link to="/apply" className="btn-apply">Apply</Link>}
+          {(!userRole || userRole === 'user') && <Link to="/apply" className="btn-apply">{hasApplied ? 'Apply Again' : 'Apply'}</Link>}
         </div>
       </div>
     </header>
@@ -386,6 +402,7 @@ function App() {
           {/* Portal Pages (No main header/footer) */}
           <Route path="/home" element={<ApplicationHome />} />
           <Route path="/apply-form" element={<ApplyForm />} />
+          <Route path="/apply-form/:id" element={<ApplyForm />} />
           <Route path="/preview-application" element={<PreviewApplication />} />
           <Route path="/founder-profile" element={<FounderProfile />} />
           <Route path="/admin" element={<Admin />} />

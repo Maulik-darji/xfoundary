@@ -87,12 +87,12 @@ const FAQ = () => {
                 <h2 className="responsive-h2">General</h2>
                 
                 <div className="faq-item">
-                    <p style={questionStyle}>What is X Foundary (XF)?</p>
+                    <p style={questionStyle}>What is X?</p>
                     <p className="responsive-p">XF is a curated platform that discovers and showcases high-potential startups that are often overlooked. We help these startups get visibility and connect them with investors.</p>
                 </div>
 
                 <div className="faq-item">
-                    <p style={questionStyle}>Are you an accelerator like Y Combinator?</p>
+                    <p style={questionStyle}>Are you an accelerator like X Foundary?</p>
                     <div className="responsive-p">
                         <p>No. We do not run batches, cohorts, or funding rounds. We focus on:</p>
                         <ul style={{ paddingLeft: '1.5rem', marginTop: '0.5rem' }}>

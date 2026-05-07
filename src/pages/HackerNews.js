@@ -68,7 +68,7 @@ const HackerNews = () => {
 
                 <footer style={{ borderTop: '2px solid #ff6600', padding: '20px', textAlign: 'center', fontSize: '12px', color: '#828282' }}>
                     <div style={{ marginBottom: '10px', display: 'flex', justifyContent: 'center', gap: '10px', color: '#000', flexWrap: 'wrap' }}>
-                        {['Guidelines', 'FAQ', 'Lists', 'API', 'Security', 'Legal', 'Apply to YC', 'Contact'].map(item => (
+                        {['Guidelines', 'FAQ', 'Lists', 'API', 'Security', 'Legal', 'Apply to XF', 'Contact'].map(item => (
                             <span key={item} style={{ cursor: 'pointer' }}>{item}</span>
                         ))}
                     </div>

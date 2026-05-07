@@ -183,12 +183,39 @@ const Directory = ({ embedded }) => {
                     console.error("Error fetching settings:", err);
                 }
 
-                const q = query(collection(db, 'users'));
-                const querySnapshot = await getDocs(q);
                 const fetched = [];
-                querySnapshot.forEach((doc) => {
+
+                // 1. Fetch from new 'applications' collection
+                try {
+                    const appsQ = query(collection(db, 'applications'));
+                    const appsSnap = await getDocs(appsQ);
+                    appsSnap.forEach((doc) => {
+                        const app = doc.data();
+                        fetched.push({
+                            id: doc.id,
+                            name: app.companyName || 'Unnamed Startup',
+                            location: app.basedIn || 'Unknown Location',
+                            desc: app.companyDescription || 'No description provided.',
+                            batch: app.batch || 'Upcoming',
+                            industries: (() => {
+                                if (Array.isArray(app.industries) && app.industries.length > 0) return app.industries;
+                                return ['Other'];
+                            })(),
+                            logo: app.companyLogo || (app.companyUrl ? `https://logo.clearbit.com/${app.companyUrl.replace(/^https?:\/\//, '')}` : 'https://via.placeholder.com/110?text=X'),
+                            top: app.status === 'approved', 
+                            teamSize: parseInt(app.teamSize) || 1
+                        });
+                    });
+                } catch (err) {
+                    console.error("Error fetching applications collection:", err);
+                }
+
+                // 2. Fetch from legacy 'users' collection (only if not already fetched or to maintain compatibility)
+                const uq = query(collection(db, 'users'));
+                const uSnap = await getDocs(uq);
+                uSnap.forEach((doc) => {
                     const data = doc.data();
-                    if (data.application) {
+                    if (data.application && !fetched.some(f => f.id === doc.id)) {
                         const app = data.application;
                         fetched.push({
                             id: doc.id,
@@ -201,10 +228,8 @@ const Directory = ({ embedded }) => {
                                 const parts = [app.category, app.subCategory].filter(Boolean);
                                 return parts.length > 0 ? parts : ['Other'];
                             })(),
-                            logo: app.companyLogo || `https://logo.clearbit.com/${app.companyUrl?.replace(/^https?:\/\//, '')}` || 'https://via.placeholder.com/110?text=X',
-                            top: data.application.status === 'approved', 
-                            hiring: data.isHiring || false,
-                            nonprofit: data.isNonprofit || false,
+                            logo: app.companyLogo || (app.companyUrl ? `https://logo.clearbit.com/${app.companyUrl.replace(/^https?:\/\//, '')}` : 'https://via.placeholder.com/110?text=X'),
+                            top: app.status === 'approved', 
                             teamSize: parseInt(app.teamSize) || 1
                         });
                     }

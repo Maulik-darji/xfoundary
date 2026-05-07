@@ -299,7 +299,7 @@ const Login = () => {
     <div className="login-page">
       {view === 'login' ? (
         <div className="login-card">
-          <Link to="/" className="login-logo">X</Link>
+          <Link to="/" className="login-logo">XF</Link>
           <h1>{context === 'apply' ? 'Log in to access the X Application' : 'Log in'}</h1>
           
           {error && (
